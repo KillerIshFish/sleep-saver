@@ -615,6 +615,18 @@ class NightAssemblerTest {
         }
 
         @Test
+        fun `all sources take another app's whole night over a short Garmin fragment`() {
+            val other = mainSession("other", origin = Fx.OTHER)
+            val fragment = mainSession("garmin", dt(day, "05:00"), dt(day, "06:00"))
+
+            val night = assemble(fragment, other, source = SourceSelection.All).single()
+
+            assertThat(night.main!!.sessionIds).containsExactly("other")
+            assertThat(night.origin).isEqualTo(Fx.OTHER)
+            assertThat(night.mainSleep).isEqualTo(hm(8))
+        }
+
+        @Test
         fun `block origin is the origin of its longest session`() {
             val longOther = mainSession("other", dt(prev, "23:00"), dt(day, "05:00"), origin = Fx.OTHER)
             val shortGarmin = mainSession("garmin", dt(day, "04:00"), dt(day, "07:00"))
@@ -846,10 +858,22 @@ class NightAssemblerTest {
             val night = assemble(mainSession(), addedAwake = listOf(awake)).single()
 
             assertThat(night.override).isNull()
+            assertThat(night.isEdited).isTrue()
+            assertThat(night.isManual).isFalse()
             assertThat(night.mainSleep).isEqualTo(hm(7, 30))
             assertThat(night.awakeInMain).isEqualTo(min(30))
             assertThat(night.interruptions)
                 .containsExactly(AwakePeriod(at(day, "03:00"), at(day, "03:30"), AwakeKind.ADDED))
+        }
+
+        @Test
+        fun `added awake time outside main sleep doesn't make the night edited`() {
+            val awake = AddedAwake(1, day, at(day, "08:00"), at(day, "08:30"))
+
+            val night = assemble(mainSession(), addedAwake = listOf(awake)).single()
+
+            assertThat(night.isEdited).isFalse()
+            assertThat(night.mainSleep).isEqualTo(hm(8))
         }
 
         @Test

@@ -17,6 +17,8 @@ data class SleepConfig(
     val napWindowEnd: LocalTime = LocalTime.of(20, 0),
     val interruptionMinDuration: Duration = Duration.ofMinutes(5),
     val dedupeOverlapRatio: Double = 0.5,
+    /** "All sources": a duplicate shorter than this fraction of the other one loses to it, whatever its origin. */
+    val dedupeShortDuplicateRatio: Double = 0.5,
     val preferredOrigin: String = GARMIN_CONNECT_PACKAGE,
 
     // --- Sleep need (§3.2) ---

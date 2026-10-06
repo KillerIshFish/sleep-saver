@@ -6,9 +6,11 @@ import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
 import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.habits.HabitScheduler
 import com.sleepsaver.core.domain.model.DailyInsights
+import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.Night
+import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.need.SleepNeedEstimator
 import java.time.Instant
@@ -23,9 +25,16 @@ import java.time.ZoneId
  *    now < W − waitingStartsBeforeWake → NOT_EXPECTED_YET; local time < waitingGiveUpAt → WAITING; else MISSING.
  *  - debt shown = debt(today) if present else debt(today − 1); debtChange vs the day before that.
  *  - status/energyPotential from that debt; streak as of the same day.
- *  - schedule = today's schedule with shifts vs yesterday's (yesterday computed only from nights with wakeDate ≤ today − 1).
+ *  - schedule = today's schedule with shifts vs yesterday's. Each day's schedule is computed only from nights with
+ *    wakeDate ≤ that day and with the debt shown on that day, i.e. as the user saw it then.
+ *  - Night owls after midnight: while now is before the end of *yesterday's* melatonin window (e.g. W 10:30 →
+ *    bedtime 02:15, window until 02:45), tonight's wind-down and bedtime still belong to yesterday's schedule, so
+ *    schedule/currentPhase/upcomingPhases/habits/nextHabit come from yesterday's schedule (with its own shifts vs
+ *    the day before). Everything else (today, lastNight, lastNightState, debt, ...) stays on the calendar date.
+ *    Check [DailyInsights.schedule]'s date to tell the two apart.
  *  - habits from HabitScheduler; nextHabit = first upcoming enabled one.
- *  - missingNights = SleepDebt.missingNights of the displayed debt, excluding today while WAITING/NOT_EXPECTED_YET.
+ *  - missingNights = SleepDebt.missingNights of the displayed debt, excluding today while WAITING/NOT_EXPECTED_YET
+ *    and every date before the first present night ever (a new user has nothing to add yet).
  *  - needEstimate from SleepNeedEstimator.
  *
  * debtChange is null when the day before the displayed one has no present night in its debt window (no history yet).
@@ -44,7 +53,8 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
         now: Instant,
         zone: ZoneId,
     ): DailyInsights {
-        val today = LocalDate.ofInstant(now, zone)
+        // Not LocalDate.ofInstant: that needs API 34 and minSdk is 28.
+        val today = now.atZone(zone).toLocalDate()
         val yesterday = today.minusDays(1)
         val need = settings.sleepNeed
         val nightsByDate = nights.associateBy { it.wakeDate }
@@ -58,20 +68,31 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
             null
         }
 
-        val yesterdayNights = nights.filter { !it.wakeDate.isAfter(yesterday) }
-        val yesterdayDebt = debtCalculator.debtAsOf(displayedDebtDate(yesterday, nightsByDate), nightsByDate, need).debt
-        val schedule = scheduleCalculator.withShifts(
-            today = scheduleCalculator.schedule(today, zone, nights, need, debt.debt, settings.typicalWake),
-            yesterday = scheduleCalculator.schedule(yesterday, zone, yesterdayNights, need, yesterdayDebt, settings.typicalWake),
+        fun scheduleOn(day: LocalDate): EnergySchedule = scheduleCalculator.schedule(
+            date = day,
+            zone = zone,
+            nights = nights,
+            need = need,
+            debt = debtCalculator.debtAsOf(displayedDebtDate(day, nightsByDate), nightsByDate, need).debt,
+            fallbackWake = settings.typicalWake,
         )
+        val todaySchedule = scheduleOn(today)
+        val yesterdaySchedule = scheduleOn(yesterday)
+        val yesterdayStillOn = yesterdaySchedule.phase(PhaseType.MELATONIN_WINDOW)?.let { now < it.end } == true
+        val schedule = if (yesterdayStillOn) {
+            scheduleCalculator.withShifts(yesterdaySchedule, scheduleOn(yesterday.minusDays(1)))
+        } else {
+            scheduleCalculator.withShifts(todaySchedule, yesterdaySchedule)
+        }
 
         val lastNightState = when {
             lastNight != null -> LastNightState.AVAILABLE
-            now < schedule.typicalWake.toInstant() - config.waitingStartsBeforeWake -> LastNightState.NOT_EXPECTED_YET
+            now < todaySchedule.typicalWake.toInstant() - config.waitingStartsBeforeWake -> LastNightState.NOT_EXPECTED_YET
             now.atZone(zone).toLocalTime() < config.waitingGiveUpAt -> LastNightState.WAITING
             else -> LastNightState.MISSING
         }
         val stillExpected = lastNightState == LastNightState.WAITING || lastNightState == LastNightState.NOT_EXPECTED_YET
+        val firstNight = nights.filter { it.isPresent }.minOfOrNull { it.wakeDate }
 
         val habits = habitScheduler.schedule(schedule, habitSettings)
         return DailyInsights(
@@ -90,7 +111,9 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
             upcomingPhases = schedule.upcomingPhases(now),
             habits = habits,
             nextHabit = habitScheduler.nextUp(habits, now),
-            missingNights = debt.missingNights.filterNot { stillExpected && it == today },
+            missingNights = debt.missingNights.filter { date ->
+                firstNight != null && !date.isBefore(firstNight) && !(stillExpected && date == today)
+            },
             needEstimate = needEstimator.estimate(nights, need, today),
         )
     }

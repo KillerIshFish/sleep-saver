@@ -146,7 +146,10 @@ data class EnergyCurve(val points: List<EnergyPoint>) {
 }
 
 data class EnergySchedule(
-    /** The day this schedule is for (= today's wake date). */
+    /**
+     * The day this schedule is for (a wake date). In [DailyInsights] it is today, or yesterday while a night owl's
+     * evening (yesterday's wind-down / melatonin window) runs past midnight.
+     */
     val date: LocalDate,
     val zone: ZoneId,
     /** W: typical wake for [date]. */
@@ -253,12 +256,17 @@ data class DailyInsights(
     val status: DebtStatus,
     val streak: Streak,
     val energyPotential: Int,
+    /**
+     * Today's schedule, except between midnight and the end of yesterday's melatonin window (night owls), when it is
+     * yesterday's: tonight's wind-down and bedtime are still ahead. [currentPhase], [upcomingPhases], [habits] and
+     * [nextHabit] come from the same schedule. Compare `schedule.date` with [today] to tell.
+     */
     val schedule: EnergySchedule,
     val currentPhase: Phase?,
     val upcomingPhases: List<Phase>,
     val habits: List<ScheduledHabit>,
     val nextHabit: ScheduledHabit?,
-    /** Missing nights inside the 14-night debt window. */
+    /** Missing nights inside the 14-night debt window, never before the user's first night with data. */
     val missingNights: List<LocalDate>,
     val needEstimate: SleepNeedEstimateResult,
 )

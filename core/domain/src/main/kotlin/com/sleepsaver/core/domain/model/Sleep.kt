@@ -170,7 +170,16 @@ data class Night(
     val origin: String? = null,
 ) {
     val isPresent: Boolean get() = main != null || override?.isManualNight == true
-    val isEdited: Boolean get() = override != null
+
+    /**
+     * The user changed this night: it has an override row, or awake time they added by long-pressing the sleep
+     * block (an [AwakeKind.ADDED] period inside main sleep; added time outside the main window has no effect
+     * and doesn't count).
+     */
+    val isEdited: Boolean
+        get() = override != null ||
+            main?.awakePeriods?.any { it.kind == AwakeKind.ADDED } == true ||
+            interruptions.any { it.kind == AwakeKind.ADDED }
     val isManual: Boolean get() = override?.isManualNight == true
     val timeInBed: Duration?
         get() = if (fellAsleep != null && wokeUp != null) Duration.between(fellAsleep, wokeUp) else null

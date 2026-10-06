@@ -6,6 +6,7 @@ import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
 import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.habits.HabitScheduler
 import com.sleepsaver.core.domain.model.DebtStatus
+import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.Night
@@ -185,6 +186,135 @@ class InsightsEngineTest {
         assertThat(insights.schedule.typicalWake.toLocalTime()).isEqualTo(settings.typicalWake)
         assertThat(insights.schedule.phases.map { it.shiftVsYesterday }).containsExactlyElementsIn(List(6) { Duration.ZERO })
         assertThat(insights.nextHabit?.type).isEqualTo(HabitType.CAFFEINE_CUTOFF)
+        assertThat(insights.missingNights).isEmpty()
+    }
+
+    @Test
+    fun `while waiting for last night the phases stay where yesterday put them`() {
+        val nights = nights(1L..20L)
+
+        val waiting = compute(nights, at("06:30"))
+        val arrived = compute(nights(listOf(0L)) + nights, at("08:00"))
+
+        assertThat(waiting.lastNightState).isEqualTo(LastNightState.WAITING)
+        waiting.schedule.phases.forEach { phase ->
+            assertThat(phase.shiftVsYesterday!!.abs()).isAtMost(Duration.ofMinutes(2))
+        }
+        // No snap-back once the night arrives.
+        waiting.schedule.phases.zip(arrived.schedule.phases).forEach { (before, after) ->
+            assertThat(Duration.between(before.start, after.start).abs()).isAtMost(Duration.ofMinutes(5))
+            assertThat(Duration.between(before.end, after.end).abs()).isAtMost(Duration.ofMinutes(5))
+        }
+    }
+
+    @Test
+    fun `missing nights before the first night ever are not listed`() {
+        val newUser = compute(nights(listOf(1L, 2L)), at("10:00"))
+        val withGap = compute(nights(listOf(1L, 2L, 5L)), at("10:00"))
+
+        assertThat(newUser.lastNightState).isEqualTo(LastNightState.WAITING)
+        assertThat(newUser.missingNights).isEmpty()
+        assertThat(withGap.missingNights).containsExactly(today.minusDays(3), today.minusDays(4)).inOrder()
+        assertThat(withGap.debt.missingNights).hasSize(11)
+    }
+
+    @Test
+    fun `a nap-only day before the first night doesn't count as the first night`() {
+        val napOnly = Fx.night(today.minusDays(6), "23:00", "07:00").copy(main = null)
+
+        val insights = compute(listOf(napOnly) + nights(listOf(1L, 2L)), at("10:00"))
+
+        assertThat(insights.missingNights).isEmpty()
+    }
+
+    /** A night owl: in bed 02:30 → 10:30, so W = 10:30, bedtime 02:15, wind-down 00:45–01:45, melatonin 01:45–02:45. */
+    private fun owlNights(days: Iterable<Long>): List<Night> = days.map { Fx.night(today.minusDays(it), "02:30", "10:30") }
+
+    /** [day]'s schedule as the user saw it that day, with shifts vs the day before. */
+    private fun expectedSchedule(nights: List<Night>, day: LocalDate): EnergySchedule {
+        val byDate = nights.associateBy { it.wakeDate }
+        fun on(d: LocalDate): EnergySchedule {
+            val debtDate = if (byDate[d]?.isPresent == true) d else d.minusDays(1)
+            val debt = debtCalculator.debtAsOf(debtDate, byDate, need).debt
+            return scheduleCalculator.schedule(d, zone, nights.filter { !it.wakeDate.isAfter(d) }, need, debt, settings.typicalWake)
+        }
+        return scheduleCalculator.withShifts(on(day), on(day.minusDays(1)))
+    }
+
+    @Test
+    fun `after midnight a night owl still sees last evening's wind-down and bedtime`() {
+        val nights = owlNights(1L..20L)
+        val yesterday = today.minusDays(1)
+
+        val insights = compute(nights, at("00:30"))
+
+        val expected = expectedSchedule(nights, yesterday)
+        assertThat(insights.schedule).isEqualTo(expected)
+        assertThat(insights.schedule.date).isEqualTo(yesterday)
+        assertThat(insights.schedule.targetBedtime).isEqualTo(at("02:15"))
+        assertThat(insights.schedule.phases.map { it.shiftVsYesterday }).containsExactlyElementsIn(List(6) { Duration.ZERO })
+        assertThat(insights.currentPhase).isNull()
+        assertThat(insights.upcomingPhases.map { it.type })
+            .containsExactly(PhaseType.WIND_DOWN, PhaseType.MELATONIN_WINDOW).inOrder()
+        assertThat(insights.habits).isEqualTo(habitScheduler.schedule(expected, habitCatalog.defaultSettings()))
+        assertThat(insights.nextHabit?.type).isEqualTo(HabitType.DIM_LIGHTS)
+        assertThat(insights.nextHabit?.time).isEqualTo(at("00:45"))
+        // Everything else stays on the calendar date.
+        assertThat(insights.today).isEqualTo(today)
+        assertThat(insights.lastNight).isNull()
+        assertThat(insights.lastNightState).isEqualTo(LastNightState.NOT_EXPECTED_YET)
+        assertThat(insights.debt.asOf).isEqualTo(yesterday)
+        assertThat(insights.missingNights).isEmpty()
+
+        val windDown = compute(nights, at("01:00"))
+        assertThat(windDown.currentPhase).isEqualTo(expected.phase(PhaseType.WIND_DOWN))
+        val bedtime = compute(nights, at("02:00"))
+        assertThat(bedtime.currentPhase).isEqualTo(expected.phase(PhaseType.MELATONIN_WINDOW))
+        assertThat(bedtime.nextHabit?.type).isEqualTo(HabitType.BEDTIME)
+        assertThat(bedtime.nextHabit?.time).isEqualTo(at("01:45"))
+    }
+
+    @Test
+    fun `at 00_30 a later owl is in the melatonin window with bedtime next`() {
+        // In bed 01:00 → 09:00: W = 09:00, bedtime 00:45, melatonin window 00:15–01:15.
+        val nights = (1L..20L).map { Fx.night(today.minusDays(it), "01:00", "09:00") }
+
+        val insights = compute(nights, at("00:30"))
+
+        assertThat(insights.schedule.date).isEqualTo(today.minusDays(1))
+        assertThat(insights.currentPhase?.type).isEqualTo(PhaseType.MELATONIN_WINDOW)
+        assertThat(insights.currentPhase).isEqualTo(insights.schedule.phase(PhaseType.MELATONIN_WINDOW))
+        assertThat(insights.nextHabit?.type).isEqualTo(HabitType.BEDTIME)
+        assertThat(insights.nextHabit?.time).isEqualTo(at("00:15"))
+    }
+
+    @Test
+    fun `once last evening's melatonin window is over the owl gets today's schedule`() {
+        val nights = owlNights(1L..20L)
+
+        val atWindowEnd = compute(nights, at("02:45"))
+        val insights = compute(nights, at("03:00"))
+
+        assertThat(atWindowEnd.schedule.date).isEqualTo(today)
+        assertThat(insights.schedule).isEqualTo(expectedSchedule(nights, today))
+        assertThat(insights.schedule.date).isEqualTo(today)
+        assertThat(insights.schedule.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(10, 30))
+        assertThat(insights.currentPhase).isNull()
+        assertThat(insights.nextHabit?.type).isEqualTo(HabitType.MORNING_LIGHT)
+        assertThat(insights.nextHabit?.time).isEqualTo(at("10:45"))
+    }
+
+    @Test
+    fun `an early bird after midnight gets today's schedule`() {
+        // In bed 22:00 → 06:00: bedtime 21:45, so yesterday's melatonin window ended at 22:15.
+        val nights = (1L..20L).map { Fx.night(today.minusDays(it), "22:00", "06:00") }
+
+        val insights = compute(nights, at("00:30"))
+
+        assertThat(insights.schedule.date).isEqualTo(today)
+        assertThat(insights.schedule).isEqualTo(expectedSchedule(nights, today))
+        assertThat(insights.nextHabit?.type).isEqualTo(HabitType.MORNING_LIGHT)
+        assertThat(compute(nights(1L..20L), at("00:30")).schedule.date).isEqualTo(today)
     }
 
     @Test

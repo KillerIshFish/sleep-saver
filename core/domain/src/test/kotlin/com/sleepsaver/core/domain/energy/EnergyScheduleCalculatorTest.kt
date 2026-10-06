@@ -211,6 +211,68 @@ class EnergyScheduleCalculatorTest {
     }
 
     @Test
+    fun `a night that hasn't synced yet counts as a typical night, not a night awake`() {
+        val waiting = calculator.schedule(date, Fx.UTC, nights(1L..7L, "23:00", "07:00"), need, Duration.ZERO, fallback)
+        val arrived = calculator.schedule(
+            date, Fx.UTC, listOf(Fx.night(date, "23:10", "07:05")) + nights(1L..7L, "23:00", "07:00"),
+            need, Duration.ZERO, fallback,
+        )
+
+        assertThat(waiting.actualWake).isNull()
+        assertThat(arrived.actualWake).isEqualTo(at(date, "07:05"))
+        waiting.phases.zip(arrived.phases).forEach { (before, after) ->
+            assertThat(before.type).isEqualTo(after.type)
+            assertNear(before.start, after.start, 5)
+            assertNear(before.end, after.end, 5)
+        }
+        // The nominal night is exactly what a steady sleeper records, so the same night arriving changes nothing.
+        val steady = calculator.schedule(date, Fx.UTC, nights(0L..7L, "23:00", "07:00"), need, Duration.ZERO, fallback)
+        assertThat(waiting.phases).isEqualTo(steady.phases)
+        assertThat(waiting.curve).isEqualTo(steady.curve)
+    }
+
+    @Test
+    fun `a missing night inside the history counts as a typical night`() {
+        val full = nights(0L..7L, "23:00", "07:00")
+        val gap = full.filterNot { it.wakeDate == date.minusDays(2) }
+
+        val withGap = calculator.schedule(date, Fx.UTC, gap, need, Duration.ZERO, fallback)
+        val complete = calculator.schedule(date, Fx.UTC, full, need, Duration.ZERO, fallback)
+
+        assertThat(withGap.curve).isEqualTo(complete.curve)
+        assertThat(withGap.phases).isEqualTo(complete.phases)
+    }
+
+    @Test
+    fun `a nap-only day adds its nap to a typical night`() {
+        val full = nights(0L..7L, "23:00", "07:00")
+        val napDay = date.minusDays(1)
+        val afternoonNap = nap(at(napDay, "14:00"), at(napDay, "14:40"))
+        val napOnly = full.map { if (it.wakeDate == napDay) it.copy(main = null, naps = listOf(afternoonNap)) else it }
+        val nightAndNap = full.map { if (it.wakeDate == napDay) it.copy(naps = listOf(afternoonNap)) else it }
+
+        val s = calculator.schedule(date, Fx.UTC, napOnly, need, Duration.ZERO, fallback)
+
+        assertThat(s.curve).isEqualTo(calculator.schedule(date, Fx.UTC, nightAndNap, need, Duration.ZERO, fallback).curve)
+    }
+
+    @Test
+    fun `a brand-new user gets the nominal phases`() {
+        val s = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(7, 0))
+
+        assertThat(s.anchor.isFallback).isTrue()
+        assertThat(s.actualWake).isNull()
+        assertThat(s.phases).isEqualTo(
+            calculator.schedule(date, Fx.UTC, nights(0L..6L, "23:00", "07:00"), need, Duration.ZERO, fallback).phases,
+        )
+        // Within the tuning tolerance of the guardrails' nominal windows (W = 07:00), far from the ±45 min limits.
+        assertNear(s.get(PhaseType.MORNING_PEAK).start, at(date, "09:00"), 20)
+        assertNear(s.get(PhaseType.AFTERNOON_DIP).start, at(date, "13:30"), 20)
+        assertNear(s.get(PhaseType.EVENING_PEAK).start, at(date, "17:00"), 20)
+        assertOrderedWithoutGaps(s)
+    }
+
+    @Test
     fun `nights after the schedule date are ignored`() {
         val past = nights(0L..6L, "23:00", "07:00")
         val future = (1L..5L).map { Fx.night(date.plusDays(it), "03:00", "11:00") }
