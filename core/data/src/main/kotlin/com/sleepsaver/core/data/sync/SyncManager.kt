@@ -15,6 +15,7 @@ import com.sleepsaver.core.data.healthconnect.catchingOrNull
 import com.sleepsaver.core.data.healthconnect.isRateLimit
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.mapping.toEntity
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
@@ -26,12 +27,12 @@ import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.data.source.ChangeBatch
+import com.sleepsaver.core.data.source.RecordedVital
 import com.sleepsaver.core.data.source.SleepDataSource
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.RawSleepSession
 import com.sleepsaver.core.domain.model.SourceSelection
-import com.sleepsaver.core.domain.model.VitalSample
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +60,9 @@ import kotlin.coroutines.cancellation.CancellationException
  * record types changed since it was issued) the history is re-imported: token first, then 365 days (30 without the
  * history permission) in 30-day chunks, deleting stored sessions in that window that Health Connect no
  * longer has.
+ *
+ * After a successful run (incremental or [importHistory]) the same hooks run: the "last night arrived" notification,
+ * the time-based morning reminder when background reads aren't allowed, and the retry chain while last night is missing.
  */
 @Singleton
 class SyncManager @Inject constructor(
@@ -86,6 +90,9 @@ class SyncManager @Inject constructor(
     /** Set once a sync has finished, so the saved state loaded at start can't overwrite a fresher result. */
     private var finishedOnce = false
 
+    /** The permissions the current run started with (null before it read them). Guarded by [mutex]. */
+    private var runPermissions: HealthPermissionState? = null
+
     init {
         appScope.launch {
             val saved = catchingOrNull { store.current() } ?: return@launch
@@ -97,7 +104,9 @@ class SyncManager @Inject constructor(
 
     override suspend fun sync(trigger: SyncTrigger): SyncResult = mutex.withLock { runGuarded(trigger, forceImport = false) }
 
-    override suspend fun importHistory(): SyncResult = mutex.withLock { runGuarded(trigger = null, forceImport = true) }
+    /** Asked for from the UI (onboarding, or a re-import in settings): a foreground run, hooks included. */
+    override suspend fun importHistory(): SyncResult =
+        mutex.withLock { runGuarded(SyncTrigger.ONBOARDING, forceImport = true) }
 
     override fun ensurePeriodicSync() = scheduler.ensurePeriodic()
 
@@ -120,16 +129,17 @@ class SyncManager @Inject constructor(
 
     // ------------------------------------------------------------ run
 
-    /** [trigger] is null for an explicit [importHistory]. Caller holds [mutex]. */
-    private suspend fun runGuarded(trigger: SyncTrigger?, forceImport: Boolean): SyncResult {
+    /** Caller holds [mutex]. */
+    private suspend fun runGuarded(trigger: SyncTrigger, forceImport: Boolean): SyncResult {
         _state.update { it.copy(status = SyncStatus.Syncing) }
+        runPermissions = null
         try {
             val result = try {
                 runSync(trigger, forceImport)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SyncResult(success = false, error = e.toSyncError())
+                SyncResult(success = false, error = classify(e, trigger))
             }
             val error = result.error
             // Not being allowed to read in the background is expected, not a failure worth showing.
@@ -144,7 +154,7 @@ class SyncManager @Inject constructor(
         }
     }
 
-    private suspend fun runSync(trigger: SyncTrigger?, forceImport: Boolean): SyncResult {
+    private suspend fun runSync(trigger: SyncTrigger, forceImport: Boolean): SyncResult {
         val settings = settingsRepository.current()
         if (settings.demoMode) {
             // Health Connect is left alone; the demo nights just keep rolling forward.
@@ -158,6 +168,7 @@ class SyncManager @Inject constructor(
                 return failure(SyncError.HEALTH_CONNECT_NOT_INSTALLED)
         }
         val permissions = gateway.permissionState()
+        runPermissions = permissions
         if (!permissions.sleepGranted) return failure(SyncError.PERMISSION_DENIED)
         if (trigger.isBackground() && !permissions.backgroundGranted && !appVisibility.isInForeground()) {
             return failure(SyncError.BACKGROUND_NOT_ALLOWED)
@@ -186,7 +197,7 @@ class SyncManager @Inject constructor(
 
         val hasLastNightNow = hasLastNight(today, settings)
         val arrived = !hadLastNight && hasLastNightNow
-        if (trigger != null) afterSync(trigger, settings, permissions, today, now, arrived, hasLastNightNow)
+        afterSync(trigger, settings, permissions, today, now, arrived, hasLastNightNow)
         return SyncResult(success = true, sessionsChanged = changed, lastNightArrived = arrived)
     }
 
@@ -267,7 +278,7 @@ class SyncManager @Inject constructor(
         batch.deletedVitalIds.chunked(SQL_CHUNK).forEach { vitalDao.deleteByIds(it) }
 
         // Steps and sleeping heart rate aren't in the change feed: refresh them for the days that changed.
-        val touched = batch.upserted.flatMap { listOf(it.start, it.end) } + batch.vitals.map { it.time }
+        val touched = batch.upserted.flatMap { listOf(it.start, it.end) } + batch.vitals.map { it.sample.time }
         if (touched.isNotEmpty()) {
             val from = touched.min().atZone(zone).toLocalDate().atStartOfDay(zone).toInstant()
             val to = touched.max().atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant()
@@ -283,7 +294,7 @@ class SyncManager @Inject constructor(
         if (sessions.isEmpty()) return
         val zone = timeProvider.zone()
         sessions.distinctBy { it.id }.chunked(SQL_CHUNK).forEach { chunk ->
-            sessionDao.replace(chunk.map { it.toSessionWithStages(SourceKind.HEALTH_CONNECT, zone) })
+            sessionDao.replace(chunk.map { it.toEntity(SourceKind.HEALTH_CONNECT, zone) })
         }
     }
 
@@ -294,10 +305,10 @@ class SyncManager @Inject constructor(
         }
     }
 
-    private suspend fun writeVitals(vitals: List<VitalSample>) {
+    /** Each vital keeps the offset it was recorded at (see [RecordedVital]). */
+    private suspend fun writeVitals(vitals: List<RecordedVital>) {
         if (vitals.isEmpty()) return
-        val zone = timeProvider.zone()
-        vitalDao.upsert(vitals.distinctBy { it.id }.map { it.toVitalEntity(SourceKind.HEALTH_CONNECT, zone) })
+        vitalDao.upsert(vitals.distinctBy { it.sample.id }.map { it.sample.toEntity(SourceKind.HEALTH_CONNECT, it.offset) })
     }
 
     // ------------------------------------------------------------ last night
@@ -372,10 +383,24 @@ class SyncManager @Inject constructor(
 
     private fun failure(error: SyncError) = SyncResult(success = false, error = error)
 
-    private fun SyncTrigger?.isBackground() = this == SyncTrigger.PERIODIC || this == SyncTrigger.RETRY
+    private fun SyncTrigger.isBackground() = this == SyncTrigger.PERIODIC || this == SyncTrigger.RETRY
 
     private fun SyncTrigger.isForeground() =
         this == SyncTrigger.APP_OPEN || this == SyncTrigger.MANUAL || this == SyncTrigger.ONBOARDING
+
+    /**
+     * A background run that started while the app was visible may continue after it was hidden: Health Connect then
+     * refuses the reads with a SecurityException. Without the background permission that is expected, not a denial.
+     */
+    private suspend fun classify(e: Exception, trigger: SyncTrigger): SyncError {
+        if (e is SecurityException && trigger.isBackground()) {
+            val permissions = catchingOrNull { gateway.permissionState() } ?: runPermissions
+            if (permissions == null || (permissions.sleepGranted && !permissions.backgroundGranted)) {
+                return SyncError.BACKGROUND_NOT_ALLOWED
+            }
+        }
+        return e.toSyncError()
+    }
 
     private fun Exception.toSyncError(): SyncError = when {
         this is SecurityException -> SyncError.PERMISSION_DENIED

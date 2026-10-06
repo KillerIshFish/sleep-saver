@@ -42,39 +42,55 @@ internal fun SleepSessionRecord.toRawSleepSession(deviceZone: ZoneId): RawSleepS
     title = title,
 )
 
-internal fun RestingHeartRateRecord.toVitalSample(): VitalSample = VitalSample(
-    id = metadata.id,
-    type = VitalType.RESTING_HR,
-    time = time,
-    value = beatsPerMinute.toDouble(),
-    origin = metadata.dataOrigin.packageName,
+/** Keeps the record's own zone offset; a missing one is filled with [deviceZone]'s offset at that instant. */
+internal fun RestingHeartRateRecord.toRecordedVital(deviceZone: ZoneId): RecordedVital = RecordedVital(
+    sample = VitalSample(
+        id = metadata.id,
+        type = VitalType.RESTING_HR,
+        time = time,
+        value = beatsPerMinute.toDouble(),
+        origin = metadata.dataOrigin.packageName,
+    ),
+    offset = zoneOffset ?: deviceZone.rules.getOffset(time),
 )
 
-internal fun HeartRateVariabilityRmssdRecord.toVitalSample(): VitalSample = VitalSample(
-    id = metadata.id,
-    type = VitalType.HRV_RMSSD,
-    time = time,
-    value = heartRateVariabilityMillis,
-    origin = metadata.dataOrigin.packageName,
+/** Keeps the record's own zone offset; a missing one is filled with [deviceZone]'s offset at that instant. */
+internal fun HeartRateVariabilityRmssdRecord.toRecordedVital(deviceZone: ZoneId): RecordedVital = RecordedVital(
+    sample = VitalSample(
+        id = metadata.id,
+        type = VitalType.HRV_RMSSD,
+        time = time,
+        value = heartRateVariabilityMillis,
+        origin = metadata.dataOrigin.packageName,
+    ),
+    offset = zoneOffset ?: deviceZone.rules.getOffset(time),
 )
 
-/** Steps for one local day, stamped at the start of that day in [zone]. */
-internal fun dailyStepsSample(date: LocalDate, zone: ZoneId, steps: Long, origins: Collection<String>): VitalSample =
-    VitalSample(
-        id = VitalIds.steps(date),
-        type = VitalType.STEPS_DAY,
-        time = date.atStartOfDay(zone).toInstant(),
-        value = steps.toDouble(),
-        origin = aggregateOrigin(origins),
+/** Steps for one local day, stamped at the start of that day in [zone] (an aggregate: the offset is [zone]'s). */
+internal fun dailyStepsSample(date: LocalDate, zone: ZoneId, steps: Long, origins: Collection<String>): RecordedVital {
+    val start = date.atStartOfDay(zone)
+    return RecordedVital(
+        sample = VitalSample(
+            id = VitalIds.steps(date),
+            type = VitalType.STEPS_DAY,
+            time = start.toInstant(),
+            value = steps.toDouble(),
+            origin = aggregateOrigin(origins),
+        ),
+        offset = start.offset,
     )
+}
 
-/** Average heart rate while [session] lasted, stamped at its end (the morning it belongs to). */
-internal fun sleepingHeartRateSample(session: RawSleepSession, bpm: Long): VitalSample = VitalSample(
-    id = VitalIds.sleepingHeartRate(session.id),
-    type = VitalType.SLEEP_HR_AVG,
-    time = session.end,
-    value = bpm.toDouble(),
-    origin = session.origin,
+/** Average heart rate while [session] lasted, stamped at its end (the morning it belongs to) with the end's offset. */
+internal fun sleepingHeartRateSample(session: RawSleepSession, bpm: Long): RecordedVital = RecordedVital(
+    sample = VitalSample(
+        id = VitalIds.sleepingHeartRate(session.id),
+        type = VitalType.SLEEP_HR_AVG,
+        time = session.end,
+        value = bpm.toDouble(),
+        origin = session.origin,
+    ),
+    offset = session.endOffset,
 )
 
 /** Aggregates can mix apps: credit Garmin Connect when it contributed, else the first origin, else Health Connect. */
@@ -94,7 +110,7 @@ internal fun aggregateOrigin(origins: Collection<String>): String {
  */
 internal class ChangeCollector(private val deviceZone: ZoneId) {
     private val sessions = LinkedHashMap<String, RawSleepSession>()
-    private val vitals = LinkedHashMap<String, VitalSample>()
+    private val vitals = LinkedHashMap<String, RecordedVital>()
     private val deleted = LinkedHashSet<String>()
 
     fun add(changes: List<Change>) {
@@ -113,8 +129,9 @@ internal class ChangeCollector(private val deviceZone: ZoneId) {
     private fun upsert(change: UpsertionChange) {
         when (val record = change.record) {
             is SleepSessionRecord -> record.toRawSleepSession(deviceZone).let { sessions[it.id] = it; deleted -= it.id }
-            is RestingHeartRateRecord -> record.toVitalSample().let { vitals[it.id] = it; deleted -= it.id }
-            is HeartRateVariabilityRmssdRecord -> record.toVitalSample().let { vitals[it.id] = it; deleted -= it.id }
+            is RestingHeartRateRecord -> record.toRecordedVital(deviceZone).let { vitals[it.sample.id] = it; deleted -= it.sample.id }
+            is HeartRateVariabilityRmssdRecord ->
+                record.toRecordedVital(deviceZone).let { vitals[it.sample.id] = it; deleted -= it.sample.id }
             else -> Unit
         }
     }

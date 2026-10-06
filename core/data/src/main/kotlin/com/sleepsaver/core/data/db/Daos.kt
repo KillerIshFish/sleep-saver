@@ -69,8 +69,8 @@ interface NightOverrideDao {
     @Query("DELETE FROM night_overrides WHERE wakeDate = :wakeDate")
     suspend fun delete(wakeDate: String)
 
-    @Query("DELETE FROM night_overrides WHERE updatedAtEpochMs >= :sinceMs")
-    suspend fun deleteUpdatedSince(sinceMs: Long)
+    @Upsert
+    suspend fun upsertAll(entities: List<NightOverrideEntity>)
 
     @Query("SELECT * FROM night_overrides")
     suspend fun getAll(): List<NightOverrideEntity>
@@ -93,8 +93,9 @@ interface AddedAwakeDao {
     @Query("DELETE FROM added_awake WHERE wakeDate = :wakeDate")
     suspend fun deleteForNight(wakeDate: String)
 
-    @Query("DELETE FROM added_awake WHERE createdAtEpochMs >= :sinceMs")
-    suspend fun deleteCreatedSince(sinceMs: Long)
+    /** Keeps the rows' ids (used to restore saved rows exactly). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entities: List<AddedAwakeEntity>)
 
     @Query("SELECT * FROM added_awake")
     suspend fun getAll(): List<AddedAwakeEntity>
@@ -114,8 +115,9 @@ interface ManualNapDao {
     @Query("DELETE FROM manual_naps WHERE id = :id")
     suspend fun delete(id: Long)
 
-    @Query("DELETE FROM manual_naps WHERE createdAtEpochMs >= :sinceMs")
-    suspend fun deleteCreatedSince(sinceMs: Long)
+    /** Keeps the rows' ids (used to restore saved rows exactly). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entities: List<ManualNapEntity>)
 
     @Query("SELECT * FROM manual_naps")
     suspend fun getAll(): List<ManualNapEntity>
@@ -156,8 +158,8 @@ interface MorningReviewDao {
     @Upsert
     suspend fun upsert(entity: MorningReviewEntity)
 
-    @Query("DELETE FROM morning_reviews WHERE atEpochMs >= :sinceMs")
-    suspend fun deleteSince(sinceMs: Long)
+    @Upsert
+    suspend fun upsertAll(entities: List<MorningReviewEntity>)
 
     @Query("SELECT * FROM morning_reviews ORDER BY wakeDate")
     suspend fun getAll(): List<MorningReviewEntity>

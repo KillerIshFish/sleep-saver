@@ -11,19 +11,23 @@ import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalEntity
+import com.sleepsaver.core.data.mapping.toEntity
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.data.sync.FakeSettingsRepository
 import com.sleepsaver.core.data.sync.FakeTimeProvider
 import com.sleepsaver.core.data.sync.ROBOLECTRIC_SDK
 import com.sleepsaver.core.data.sync.hcSession
-import com.sleepsaver.core.data.sync.toSessionWithStages
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.VitalType
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.io.File
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
@@ -31,6 +35,8 @@ import java.time.ZoneId
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [ROBOLECTRIC_SDK])
 class DemoModeControllerTest {
+    @get:Rule val tmp = TemporaryFolder()
+
     private val zone = ZoneId.of("America/New_York")
     private val today = LocalDate.of(2026, 10, 6)
     private val time = FakeTimeProvider(today.atTime(12, 0).atZone(zone).toInstant(), zone)
@@ -41,20 +47,91 @@ class DemoModeControllerTest {
     private val settings = FakeSettingsRepository()
     private val demoSource = FakeSleepDataSource(time)
     private val writer = DemoDataWriter(demoSource, db.sleepSessionDao(), db.vitalDao(), time)
-    private val controller = DemoModeControllerImpl(
-        settingsRepository = settings,
-        writer = writer,
-        overrideDao = db.nightOverrideDao(),
-        addedAwakeDao = db.addedAwakeDao(),
-        manualNapDao = db.manualNapDao(),
-        reviewDao = db.morningReviewDao(),
-        timeProvider = time,
-    )
+    private lateinit var backupFile: File
+    private lateinit var backup: DemoEditBackupFile
+    private lateinit var controller: DemoModeControllerImpl
+
+    @Before
+    fun setUp() {
+        backupFile = File(tmp.root, DemoEditBackupFile.FILE_NAME)
+        backup = DemoEditBackupFile(backupFile)
+        controller = controller(backup)
+    }
 
     @After
     fun tearDown() = db.close()
 
+    private fun controller(backup: DemoEditBackupFile) = DemoModeControllerImpl(
+        settingsRepository = settings,
+        writer = writer,
+        database = db,
+        timeProvider = time,
+        backup = backup,
+    )
+
     private suspend fun allSessions() = db.sleepSessionDao().getWithStages(Long.MIN_VALUE, Long.MAX_VALUE)
+
+    // ------------------------------------------------------------ rows
+
+    private val earlier = time.now.minus(Duration.ofDays(3)).toEpochMilli()
+
+    private fun override(wakeDate: String, updatedAt: Long, awakeMinutes: Int = 30) = NightOverrideEntity(
+        wakeDate = wakeDate,
+        fellAsleepEpochMs = null,
+        wokeUpEpochMs = updatedAt - 3_600_000,
+        awakeMinutes = awakeMinutes,
+        napMinutes = null,
+        isManualNight = false,
+        offsetSec = -14_400,
+        updatedAtEpochMs = updatedAt,
+    )
+
+    private class Edits(
+        val overrides: List<NightOverrideEntity>,
+        val awake: List<AddedAwakeEntity>,
+        val naps: List<ManualNapEntity>,
+        val reviews: List<MorningReviewEntity>,
+    )
+
+    /** Real edits on 2026-10-03 … 06 (the same wake dates the demo nights use). */
+    private suspend fun insertRealEdits(): Edits {
+        db.nightOverrideDao().upsert(override("2026-10-03", earlier, awakeMinutes = 15))
+        db.nightOverrideDao().upsert(override("2026-10-05", earlier, awakeMinutes = 45))
+        db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-05", startEpochMs = earlier, endEpochMs = earlier + 600_000, createdAtEpochMs = earlier))
+        db.manualNapDao().insert(ManualNapEntity(startEpochMs = earlier, endEpochMs = earlier + 1_800_000, offsetSec = -14_400, createdAtEpochMs = earlier))
+        db.morningReviewDao().upsert(MorningReviewEntity("2026-10-03", "CONFIRMED", earlier, 60, 50))
+        db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "DISMISSED", earlier, null, null))
+        return currentEdits()
+    }
+
+    private suspend fun currentEdits() = Edits(
+        overrides = db.nightOverrideDao().getAll(),
+        awake = db.addedAwakeDao().getAll(),
+        naps = db.manualNapDao().getAll(),
+        reviews = db.morningReviewDao().getAll(),
+    )
+
+    private suspend fun assertEdits(expected: Edits) {
+        assertThat(db.nightOverrideDao().getAll()).containsExactlyElementsIn(expected.overrides)
+        assertThat(db.addedAwakeDao().getAll()).containsExactlyElementsIn(expected.awake)
+        assertThat(db.manualNapDao().getAll()).containsExactlyElementsIn(expected.naps)
+        assertThat(db.morningReviewDao().getAll()).containsExactlyElementsIn(expected.reviews)
+    }
+
+    private suspend fun assertNoEdits() = assertEdits(Edits(emptyList(), emptyList(), emptyList(), emptyList()))
+
+    /** What a user does while trying the demo: edits on the same wake dates as the real edits. */
+    private suspend fun editDuringDemo() {
+        time.now = time.now.plus(Duration.ofHours(1))
+        val during = time.now.toEpochMilli()
+        db.nightOverrideDao().upsert(override("2026-10-05", during, awakeMinutes = 5))
+        db.nightOverrideDao().upsert(override("2026-10-04", during))
+        db.manualNapDao().insert(ManualNapEntity(startEpochMs = during, endEpochMs = during + 1_800_000, offsetSec = -14_400, createdAtEpochMs = during))
+        db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-05", startEpochMs = during, endEpochMs = during + 600_000, createdAtEpochMs = during))
+        db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "ADJUSTED", during, 120, 90))
+    }
+
+    // ------------------------------------------------------------ on / off
 
     @Test
     fun enable_setsTheFlagAndLoadsDemoNights() = runTest {
@@ -72,52 +149,160 @@ class DemoModeControllerTest {
         val vitals = db.vitalDao().getAll()
         assertThat(vitals).hasSize(expected.vitals.size)
         assertThat(vitals.map { it.sourceKind }.toSet()).containsExactly(SourceKind.DEMO.name)
+        assertThat(vitals.all { it.offsetSec == zone.rules.getOffset(java.time.Instant.ofEpochMilli(it.timeEpochMs)).totalSeconds }).isTrue()
     }
 
     @Test
-    fun enableAgain_keepsTheOriginalStartTime() = runTest {
-        controller.setDemoMode(true)
-        val startedAt = time.now
-        time.now = time.now.plus(Duration.ofHours(2))
+    fun enable_setsTheRealEditsAsideAndEmptiesTheTables() = runTest {
+        val real = insertRealEdits()
 
         controller.setDemoMode(true)
 
-        assertThat(settings.current().demoStartedAt).isEqualTo(startedAt)
-        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(demoSource.generate().sessions.size)
+        assertNoEdits()
+        assertThat(backupFile.isFile).isTrue()
+        assertThat(File(tmp.root, "${DemoEditBackupFile.FILE_NAME}.tmp").exists()).isFalse()
+        val saved = backup.read()!!
+        assertThat(saved.overrides.map { it.toEntity() }).containsExactlyElementsIn(real.overrides)
+        assertThat(saved.addedAwake.map { it.toEntity() }).containsExactlyElementsIn(real.awake)
+        assertThat(saved.manualNaps.map { it.toEntity() }).containsExactlyElementsIn(real.naps)
+        assertThat(saved.reviews.map { it.toEntity() }).containsExactlyElementsIn(real.reviews)
     }
 
     @Test
-    fun disable_removesDemoRowsAndEditsMadeDuringDemoMode() = runTest {
-        val before = time.now.minus(Duration.ofDays(3)).toEpochMilli()
-        val real = hcSession("hc-1", zone, today.minusDays(4).atTime(23, 0), today.minusDays(3).atTime(7, 0))
-        db.sleepSessionDao().replace(listOf(real.toSessionWithStages(SourceKind.HEALTH_CONNECT, zone)))
-        db.vitalDao().upsert(listOf(VitalEntity("rhr-1", "RESTING_HR", before, null, 55.0, SleepConfig.GARMIN_CONNECT_PACKAGE, SourceKind.HEALTH_CONNECT.name)))
-        db.nightOverrideDao().upsert(override("2026-10-03", before))
-        db.manualNapDao().insert(ManualNapEntity(startEpochMs = before, endEpochMs = before + 1_800_000, offsetSec = -14_400, createdAtEpochMs = before))
-        db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-03", startEpochMs = before, endEpochMs = before + 600_000, createdAtEpochMs = before))
-        db.morningReviewDao().upsert(MorningReviewEntity("2026-10-03", "CONFIRMED", before, 60, 50))
+    fun demoEditsOnTheSameNights_neverReachTheRealEdits() = runTest {
+        val realSession = hcSession("hc-1", zone, today.minusDays(4).atTime(23, 0), today.minusDays(3).atTime(7, 0))
+        db.sleepSessionDao().replace(listOf(realSession.toEntity(SourceKind.HEALTH_CONNECT, zone)))
+        db.vitalDao().upsert(listOf(VitalEntity("rhr-1", "RESTING_HR", earlier, null, 55.0, SleepConfig.GARMIN_CONNECT_PACKAGE, SourceKind.HEALTH_CONNECT.name)))
+        val real = insertRealEdits()
 
         controller.setDemoMode(true)
-        time.now = time.now.plus(Duration.ofHours(1))
-        val during = time.now.toEpochMilli()
-        db.nightOverrideDao().upsert(override("2026-10-05", during))
-        db.manualNapDao().insert(ManualNapEntity(startEpochMs = during, endEpochMs = during + 1_800_000, offsetSec = -14_400, createdAtEpochMs = during))
-        db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-05", startEpochMs = during, endEpochMs = during + 600_000, createdAtEpochMs = during))
-        db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "ADJUSTED", during, 120, 90))
-
+        editDuringDemo()
         controller.setDemoMode(false)
 
         assertThat(settings.current().demoMode).isFalse()
         assertThat(settings.current().demoStartedAt).isNull()
-        assertThat(allSessions().map { it.session.id }).containsExactly(real.id)
+        assertThat(allSessions().map { it.session.id }).containsExactly(realSession.id)
         assertThat(allSessions().single().stages).hasSize(2)
         assertThat(db.vitalDao().getAll().map { it.id }).containsExactly("rhr-1")
-        assertThat(db.nightOverrideDao().getAll().map { it.wakeDate }).containsExactly("2026-10-03")
-        assertThat(db.manualNapDao().getAll().map { it.createdAtEpochMs }).containsExactly(before)
-        assertThat(db.addedAwakeDao().getAll().map { it.wakeDate }).containsExactly("2026-10-03")
-        assertThat(db.morningReviewDao().get("2026-10-03")).isNotNull()
-        assertThat(db.morningReviewDao().get("2026-10-06")).isNull()
+        // Exactly as before, ids and timestamps included, although the demo edited 2026-10-05 and 2026-10-06 too.
+        assertEdits(real)
+        assertThat(backupFile.exists()).isFalse()
     }
+
+    @Test
+    fun enableTwice_keepsTheDemoEditsAndTheSavedRealEdits() = runTest {
+        val real = insertRealEdits()
+        controller.setDemoMode(true)
+        val startedAt = settings.current().demoStartedAt
+        editDuringDemo()
+        val demoEdits = currentEdits()
+
+        controller.setDemoMode(true)
+
+        assertThat(settings.current().demoStartedAt).isEqualTo(startedAt)
+        assertEdits(demoEdits)
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(demoSource.generate().sessions.size)
+
+        controller.setDemoMode(false)
+        assertEdits(real)
+    }
+
+    @Test
+    fun disable_whenAlreadyOffOrTwice_leavesTheRealEditsAlone() = runTest {
+        val real = insertRealEdits()
+
+        controller.setDemoMode(false)
+        assertEdits(real)
+
+        controller.setDemoMode(true)
+        controller.setDemoMode(false)
+        controller.setDemoMode(false)
+
+        assertEdits(real)
+        assertThat(settings.current().demoMode).isFalse()
+        assertThat(backupFile.exists()).isFalse()
+    }
+
+    // ------------------------------------------------------------ interrupted switches
+
+    @Test
+    fun enable_keepsABackupLeftByAnInterruptedSwitch() = runTest {
+        // A switch that saved the real edits and emptied the tables, then died before setting the flag.
+        val real = insertRealEdits()
+        backup.write(DemoEditBackup.of(real.overrides, real.awake, real.naps, real.reviews))
+        db.nightOverrideDao().deleteAll()
+        db.addedAwakeDao().deleteAll()
+        db.manualNapDao().deleteAll()
+        db.morningReviewDao().deleteAll()
+        val savedBytes = backupFile.readBytes()
+
+        controller.setDemoMode(true)
+
+        assertThat(backupFile.readBytes()).isEqualTo(savedBytes)
+        assertThat(settings.current().demoMode).isTrue()
+
+        controller.setDemoMode(false)
+        assertEdits(real)
+        assertThat(backupFile.exists()).isFalse()
+    }
+
+    @Test
+    fun enable_finishesASwitchThatDiedBeforeMovingTheEdits() = runTest {
+        // The flag was set, then the app died: the real edits are still in the tables and there is no backup.
+        val real = insertRealEdits()
+        settings.setDemoModeFlag(true, time.now)
+
+        controller.setDemoMode(true)
+
+        assertNoEdits()
+        assertThat(backupFile.isFile).isTrue()
+        controller.setDemoMode(false)
+        assertEdits(real)
+    }
+
+    @Test
+    fun disable_withoutABackup_keepsTheTablesAsTheyAre() = runTest {
+        // A switch off that restored the edits and deleted the backup, then died before clearing the flag.
+        val real = insertRealEdits()
+        settings.setDemoModeFlag(true, time.now)
+        writer.writeAll()
+
+        controller.setDemoMode(false)
+
+        assertEdits(real)
+        assertThat(settings.current().demoMode).isFalse()
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+    }
+
+    @Test
+    fun enable_whenTheBackupCannotBeWritten_staysInRealModeWithTheEditsInPlace() = runTest {
+        val real = insertRealEdits()
+        val notADirectory = tmp.newFile("blocker")
+        val failing = controller(DemoEditBackupFile(File(notADirectory, DemoEditBackupFile.FILE_NAME)))
+
+        failing.setDemoMode(true)
+
+        assertThat(settings.current().demoMode).isFalse()
+        assertThat(settings.current().demoStartedAt).isNull()
+        assertEdits(real)
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+    }
+
+    @Test
+    fun disable_withADamagedBackup_dropsTheDemoEditsAndLeavesDemoMode() = runTest {
+        insertRealEdits()
+        controller.setDemoMode(true)
+        editDuringDemo()
+        backupFile.writeText("{ not json")
+
+        controller.setDemoMode(false)
+
+        assertNoEdits()
+        assertThat(settings.current().demoMode).isFalse()
+        assertThat(backupFile.exists()).isFalse()
+    }
+
+    // ------------------------------------------------------------ demo rows
 
     @Test
     fun demoRoundTrip_keepsRealVitalsOfTheSameDays() = runTest {
@@ -167,15 +352,4 @@ class DemoModeControllerTest {
         assertThat(controller.extendToNow()).isEqualTo(0)
         assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
     }
-
-    private fun override(wakeDate: String, updatedAt: Long) = NightOverrideEntity(
-        wakeDate = wakeDate,
-        fellAsleepEpochMs = null,
-        wokeUpEpochMs = null,
-        awakeMinutes = 30,
-        napMinutes = null,
-        isManualNight = false,
-        offsetSec = -14_400,
-        updatedAtEpochMs = updatedAt,
-    )
 }

@@ -10,6 +10,8 @@ import com.sleepsaver.core.data.db.SessionWithStages
 import com.sleepsaver.core.data.db.SleepSessionEntity
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalEntity
+import com.sleepsaver.core.data.export.NightsCsv
+import com.sleepsaver.core.data.testing.FakeHabitsRepository
 import com.sleepsaver.core.data.testing.FakeSettingsRepository
 import com.sleepsaver.core.data.testing.FakeTimeProvider
 import com.sleepsaver.core.data.testing.GARMIN
@@ -28,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -184,6 +187,28 @@ class SleepRepositoryImplTest {
         assertThat(real.map { it.id }).containsExactly("hc-rhr")
         assertThat(real.single().type).isEqualTo(VitalType.RESTING_HR)
         assertThat(demo.map { it.id }).containsExactly("demo-hrv")
+    }
+
+    @Test
+    fun `a failing night assembly still answers, so insights and export never wait forever`() = runTest {
+        insertSession("g", instant("2026-10-05T23:00:00Z"), instant("2026-10-06T07:00:00Z"))
+        // A row the mapping can't read: the very first assembly throws.
+        db.nightOverrideDao().upsert(NightOverrideEntity("not-a-date", null, null, 10, null, false, 0, 0))
+        val repository = repository()
+
+        assertThat(repository.nights.first()).isEmpty()
+        assertThat(repository.rawNight(date).first()).isNotNull()
+
+        val out = ByteArrayOutputStream()
+        ExportRepositoryImpl(db, repository, settings, time, StandardTestDispatcher(testScheduler)).exportCsv(out)
+        assertThat(out.toString(Charsets.UTF_8.name())).isEqualTo(buildString { NightsCsv.write(emptyList(), this) })
+
+        val insights = InsightsRepositoryImpl(repository, settings, FakeHabitsRepository(), time, backgroundScope, StandardTestDispatcher(testScheduler))
+        assertThat(insights.state.first { it != InsightsState.Loading }).isEqualTo(InsightsState.NoNights)
+
+        // Once the row is fixed the nights come back.
+        db.nightOverrideDao().delete("not-a-date")
+        assertThat(repository.nights.first { it.isNotEmpty() }.map { it.wakeDate }).containsExactly(date)
     }
 
     // ------------------------------------------------ Needs the core:domain engine (skipped until it is merged)

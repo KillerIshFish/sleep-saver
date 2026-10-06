@@ -2,10 +2,12 @@ package com.sleepsaver.core.data.repository
 
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.di.DefaultDispatcher
+import com.sleepsaver.core.data.healthconnect.catchingOrNull
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
 import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
+import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.insights.InsightsEngine
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.EnergySchedule
@@ -23,9 +25,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,7 +37,7 @@ import javax.inject.Singleton
 /** Runs the domain engine over the stored nights. All computation happens on the default dispatcher. */
 @Singleton
 class InsightsRepositoryImpl @Inject constructor(
-    private val sleepRepository: SleepRepository,
+    sleepRepository: SleepRepository,
     private val settingsRepository: SettingsRepository,
     habitsRepository: HabitsRepository,
     private val timeProvider: TimeProvider,
@@ -47,51 +49,80 @@ class InsightsRepositoryImpl @Inject constructor(
     private val debtCalculator = SleepDebtCalculator(SleepConfig.DEFAULT)
     private val scheduleCalculator = EnergyScheduleCalculator(SleepConfig.DEFAULT)
 
-    private val sleepSettings: Flow<UserSleepSettings> =
-        settingsRepository.settings.map { it.sleep }.distinctUntilChanged()
+    /** Nights that never fail: an error reads as no nights (SleepRepositoryImpl already guarantees this). */
+    private val nights: Flow<List<Night>> = sleepRepository.nights.orFallback(TAG, "Nights") { emptyList() }
 
-    /** A failed computation is logged and the previous state kept. */
+    private val sleepSettings: Flow<UserSleepSettings> = settingsRepository.settings
+        .orFallback(TAG, "Settings") { AppSettings() }
+        .map { it.sleep }
+        .distinctUntilChanged()
+
+    /**
+     * Never stuck on Loading and never crashes the app scope: failing inputs fall back (see [orFallback]), and a
+     * failed computation keeps the previous state, or reports [InsightsState.NoNights] (whose screen offers a way
+     * forward) when there is none yet. Each failure is logged.
+     */
     override val state: StateFlow<InsightsState> = combine(
-        sleepRepository.nights,
+        nights,
         sleepSettings,
-        habitsRepository.habitSettings,
-        timeProvider.minuteTicks,
+        habitsRepository.habitSettings.orFallback(TAG, "Habit settings") { HabitCatalog(SleepConfig.DEFAULT).defaultSettings() },
+        timeProvider.minuteTicks.orFallback(TAG, "Minute ticks") { timeProvider.now() },
     ) { nights, settings, habits, now ->
         guarded(TAG, "Insights") { computeState(nights, settings, habits, now, timeProvider.zone()) }
     }
-        .mapNotNull { it }
+        .orLastGood<InsightsState>(InsightsState.NoNights)
         .flowOn(defaultDispatcher)
+        .orFallback(TAG, "Insights state") { InsightsState.NoNights }
         .stateIn(scope, SharingStarted.Eagerly, InsightsState.Loading)
 
+    /** Keeps the previous series when a computation fails (none before the first success). */
     override fun debtSeries(from: LocalDate, to: LocalDate): Flow<List<SleepDebt>> =
-        combine(sleepRepository.nights, sleepSettings) { nights, settings ->
+        combine(nights, sleepSettings) { nights, settings ->
             guarded(TAG, "Debt series") {
                 debtCalculator.series(from, to, nights.associateBy { it.wakeDate }, settings.sleepNeed)
             }
         }
-            .mapNotNull { it }
+            .orLastGood(emptyList())
             .flowOn(defaultDispatcher)
             .distinctUntilChanged()
 
-    /** The device zone, re-read on every tick (ticks restart at once when the zone changes). */
-    private val deviceZone: Flow<ZoneId> = timeProvider.minuteTicks.map { timeProvider.zone() }.distinctUntilChanged()
+    /** The device zone and the local date there, re-read on every tick (ticks restart at once when the zone changes). */
+    private val deviceDay: Flow<DeviceDay> = timeProvider.minuteTicks
+        .map { now -> timeProvider.zone().let { zone -> DeviceDay(zone, now.atZone(zone).toLocalDate()) } }
+        .distinctUntilChanged()
 
     /**
      * Built like the home screen's schedule (same debt, same shifts, current zone), so today's matches [state].
+     *
+     * A day after today (the reminder planner asks for tomorrow) is planned from what is known now: only nights up to
+     * today count (an evening doze already belongs to tomorrow's wake date but says nothing about tomorrow's wake),
+     * with the debt the home screen shows today.
+     *
      * null when there is no night with data on or before [date], or when the computation fails.
      */
     override fun schedule(date: LocalDate): Flow<EnergySchedule?> =
-        combine(sleepRepository.nights, sleepSettings, deviceZone) { nights, settings, zone ->
-            guarded(TAG, "Schedule for $date") { computeSchedule(date, nights, settings, zone) }
+        combine(nights, sleepSettings, deviceDay) { nights, settings, day ->
+            guarded(TAG, "Schedule for $date") { computeSchedule(date, nights, settings, day) }
         }
             .flowOn(defaultDispatcher)
             .distinctUntilChanged()
 
+    /** A neutral breakdown (no change) if the computation fails, rather than an exception in the caller. */
     override suspend fun breakdown(wakeDate: LocalDate): DebtChangeBreakdown {
-        val nights = sleepRepository.nights.first()
-        val need = settingsRepository.current().sleep.sleepNeed
+        val nights = this.nights.first()
+        val need = (catchingOrNull { settingsRepository.current() } ?: AppSettings()).sleep.sleepNeed
         return withContext(defaultDispatcher) {
-            debtCalculator.breakdown(wakeDate, nights.associateBy { it.wakeDate }, need)
+            guarded(TAG, "Breakdown for $wakeDate") {
+                debtCalculator.breakdown(wakeDate, nights.associateBy { it.wakeDate }, need)
+            } ?: DebtChangeBreakdown(
+                wakeDate = wakeDate,
+                need = need,
+                slept = Duration.ZERO,
+                before = Duration.ZERO,
+                lastNightDelta = Duration.ZERO,
+                fade = Duration.ZERO,
+                after = Duration.ZERO,
+            )
         }
     }
 
@@ -108,22 +139,29 @@ class InsightsRepositoryImpl @Inject constructor(
             InsightsState.Ready(engine.compute(nights, settings, habits, now, zone))
         }
 
-    private fun computeSchedule(date: LocalDate, nights: List<Night>, settings: UserSleepSettings, zone: ZoneId): EnergySchedule? {
-        val upToDate = nights.filter { !it.wakeDate.isAfter(date) }
+    private fun computeSchedule(date: LocalDate, nights: List<Night>, settings: UserSleepSettings, day: DeviceDay): EnergySchedule? {
+        val known = if (date.isAfter(day.today)) nights.filter { !it.wakeDate.isAfter(day.today) } else nights
+        val upToDate = known.filter { !it.wakeDate.isAfter(date) }
         if (upToDate.none { it.isPresent }) return null
         val yesterday = date.minusDays(1)
         val upToYesterday = upToDate.filter { it.wakeDate.isBefore(date) }
-        val today = scheduleFor(date, upToDate, settings, zone)
-        return scheduleCalculator.withShifts(today, scheduleFor(yesterday, upToYesterday, settings, zone))
+        val today = scheduleFor(date, upToDate, settings, day)
+        return scheduleCalculator.withShifts(today, scheduleFor(yesterday, upToYesterday, settings, day))
     }
 
-    /** Uses the debt displayed on [date] (PLAN §3.3): debt(date) once its night is in, otherwise debt(date − 1). */
-    private fun scheduleFor(date: LocalDate, nights: List<Night>, settings: UserSleepSettings, zone: ZoneId): EnergySchedule {
+    /**
+     * Uses the debt displayed on [date] (PLAN §3.3): debt(date) once its night is in, otherwise debt(date − 1).
+     * For a day after today that is the debt displayed today.
+     */
+    private fun scheduleFor(date: LocalDate, nights: List<Night>, settings: UserSleepSettings, day: DeviceDay): EnergySchedule {
         val nightsByDate = nights.associateBy { it.wakeDate }
-        val debtDate = if (nightsByDate[date]?.isPresent == true) date else date.minusDays(1)
+        val shownOn = minOf(date, day.today)
+        val debtDate = if (nightsByDate[shownOn]?.isPresent == true) shownOn else shownOn.minusDays(1)
         val debt = debtCalculator.debtAsOf(debtDate, nightsByDate, settings.sleepNeed).debt
-        return scheduleCalculator.schedule(date, zone, nights, settings.sleepNeed, debt, settings.typicalWake)
+        return scheduleCalculator.schedule(date, day.zone, nights, settings.sleepNeed, debt, settings.typicalWake)
     }
+
+    private data class DeviceDay(val zone: ZoneId, val today: LocalDate)
 
     private companion object {
         const val TAG = "InsightsRepository"

@@ -1,52 +1,63 @@
 package com.sleepsaver.core.data.demo
 
-import com.sleepsaver.core.data.db.AddedAwakeDao
-import com.sleepsaver.core.data.db.ManualNapDao
-import com.sleepsaver.core.data.db.MorningReviewDao
-import com.sleepsaver.core.data.db.NightOverrideDao
+import android.content.Context
+import android.util.Log
+import androidx.room.withTransaction
+import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.DemoModeController
 import com.sleepsaver.core.data.repository.SettingsRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * Enabling sets the flag (remembering when demo mode started) and loads the demo nights. Disabling deletes
- * every demo row plus the edits made since demo mode started (overrides, manual naps, added awake time,
- * morning reviews), so the real data comes back exactly as it was. Health Connect rows are never touched.
+ * Demo nights are separate rows (SourceKind.DEMO) and are simply deleted again, but the user's edits (night
+ * overrides, added awake time, manual naps, morning reviews) live in tables keyed by wake date that demo mode uses
+ * too. So turning demo mode on moves those four tables aside into [DemoEditBackupFile] and empties them; turning it
+ * off empties them again (dropping whatever was edited during the demo) and puts the saved rows back exactly.
+ * Health Connect is never touched.
+ *
+ * Both directions are idempotent and safe to interrupt at any point:
+ *  - On: the flag first, then in one transaction (so no edit can slip in between) save the backup, unless one is
+ *    already there, and empty the tables; then the demo nights. A backup found while turning on comes from an
+ *    interrupted switch and is kept as it is. Already on: nothing moves, unless the move never ran (no backup yet).
+ *  - Off: the demo rows go, then in one transaction the tables are emptied and refilled from the backup, then the
+ *    backup is deleted, then the flag cleared. Without a backup the tables are left alone: they hold real edits.
+ *
+ * Never throws (apart from cancellation): a failure is logged and the flag keeps describing what is in the tables.
  */
 @Singleton
-class DemoModeControllerImpl @Inject constructor(
+class DemoModeControllerImpl internal constructor(
     private val settingsRepository: SettingsRepository,
     private val writer: DemoDataWriter,
-    private val overrideDao: NightOverrideDao,
-    private val addedAwakeDao: AddedAwakeDao,
-    private val manualNapDao: ManualNapDao,
-    private val reviewDao: MorningReviewDao,
+    private val database: SleepSaverDatabase,
     private val timeProvider: TimeProvider,
+    private val backup: DemoEditBackupFile,
 ) : DemoModeController {
+
+    @Inject constructor(
+        settingsRepository: SettingsRepository,
+        writer: DemoDataWriter,
+        database: SleepSaverDatabase,
+        timeProvider: TimeProvider,
+        @ApplicationContext context: Context,
+    ) : this(settingsRepository, writer, database, timeProvider, DemoEditBackupFile.inFilesDir(context))
 
     private val mutex = Mutex()
 
-    override suspend fun setDemoMode(enabled: Boolean) = mutex.withLock {
-        val current = settingsRepository.current()
-        if (enabled) {
-            // Re-enabling keeps the original start so edits made since then are still cleaned up later.
-            if (!current.demoMode) settingsRepository.setDemoModeFlag(true, timeProvider.now())
-            writer.writeAll()
-        } else {
-            writer.clear()
-            current.demoStartedAt?.toEpochMilli()?.let { since ->
-                overrideDao.deleteUpdatedSince(since)
-                manualNapDao.deleteCreatedSince(since)
-                addedAwakeDao.deleteCreatedSince(since)
-                reviewDao.deleteSince(since)
+    override suspend fun setDemoMode(enabled: Boolean) {
+        mutex.withLock {
+            try {
+                if (enabled) enable() else disable()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Turning demo mode ${if (enabled) "on" else "off"} failed", e)
             }
-            settingsRepository.setDemoModeFlag(false, null)
         }
-        Unit
     }
 
     /**
@@ -55,5 +66,69 @@ class DemoModeControllerImpl @Inject constructor(
      */
     suspend fun extendToNow(): Int = mutex.withLock {
         if (settingsRepository.current().demoMode) writer.extendToNow() else 0
+    }
+
+    private suspend fun enable() {
+        val wasOn = settingsRepository.current().demoMode
+        if (!wasOn) settingsRepository.setDemoModeFlag(true, timeProvider.now())
+        if (!wasOn || !backup.exists()) {
+            try {
+                moveEditsAside()
+            } catch (e: Exception) {
+                // The transaction rolled back: the real edits are still in place, so stay in (or go back to) real mode.
+                if (!wasOn && e !is CancellationException) settingsRepository.setDemoModeFlag(false, null)
+                throw e
+            }
+        }
+        writer.writeAll()
+    }
+
+    private suspend fun moveEditsAside() = database.withTransaction {
+        if (!backup.exists()) {
+            backup.write(
+                DemoEditBackup.of(
+                    overrides = database.nightOverrideDao().getAll(),
+                    addedAwake = database.addedAwakeDao().getAll(),
+                    manualNaps = database.manualNapDao().getAll(),
+                    reviews = database.morningReviewDao().getAll(),
+                ),
+            )
+        }
+        clearEdits()
+    }
+
+    private suspend fun disable() {
+        writer.clear()
+        // An IOException (unreadable right now) propagates: everything stays as it is, in demo mode, for a retry.
+        val saved = try {
+            backup.read()
+        } catch (e: IllegalArgumentException) {
+            // Damaged content (SerializationException). The tables only hold edits made during the demo, which must
+            // not pass for real ones, so they are cleared all the same.
+            Log.e(TAG, "Saved edits are unreadable and were dropped", e)
+            DemoEditBackup()
+        }
+        if (saved != null) {
+            database.withTransaction {
+                clearEdits()
+                database.nightOverrideDao().upsertAll(saved.overrides.map { it.toEntity() })
+                database.addedAwakeDao().insertAll(saved.addedAwake.map { it.toEntity() })
+                database.manualNapDao().insertAll(saved.manualNaps.map { it.toEntity() })
+                database.morningReviewDao().upsertAll(saved.reviews.map { it.toEntity() })
+            }
+        }
+        backup.delete()
+        settingsRepository.setDemoModeFlag(false, null)
+    }
+
+    private suspend fun clearEdits() {
+        database.nightOverrideDao().deleteAll()
+        database.addedAwakeDao().deleteAll()
+        database.manualNapDao().deleteAll()
+        database.morningReviewDao().deleteAll()
+    }
+
+    private companion object {
+        const val TAG = "DemoMode"
     }
 }

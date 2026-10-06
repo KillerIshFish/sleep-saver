@@ -15,6 +15,8 @@ import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.domain.model.RawSleepSession
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.VitalSample
+import com.sleepsaver.core.domain.model.VitalType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -30,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.IOException
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [ROBOLECTRIC_SDK])
@@ -307,6 +310,72 @@ class SyncManagerTest {
         fx.gateway.granted = setOf(HealthConnectPermissions.SLEEP)
         fx.foreground = true
         assertThat(manager.sync(SyncTrigger.PERIODIC).success).isTrue()
+    }
+
+    @Test
+    fun backgroundRunThatLosesAccessOnceTheAppIsHidden_isNotAPermissionDenial() = runTest {
+        val manager = fx.manager(backgroundScope)
+        // Started while the app was visible (so it passed the foreground check), then Health Connect refused the
+        // reads because the app went to the background and there is no background-read permission.
+        fx.source.failWith = SecurityException("Caller doesn't have permission to read data in background")
+
+        assertThat(manager.sync(SyncTrigger.PERIODIC).error).isEqualTo(SyncError.BACKGROUND_NOT_ALLOWED)
+        assertThat(manager.sync(SyncTrigger.RETRY).error).isEqualTo(SyncError.BACKGROUND_NOT_ALLOWED)
+        assertThat(manager.state.value.lastError).isNull()
+        assertThat(fx.store.current().lastError).isNull()
+
+        // A foreground run, or one with background reads granted, really was denied.
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).error).isEqualTo(SyncError.PERMISSION_DENIED)
+        fx.gateway.granted = setOf(HealthConnectPermissions.SLEEP, HealthConnectPermissions.BACKGROUND)
+        assertThat(manager.sync(SyncTrigger.PERIODIC).error).isEqualTo(SyncError.PERMISSION_DENIED)
+        assertThat(manager.state.value.lastError).isEqualTo(SyncError.PERMISSION_DENIED)
+    }
+
+    @Test
+    fun importHistory_runsTheSameHooksAsASync() = runTest {
+        fx.source.seed(night(today.minusDays(1)), night(today))
+        val manager = fx.manager(backgroundScope)
+
+        val result = manager.importHistory()
+
+        assertThat(result.success).isTrue()
+        assertThat(result.lastNightArrived).isTrue()
+        // The notifier itself decides whether to post (e.g. not before onboarding is done).
+        assertThat(fx.notifier.arrived).containsExactly(today)
+        // No background reads: the time-based morning reminder, tomorrow's since last night is in.
+        assertThat(fx.notifier.fallbackReminders)
+            .containsExactly(today.plusDays(1).atTime(7, 45).atZone(fx.zone).toInstant())
+        assertThat(fx.scheduler.retries).isEqualTo(0)
+    }
+
+    @Test
+    fun importHistory_startsTheRetryChainWhileLastNightIsMissing() = runTest {
+        fx.source.seed(night(today.minusDays(1)))
+        val manager = fx.manager(backgroundScope)
+
+        val result = manager.importHistory() // 09:00, last night not in yet
+
+        assertThat(result.lastNightArrived).isFalse()
+        assertThat(fx.notifier.arrived).isEmpty()
+        assertThat(fx.scheduler.retries).isEqualTo(1)
+        assertThat(manager.isWaitingForLastNight()).isTrue()
+    }
+
+    @Test
+    fun vitals_keepTheOffsetTheyWereRecordedAt() = runTest {
+        val manager = fx.manager(backgroundScope)
+        manager.sync(SyncTrigger.APP_OPEN)
+
+        val tokyo = ZoneOffset.ofHours(9)
+        fx.source.addVital(VitalSample("rhr-abroad", VitalType.RESTING_HR, fx.time.now.minusSeconds(3_600), 51.0, GARMIN), tokyo)
+        val lastNight = night(today)
+        fx.source.upsert(lastNight)
+        manager.sync(SyncTrigger.APP_OPEN)
+
+        val vitals = fx.db.vitalDao().getAll().associateBy { it.id }
+        assertThat(vitals.getValue("rhr-abroad").offsetSec).isEqualTo(9 * 3_600)
+        // Sleeping heart rate carries the session's own end offset (New York, daylight time).
+        assertThat(vitals.getValue(VitalIds.sleepingHeartRate(lastNight.id)).offsetSec).isEqualTo(-4 * 3_600)
     }
 
     @Test

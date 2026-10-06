@@ -128,8 +128,8 @@ class HealthConnectMappingTest {
     @Test
     fun vitals_restingHeartRateAndHrvKeepTheirRecordIds() {
         val time = Instant.parse("2026-10-06T11:00:00Z")
-        val rhr = RestingHeartRateRecord(time, null, 54, metadata("rhr-1", garmin, time)).toVitalSample()
-        val hrv = HeartRateVariabilityRmssdRecord(time, ZoneOffset.UTC, 48.5, metadata("hrv-1", garmin, time)).toVitalSample()
+        val rhr = RestingHeartRateRecord(time, null, 54, metadata("rhr-1", garmin, time)).toRecordedVital(newYork).sample
+        val hrv = HeartRateVariabilityRmssdRecord(time, ZoneOffset.UTC, 48.5, metadata("hrv-1", garmin, time)).toRecordedVital(newYork).sample
 
         assertThat(rhr.id).isEqualTo("rhr-1")
         assertThat(rhr.type).isEqualTo(VitalType.RESTING_HR)
@@ -142,9 +142,34 @@ class HealthConnectMappingTest {
     }
 
     @Test
+    fun vitals_keepTheRecordsOwnOffsetElseTheDeviceZones() {
+        // New York is at −4 in October; the records were written while travelling (+9) or without an offset.
+        val time = Instant.parse("2026-10-06T11:00:00Z")
+        val tokyo = ZoneOffset.ofHours(9)
+
+        val rhrAbroad = RestingHeartRateRecord(time, tokyo, 54, metadata("rhr-1", garmin, time)).toRecordedVital(newYork)
+        val rhrNoOffset = RestingHeartRateRecord(time, null, 55, metadata("rhr-2", garmin, time)).toRecordedVital(newYork)
+        val hrvAbroad = HeartRateVariabilityRmssdRecord(time, tokyo, 48.5, metadata("hrv-1", garmin, time)).toRecordedVital(newYork)
+        val hrvNoOffset = HeartRateVariabilityRmssdRecord(time, null, 50.0, metadata("hrv-2", garmin, time)).toRecordedVital(newYork)
+
+        assertThat(rhrAbroad.offset).isEqualTo(tokyo)
+        assertThat(rhrNoOffset.offset).isEqualTo(ZoneOffset.ofHours(-4))
+        assertThat(hrvAbroad.offset).isEqualTo(tokyo)
+        assertThat(hrvNoOffset.offset).isEqualTo(ZoneOffset.ofHours(-4))
+
+        // Derived vitals: steps use the zone their day was sliced in, sleeping HR the session's own end offset.
+        val winterDay = LocalDate.of(2026, 12, 1)
+        assertThat(dailyStepsSample(winterDay, newYork, 5_000, setOf(garmin)).offset).isEqualTo(ZoneOffset.ofHours(-5))
+        val start = Instant.parse("2026-10-05T14:00:00Z")
+        val session = SleepSessionRecord(start, tokyo, start.plusSeconds(8 * 3600), tokyo, metadata("s-abroad", garmin, start))
+            .toRawSleepSession(newYork)
+        assertThat(sleepingHeartRateSample(session, 50).offset).isEqualTo(tokyo)
+    }
+
+    @Test
     fun vitals_derivedSamplesUseStableIds() {
         val date = LocalDate.of(2026, 10, 5)
-        val steps = dailyStepsSample(date, newYork, 9_120, setOf("com.example.phone", garmin))
+        val steps = dailyStepsSample(date, newYork, 9_120, setOf("com.example.phone", garmin)).sample
         assertThat(steps.id).isEqualTo("steps:2026-10-05")
         assertThat(steps.type).isEqualTo(VitalType.STEPS_DAY)
         assertThat(steps.time).isEqualTo(date.atStartOfDay(newYork).toInstant())
@@ -157,7 +182,7 @@ class HealthConnectMappingTest {
         val start = Instant.parse("2026-10-06T03:00:00Z")
         val session = SleepSessionRecord(start, null, start.plusSeconds(7 * 3600), null, metadata("s-1", garmin, start))
             .toRawSleepSession(newYork)
-        val sleepingHr = sleepingHeartRateSample(session, 51)
+        val sleepingHr = sleepingHeartRateSample(session, 51).sample
         assertThat(sleepingHr.id).isEqualTo("sleephr:s-1")
         assertThat(sleepingHr.type).isEqualTo(VitalType.SLEEP_HR_AVG)
         assertThat(sleepingHr.time).isEqualTo(session.end)
@@ -191,7 +216,8 @@ class HealthConnectMappingTest {
         assertThat(batch.upserted.map { it.id to it.title }).containsExactly("kept" to "edited")
         assertThat(batch.deletedIds).containsExactly("deleted-later", "gone")
         assertThat(batch.deletedVitalIds).containsExactly("deleted-later", "gone")
-        assertThat(batch.vitals.map { it.id }).containsExactly("rhr")
+        assertThat(batch.vitals.map { it.sample.id }).containsExactly("rhr")
+        assertThat(batch.vitals.single().offset).isEqualTo(ZoneOffset.ofHours(-4))
         assertThat(batch.nextToken).isEqualTo("next")
     }
 

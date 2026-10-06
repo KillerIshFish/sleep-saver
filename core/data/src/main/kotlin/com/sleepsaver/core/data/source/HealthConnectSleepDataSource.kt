@@ -17,7 +17,6 @@ import com.sleepsaver.core.data.healthconnect.isRateLimit
 import com.sleepsaver.core.data.healthconnect.readAllRecords
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.domain.model.RawSleepSession
-import com.sleepsaver.core.domain.model.VitalSample
 import java.time.Instant
 import java.time.Period
 import java.time.ZoneId
@@ -50,20 +49,20 @@ class HealthConnectSleepDataSource @Inject constructor(
             .map { it.toRawSleepSession(zone) }
     }
 
-    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<VitalSample> {
+    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<RecordedVital> {
         val client = clientProvider.get() ?: return emptyList()
         val granted = catchingOrNull { client.permissionController.getGrantedPermissions() } ?: return emptyList()
         val zone = timeProvider.zone()
         val range = TimeRangeFilter.between(from, to)
-        val vitals = mutableListOf<VitalSample>()
+        val vitals = mutableListOf<RecordedVital>()
 
         if (HealthConnectPermissions.RESTING_HEART_RATE in granted) {
             catchingOrNull { client.readAllRecords(RestingHeartRateRecord::class, range) }
-                ?.mapTo(vitals) { it.toVitalSample() }
+                ?.mapTo(vitals) { it.toRecordedVital(zone) }
         }
         if (HealthConnectPermissions.HRV in granted) {
             catchingOrNull { client.readAllRecords(HeartRateVariabilityRmssdRecord::class, range) }
-                ?.mapTo(vitals) { it.toVitalSample() }
+                ?.mapTo(vitals) { it.toRecordedVital(zone) }
         }
         if (HealthConnectPermissions.STEPS in granted) {
             catchingOrNull { readDailySteps(client, from, to, zone) }?.let(vitals::addAll)
@@ -95,7 +94,7 @@ class HealthConnectSleepDataSource @Inject constructor(
         from: Instant,
         to: Instant,
         zone: ZoneId,
-    ): List<VitalSample> {
+    ): List<RecordedVital> {
         val firstDay = from.atZone(zone).toLocalDate()
         val lastDay = to.atZone(zone).toLocalDate()
         val groups = client.aggregateGroupByPeriod(

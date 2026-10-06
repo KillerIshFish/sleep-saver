@@ -2,6 +2,7 @@ package com.sleepsaver.core.data.demo
 
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.source.ChangeBatch
+import com.sleepsaver.core.data.source.RecordedVital
 import com.sleepsaver.core.data.source.SleepDataSource
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -53,15 +54,18 @@ class FakeSleepDataSource internal constructor(
     override suspend fun readSleepSessions(from: Instant, to: Instant): List<RawSleepSession> =
         generate().sessions.filter { it.end.isAfter(from) && it.start.isBefore(to) }
 
-    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<VitalSample> {
+    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<RecordedVital> {
         val sleepHrIds = sessions.mapTo(HashSet()) { VitalIds.sleepingHeartRate(it.id) }
-        return generate().vitals.filter { vital ->
-            if (vital.type == VitalType.SLEEP_HR_AVG) {
-                vital.id in sleepHrIds
-            } else {
-                !vital.time.isBefore(from) && vital.time.isBefore(to)
+        val zone = timeProvider.zone()
+        return generate(zone = zone).vitals
+            .filter { vital ->
+                if (vital.type == VitalType.SLEEP_HR_AVG) {
+                    vital.id in sleepHrIds
+                } else {
+                    !vital.time.isBefore(from) && vital.time.isBefore(to)
+                }
             }
-        }
+            .map { RecordedVital(it, zone.rules.getOffset(it.time)) }
     }
 
     override suspend fun newChangesToken(): String = TOKEN

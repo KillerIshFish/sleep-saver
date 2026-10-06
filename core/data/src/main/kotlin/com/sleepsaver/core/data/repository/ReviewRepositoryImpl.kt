@@ -25,7 +25,10 @@ class ReviewRepositoryImpl @Inject constructor(
     private val dao = database.morningReviewDao()
 
     override fun review(wakeDate: LocalDate): Flow<MorningReview?> =
-        dao.observe(wakeDate.toString()).map { it?.toDomainOrNull() }.distinctUntilChanged()
+        dao.observe(wakeDate.toString())
+            .orFallback(TAG, "Review query") { null }
+            .map { it?.toDomainOrNull() }
+            .distinctUntilChanged()
 
     override suspend fun record(review: MorningReview) = dao.upsert(review.toEntity())
 
@@ -42,4 +45,8 @@ class ReviewRepositoryImpl @Inject constructor(
             if (today == null) flowOf(null) else review(today).map { done -> today.takeIf { done == null } }
         }
         .distinctUntilChanged()
+
+    private companion object {
+        const val TAG = "ReviewRepository"
+    }
 }
