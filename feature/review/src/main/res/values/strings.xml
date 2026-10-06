@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="review_close">Close</string>
+    <string name="review_back">Back</string>
+    <string name="review_cancel">Cancel</string>
+    <string name="review_done">Done</string>
+    <string name="review_delete">Delete</string>
+    <string name="review_keep">Keep</string>
+    <string name="review_save_failed">That didn’t save. Your changes are still here, so try again in a moment.</string>
+    <!-- Two facts on one line: "via Health Connect · Recorded in GMT−4" -->
+    <string name="review_joined">%1$s · %2$s</string>
+    <!-- "Mon, Oct 5 into Tue, Oct 6": the evening the night started and the morning it ended. -->
+    <string name="review_night_dates">%1$s into %2$s</string>
+    <!-- "Saturday night's sleep" -->
+    <string name="review_title_named">%1$s’s sleep</string>
+    <!-- "Night of Mon, Sep 28" -->
+    <string name="review_title_dated">Night of %1$s</string>
+
+    <!-- Morning review -->
+    <string name="review_loading_sync">Gathering last night’s sleep…</string>
+    <string name="review_total_sleep">Total sleep</string>
+    <string name="review_edit_times">Edit this night</string>
+    <string name="review_row_fell_asleep">Fell asleep</string>
+    <string name="review_row_woke_up">Woke up</string>
+    <string name="review_row_awake">Awake</string>
+    <string name="review_row_naps">Naps</string>
+    <string name="review_how_calculated">How is this calculated?</string>
+    <string name="review_looks_right">Looks right</string>
+    <string name="review_adjust">Adjust</string>
+    <string name="review_dont_show">Don’t show these reviews again</string>
+    <string name="review_dont_show_title">Turn off morning reviews?</string>
+    <string name="review_dont_show_body">You won’t get this check-in after you wake up. You can switch it back on anytime in Settings.</string>
+    <string name="review_dont_show_confirm">Turn off</string>
+    <string name="review_dont_show_keep">Keep them</string>
+    <string name="review_missing_title">Last night isn’t here yet</string>
+    <string name="review_missing_body">Your watch may still be syncing. Open Garmin Connect to give it a nudge, then sync again, or add the night yourself.</string>
+    <string name="review_missing_body_error">We couldn’t read Health Connect just now. Try syncing again, or add the night yourself.</string>
+    <string name="review_sync_now">Sync now</string>
+    <string name="review_add_manually">Add it manually</string>
+    <string name="review_try_again">Try again</string>
+    <string name="review_missing_hc_title">Health Connect isn’t ready</string>
+    <string name="review_missing_hc_body">Sleep Saver reads your Garmin sleep through Health Connect, which needs to be installed or updated on this phone. Set it up and we’ll look for last night again.</string>
+    <string name="review_set_up_hc">Set up Health Connect</string>
+    <string name="review_missing_permission_title">Sleep Saver can’t read your sleep</string>
+    <string name="review_missing_permission_body">Access to sleep data in Health Connect is switched off, so last night can’t come in. Allow it, or add the night yourself.</string>
+    <string name="review_allow_access">Allow access</string>
+    <string name="review_adjust_title">Adjust your night</string>
+    <string name="review_recalculating">Updating your sleep debt</string>
+    <string name="review_result_title">Sleep debt updated</string>
+    <string name="review_result_last_night">Last night</string>
+    <!-- "Sleep need 8h − slept 6h 53m" -->
+    <string name="review_result_need_slept">Sleep need %1$s − slept %2$s</string>
+    <string name="review_result_fading">Older nights fading</string>
+    <string name="review_result_fading_body">Each past night weighs a little less every day</string>
+    <string name="review_result_now">Sleep debt now</string>
+    <!-- "was 2.7 hrs" -->
+    <string name="review_result_was">was %1$s hrs</string>
+    <string name="review_result_label">hrs sleep debt</string>
+    <!-- "3.2 hrs" -->
+    <string name="review_hours_value">%1$s hrs</string>
+    <!-- Screen readers: "Sleep from 11:02 PM to 6:51 AM, awake 2 times" -->
+    <plurals name="review_arc_description">
+        <item quantity="one">Sleep from %1$s to %2$s, awake %3$d time</item>
+        <item quantity="other">Sleep from %1$s to %2$s, awake %3$d times</item>
+    </plurals>
+
+    <!-- Edit night -->
+    <string name="review_edit_title">Edit your night</string>
+    <string name="review_add_title">Add a missing night</string>
+    <string name="review_load_failed_title">This night won’t open</string>
+    <string name="review_load_failed_body">Something went wrong reading it. Nothing was changed. Close this and try again in a moment.</string>
+    <string name="review_total_sleep_time">Total sleep time</string>
+    <!-- "7h 25m in bed · 35m awake" -->
+    <string name="review_in_bed_awake">%1$s in bed · %2$s awake</string>
+    <string name="review_awake_caption">Time you were awake between falling asleep and getting up.</string>
+    <string name="review_naps_caption">All your daytime naps on the day you woke up.</string>
+    <string name="review_error_order">Woke up has to be after fell asleep.</string>
+    <string name="review_error_too_long">That’s more than 16 hours in bed. Check the times.</string>
+    <string name="review_error_future">Woke up can’t be later than now.</string>
+    <string name="review_revert_original">Revert to original</string>
+    <string name="review_revert_title">Revert this night?</string>
+    <string name="review_revert_body">Your edits will be removed and the night goes back to what %1$s recorded.</string>
+    <string name="review_revert_confirm">Revert</string>
+    <string name="review_remove_night">Remove this night</string>
+    <string name="review_remove_title">Remove this night?</string>
+    <string name="review_remove_body">You added this night yourself. Removing it takes it out of your sleep debt.</string>
+    <string name="review_remove_confirm">Remove</string>
+
+    <!-- Data source -->
+    <string name="review_source_title">Data source</string>
+    <string name="review_source_via_hc">via Health Connect</string>
+    <!-- "Garmin Connect via Health Connect" -->
+    <string name="review_source_app_via_hc">%1$s via Health Connect</string>
+    <!-- "Recorded in GMT−4" -->
+    <string name="review_source_recorded_in">Recorded in %1$s</string>
+    <string name="review_source_demo_body">Sample nights for exploring the app</string>
+    <string name="review_source_manual">Added by you</string>
+    <string name="review_source_manual_body">No recording for this night, so it uses the times you entered.</string>
+    <string name="review_source_edited">Edited by you. The original recording is kept.</string>
+    <string name="review_how_we_measure">How we measure sleep</string>
+    <string name="review_origin_garmin">Garmin Connect</string>
+    <string name="review_origin_demo">Demo data</string>
+    <string name="review_origin_samsung">Samsung Health</string>
+    <string name="review_origin_fitbit">Fitbit</string>
+    <string name="review_origin_google_fit">Google Fit</string>
+    <string name="review_origin_oura">Oura</string>
+    <string name="review_origin_withings">Withings</string>
+    <string name="review_origin_polar">Polar Flow</string>
+    <string name="review_origin_unknown">your data source</string>
+
+    <!-- Night detail -->
+    <string name="review_detail_in_bed">In bed</string>
+    <string name="review_detail_awake">Awake</string>
+    <string name="review_detail_efficiency">Efficiency</string>
+    <string name="review_detail_edited">Edited</string>
+    <string name="review_detail_manual">Added by you</string>
+    <!-- "+ 45m in other sleep" -->
+    <string name="review_detail_extra">+ %1$s of other sleep that night</string>
+    <string name="review_detail_stages">Sleep stages</string>
+    <string name="review_stage_awake">Awake</string>
+    <string name="review_stage_rem">REM</string>
+    <string name="review_stage_light">Light</string>
+    <string name="review_stage_deep">Deep</string>
+    <string name="review_stage_asleep">Asleep</string>
+    <string name="review_no_stages">%1$s didn’t share sleep stages for this night, so it’s shown as one stretch.</string>
+    <string name="review_no_stages_generic">No sleep stages came in for this night, so it’s shown as one stretch.</string>
+    <string name="review_no_stages_manual">Nights you add yourself don’t have sleep stages, so it’s shown as one stretch.</string>
+    <!-- Screen readers: "Sleep stages from 11:02 PM to 6:51 AM" -->
+    <string name="review_hypnogram_description">Sleep stages from %1$s to %2$s</string>
+    <string name="review_interruptions">Interruptions</string>
+    <string name="review_interruptions_none">No interruptions of 5 minutes or more.</string>
+    <string name="review_interruption_stage">Awake</string>
+    <string name="review_interruption_gap">Between recordings</string>
+    <string name="review_interruption_added">Added by you</string>
+    <string name="review_naps_title">Naps</string>
+    <string name="review_naps_none">No naps this day.</string>
+    <string name="review_nap_manual">Added by you</string>
+    <!-- "Recorded by Garmin Connect" -->
+    <string name="review_nap_recorded">Recorded by %1$s</string>
+    <!-- "35m asleep" -->
+    <string name="review_nap_asleep">%1$s asleep</string>
+    <string name="review_delete_nap">Delete nap</string>
+    <string name="review_delete_nap_title">Delete this nap?</string>
+    <string name="review_delete_nap_body">It won’t count toward your sleep anymore.</string>
+    <!-- "Revert to Garmin Connect data" -->
+    <string name="review_revert_to_source">Revert to %1$s data</string>
+    <string name="review_detail_missing_title">No data for this night</string>
+    <string name="review_detail_missing_body">Nothing was recorded for this night. If you slept, add it so your sleep debt stays accurate.</string>
+    <string name="review_add_it">Add it</string>
+
+    <!-- Add nap -->
+    <string name="review_add_nap_title">Add a nap</string>
+    <string name="review_add_nap_subtitle">Naps count toward that day’s sleep.</string>
+    <string name="review_day_today">Today</string>
+    <string name="review_day_yesterday">Yesterday</string>
+    <string name="review_nap_started">Fell asleep</string>
+    <string name="review_nap_length">Length</string>
+    <!-- "Until 2:40 PM" -->
+    <string name="review_nap_until">Until %1$s</string>
+    <string name="review_naps_that_day">Naps that day</string>
+    <string name="review_save_nap">Save nap</string>
+    <string name="review_nap_error_future">That nap would end after now. Pick an earlier start or a shorter length.</string>
+
+    <!-- How we measure -->
+    <string name="review_hwm_title">How we measure sleep</string>
+    <string name="review_hwm_watch_title">Your watch estimates it</string>
+    <string name="review_hwm_watch_body">Your Garmin watch estimates when you’re asleep from how you move and how your heart rate changes overnight.</string>
+    <string name="review_hwm_hc_title">Garmin Connect passes it on</string>
+    <string name="review_hwm_hc_body">Garmin Connect writes each night to Health Connect on your phone. Sleep Saver only reads it and never changes the original.</string>
+    <string name="review_hwm_count_title">Sleep Saver adds it up</string>
+    <string name="review_hwm_count_body">We count the time you were actually asleep, leave out the awake stretches, add your naps and apply any edits you make.</string>
+    <string name="review_hwm_source_title">This night</string>
+    <!-- "Garmin Connect via Health Connect · times in GMT−4" -->
+    <string name="review_hwm_source_body">%1$s · times in %2$s</string>
+    <string name="review_hwm_change_source">Change data source</string>
+    <string name="review_hwm_got_it">Got it</string>
+</resources>
