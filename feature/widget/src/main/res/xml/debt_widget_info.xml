@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 2x2 by default, resizable both ways. The app also pushes updates whenever the displayed values change. -->
+<!-- 2x2 by default, resizable both ways but not below 2x2: the debt and its label need two rows.
+     The app also pushes updates whenever the displayed values change. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/debt_widget_description"
     android:initialLayout="@layout/glance_default_loading_layout"
     android:minWidth="110dp"
     android:minHeight="110dp"
     android:minResizeWidth="110dp"
-    android:minResizeHeight="90dp"
+    android:minResizeHeight="110dp"
     android:previewLayout="@layout/debt_widget_preview"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"

@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 class MorningReviewNotifierImplTest {
@@ -62,7 +63,7 @@ class MorningReviewNotifierImplTest {
 
     @Test
     fun `no nudge when morning reviews are turned off`() = runTest {
-        settings.settings.value = AppSettings(morningReviewEnabled = false)
+        settings.settings.value = AppSettings(morningReviewEnabled = false, onboardingDone = true)
 
         notifier().onLastNightArrived(TODAY)
         advanceUntilIdle()
@@ -145,5 +146,76 @@ class MorningReviewNotifierImplTest {
 
         assertThat(alarms.scheduledAlarms).isEmpty()
         assertThat(notifications.allNotifications).isEmpty()
+    }
+
+    @Test
+    fun `no nudge while onboarding is still running`() = runTest {
+        settings.settings.value = AppSettings(onboardingDone = false)
+
+        notifier().onLastNightArrived(TODAY)
+        advanceUntilIdle()
+
+        assertThat(notifications.allNotifications).isEmpty()
+    }
+
+    @Test
+    fun `a settings read that fails doesn't crash the app scope`() = runTest {
+        settings.failure = IOException("settings file unreadable")
+
+        notifier().onLastNightArrived(TODAY)
+        advanceUntilIdle()
+
+        assertThat(notifications.allNotifications).isEmpty()
+    }
+
+    @Test
+    fun `the fallback alarm is re-armed after a reboot wiped it`() = runTest {
+        notifier().scheduleFallbackReminder(at(TODAY, "07:45"))
+        wipeAlarms()
+
+        notifier().restoreFallbackReminder()
+
+        val alarm = alarms.scheduledAlarms.single()
+        assertThat(alarm.triggerAtMs).isEqualTo(at(TODAY, "07:45").toEpochMilli())
+        assertThat(shadowOf(alarm.operation).savedIntent.getStringExtra(ReminderReceiver.EXTRA_WAKE_DATE)).isEqualTo("2026-10-06")
+    }
+
+    @Test
+    fun `a fallback that already fired, was cancelled or is from an earlier day isn't restored`() = runTest {
+        val notifier = notifier()
+        notifier.scheduleFallbackReminder(at(TODAY, "07:45"))
+        notifier.onFallbackAlarm(TODAY)
+        wipeAlarms()
+        notifier.restoreFallbackReminder()
+        assertThat(alarms.scheduledAlarms).isEmpty()
+
+        notifier.scheduleFallbackReminder(at(TODAY, "07:45"))
+        notifier.cancel()
+        notifier.restoreFallbackReminder()
+        assertThat(alarms.scheduledAlarms).isEmpty()
+
+        notifier.scheduleFallbackReminder(at(TODAY.minusDays(1), "07:45"))
+        wipeAlarms()
+        notifier.restoreFallbackReminder()
+        assertThat(alarms.scheduledAlarms).isEmpty()
+    }
+
+    @Test
+    fun `tomorrow's fallback survives this morning's data and review`() = runTest {
+        val notifier = notifier()
+        notifier.scheduleFallbackReminder(at(TODAY.plusDays(1), "07:45"))
+
+        notifier.onLastNightArrived(TODAY)
+        advanceUntilIdle()
+        reviews.record(MorningReview(TODAY, ReviewStatus.CONFIRMED, at(TODAY, "07:35"), null, null))
+        notifier.cancel()
+
+        assertThat(alarms.scheduledAlarms.single().triggerAtMs).isEqualTo(at(TODAY.plusDays(1), "07:45").toEpochMilli())
+        assertThat(notifications.allNotifications).isEmpty()
+    }
+
+    /** A reboot or an app update wipes every alarm. */
+    private fun wipeAlarms() {
+        while (alarms.nextScheduledAlarm != null) Unit
     }
 }

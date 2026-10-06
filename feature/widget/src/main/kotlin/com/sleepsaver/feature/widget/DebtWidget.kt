@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
@@ -17,9 +18,11 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.provideContent
@@ -65,6 +68,9 @@ interface DebtWidgetEntryPoint {
 /** Home-screen widget: sleep debt (big), its status colour, and the current or next energy phase. Tap opens the app. */
 class DebtWidget : GlanceAppWidget() {
 
+    /** A narrow or short 2x2 (dense grid, landscape) gets the compact layout instead of clipped lines. */
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(CompactSize, RoomySize))
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val entry = EntryPointAccessors.fromApplication(context.applicationContext, DebtWidgetEntryPoint::class.java)
         val models = debtWidgetModels(entry.insightsRepository().state, entry.settingsRepository().settings)
@@ -84,8 +90,14 @@ class DebtWidgetReceiver : GlanceAppWidgetReceiver() {
 private val TextPrimary = ColorProvider(R.color.widget_text_primary)
 private val TextSecondary = ColorProvider(R.color.widget_text_secondary)
 
+/** The smallest the widget gets (the 2x2 minimum; it can't be resized below that): status, debt and its label. */
+private val CompactSize = DpSize(110.dp, 110.dp)
+
+/** From here on the debt is full size and the phase line fits below it (with some room for larger fonts). */
+private val RoomySize = DpSize(130.dp, 160.dp)
+
 @Composable
-private fun DebtWidgetContent(model: DebtWidgetModel) {
+internal fun DebtWidgetContent(model: DebtWidgetModel) {
     val context = LocalContext.current
     Column(
         modifier = GlanceModifier
@@ -110,6 +122,7 @@ private fun DebtWidgetContent(model: DebtWidgetModel) {
 @Composable
 private fun ColumnScope.DebtContent(model: DebtWidgetModel.Debt) {
     val context = LocalContext.current
+    val roomy = LocalSize.current.let { it.width >= RoomySize.width && it.height >= RoomySize.height }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Image(
             provider = ImageProvider(R.drawable.widget_status_dot),
@@ -125,7 +138,7 @@ private fun ColumnScope.DebtContent(model: DebtWidgetModel.Debt) {
     }
     Text(
         text = formatDebt(model.debtTenths),
-        style = TextStyle(color = TextPrimary, fontSize = 44.sp),
+        style = TextStyle(color = TextPrimary, fontSize = if (roomy) 44.sp else 36.sp),
         maxLines = 1,
     )
     Text(
@@ -134,7 +147,7 @@ private fun ColumnScope.DebtContent(model: DebtWidgetModel.Debt) {
         maxLines = 1,
     )
     Spacer(GlanceModifier.defaultWeight())
-    model.phase?.let { phase ->
+    model.phase?.takeIf { roomy }?.let { phase ->
         val name = context.getString(phase.type.label())
         val time = formatTime(context, phase.time, model.clockFormat)
         val format = if (phase.isCurrent) R.string.widget_phase_until else R.string.widget_phase_from

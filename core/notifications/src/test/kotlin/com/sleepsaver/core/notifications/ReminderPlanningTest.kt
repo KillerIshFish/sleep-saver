@@ -150,4 +150,29 @@ class ReminderPlanningTest {
         assertThat(planning.nextAlarm(habits, at(TODAY, "20:00"), postedThrough = at(tomorrow, "07:22")))
             .isEqualTo(at(TODAY, "22:30"))
     }
+
+    @Test
+    fun `a habit already posted today isn't posted again when its time moves later`() {
+        val habits = listOf(habit(MORNING_LIGHT, at(TODAY, "07:21")), habit(CAFFEINE_CUTOFF, at(TODAY, "12:51")))
+        val lastPosted = mapOf(MORNING_LIGHT to at(TODAY, "07:15"))
+
+        assertThat(planning.nextAlarm(habits, at(TODAY, "07:16"), at(TODAY, "07:17:10"), lastPosted)).isEqualTo(at(TODAY, "12:51"))
+        assertThat(planning.due(habits, at(TODAY, "07:21:30"), at(TODAY, "07:17:10"), lastPosted)).isEmpty()
+    }
+
+    @Test
+    fun `tomorrow's reminder of an already posted habit is still pending`() {
+        val habits = listOf(habit(MORNING_LIGHT, at(tomorrow, "07:20")))
+
+        assertThat(planning.nextAlarm(habits, at(TODAY, "23:00"), at(TODAY, "22:32"), mapOf(MORNING_LIGHT to at(TODAY, "07:15"))))
+            .isEqualTo(at(tomorrow, "07:20"))
+    }
+
+    @Test
+    fun `a posted marker from a clock that was later set back doesn't silence the habit`() {
+        val habits = listOf(habit(BEDTIME, at(TODAY, "22:30")))
+
+        assertThat(planning.nextAlarm(habits, at(TODAY, "20:00"), null, mapOf(BEDTIME to at(tomorrow, "00:10"))))
+            .isEqualTo(at(TODAY, "22:30"))
+    }
 }

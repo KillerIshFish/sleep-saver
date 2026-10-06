@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import java.time.Instant
+import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 class ReminderPlannerImplTest {
@@ -40,9 +41,10 @@ class ReminderPlannerImplTest {
     private val insights = FakeInsightsRepository()
     private val time = FakeTimeProvider(at(TODAY, "09:00"))
 
-    /** Tomorrow's habits come from here instead of HabitScheduler. */
-    private var tomorrowHabits: List<ScheduledHabit> = emptyList()
-    private val scheduleHabits: (EnergySchedule, List<HabitSettings>) -> List<ScheduledHabit> = { _, _ -> tomorrowHabits }
+    /** Other days' habits come from here (by schedule date) instead of HabitScheduler. */
+    private val habitsByDate = mutableMapOf<LocalDate, List<ScheduledHabit>>()
+    private val scheduleHabits: (EnergySchedule, List<HabitSettings>) -> List<ScheduledHabit> =
+        { schedule, _ -> habitsByDate[schedule.date].orEmpty() }
 
     private val planner = ReminderPlannerImpl(
         context, insights, FakeHabitsRepository(), time, NotificationPoster(context), scheduleHabits,
@@ -60,7 +62,7 @@ class ReminderPlannerImplTest {
     fun setUp() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         insights.schedules[tomorrow] = schedule(tomorrow)
-        tomorrowHabits = listOf(habit(HabitType.MORNING_LIGHT, at(tomorrow, "07:20")))
+        habitsByDate[tomorrow] = listOf(habit(HabitType.MORNING_LIGHT, at(tomorrow, "07:20")))
         insights.state.value = InsightsState.Ready(insights(time.now, todayHabits))
     }
 
@@ -177,6 +179,70 @@ class ReminderPlannerImplTest {
         planner.cancelAll()
 
         assertThat(alarms.scheduledAlarms).isEmpty()
+    }
+
+    @Test
+    fun `cancelAll removes posted reminders and forgets what was posted`() = runTest {
+        time.now = at(TODAY, "12:44")
+        planner.replan()
+        time.now = at(TODAY, "12:45")
+        planner.onAlarm()
+
+        planner.cancelAll()
+
+        assertThat(notifications.allNotifications).isEmpty()
+        assertThat(ReminderStore(context).postedThrough).isNull()
+        assertThat(ReminderStore(context).lastPosted).isEmpty()
+    }
+
+    @Test
+    fun `a bedtime after midnight is still reminded once the date has rolled over`() = runTest {
+        // Late sleeper: TODAY's schedule puts the sleep window at 00:30, but from midnight on insights.today is tomorrow.
+        val dayAfter = tomorrow.plusDays(1)
+        insights.schedules[TODAY] = schedule(TODAY)
+        habitsByDate[TODAY] = listOf(
+            habit(HabitType.DIM_LIGHTS, at(TODAY, "23:00"), windowEnd = at(TODAY, "23:59")),
+            habit(HabitType.BEDTIME, at(tomorrow, "00:30"), windowEnd = at(tomorrow, "01:30")),
+        )
+        insights.schedules[dayAfter] = schedule(dayAfter)
+        habitsByDate[dayAfter] = listOf(habit(HabitType.MORNING_LIGHT, at(dayAfter, "09:15")))
+        time.now = at(tomorrow, "00:01")
+        val tomorrowsOwn = listOf(habit(HabitType.MORNING_LIGHT, at(tomorrow, "09:15")), habit(HabitType.BEDTIME, at(dayAfter, "00:30")))
+        insights.state.value = InsightsState.Ready(insights(time.now, tomorrowsOwn, today = tomorrow))
+
+        planner.replan()
+
+        assertThat(nextAlarmAt()).isEqualTo(at(tomorrow, "00:30"))
+    }
+
+    @Test
+    fun `a reminder nudged a few minutes later after it was posted isn't posted again`() = runTest {
+        time.now = at(TODAY, "07:00")
+        insights.state.value = InsightsState.Ready(insights(time.now, todayHabits))
+        planner.replan()
+        time.now = at(TODAY, "07:15:10")
+        planner.onAlarm()
+        assertThat(notifications.allNotifications).hasSize(1)
+
+        // Last night syncs at 07:16 and moves typical wake (and every habit) 6 minutes later.
+        time.now = at(TODAY, "07:16")
+        val moved = todayHabits.map { it.copy(time = it.time.plusSeconds(6 * 60)) }
+        insights.state.value = InsightsState.Ready(insights(time.now, moved))
+        planner.replan()
+
+        assertThat(nextAlarmAt()).isEqualTo(at(TODAY, "12:51"))
+        time.now = at(TODAY, "07:21:30")
+        planner.onAlarm()
+        assertThat(notifications.allNotifications).hasSize(1)
+    }
+
+    @Test
+    fun `today's reminders are still planned when another day's schedule can't be read`() = runTest {
+        insights.failingSchedules += tomorrow
+
+        planner.replan()
+
+        assertThat(nextAlarmAt()).isEqualTo(at(TODAY, "12:45"))
     }
 
     private fun nextAlarmAt(): Instant? = alarms.peekNextScheduledAlarm()?.let { Instant.ofEpochMilli(it.triggerAtMs) }

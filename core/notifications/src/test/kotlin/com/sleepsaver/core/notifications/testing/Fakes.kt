@@ -20,6 +20,7 @@ import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.SourceSelection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -40,8 +41,12 @@ class FakeInsightsRepository(initial: InsightsState = InsightsState.Loading) : I
     override val state = MutableStateFlow(initial)
     val schedules = mutableMapOf<LocalDate, EnergySchedule>()
 
+    /** Dates whose schedule flow fails (e.g. an implementation that only supports today and past days). */
+    val failingSchedules = mutableSetOf<LocalDate>()
+
     override fun debtSeries(from: LocalDate, to: LocalDate): Flow<List<SleepDebt>> = flowOf(emptyList())
-    override fun schedule(date: LocalDate): Flow<EnergySchedule?> = flowOf(schedules[date])
+    override fun schedule(date: LocalDate): Flow<EnergySchedule?> =
+        if (date in failingSchedules) flow { throw IllegalArgumentException("no schedule for $date") } else flowOf(schedules[date])
     override suspend fun breakdown(wakeDate: LocalDate): DebtChangeBreakdown = error("not used")
 }
 
@@ -61,10 +66,13 @@ class FakeHabitsRepository(settings: List<HabitSettings> = HabitCatalog().defaul
         habitSettings.update { list -> list.map { if (it.type == type) change(it) else it } }
 }
 
-class FakeSettingsRepository(initial: AppSettings = AppSettings()) : SettingsRepository {
+class FakeSettingsRepository(initial: AppSettings = AppSettings(onboardingDone = true)) : SettingsRepository {
     override val settings = MutableStateFlow(initial)
 
-    override suspend fun current(): AppSettings = settings.value
+    /** When set, reading the settings throws it (a broken DataStore file). */
+    var failure: Exception? = null
+
+    override suspend fun current(): AppSettings = failure?.let { throw it } ?: settings.value
     override suspend fun setSleepNeed(need: Duration) = settings.update { it.copy(sleep = it.sleep.copy(sleepNeed = need)) }
     override suspend fun setTypicalWake(time: LocalTime) = settings.update { it.copy(sleep = it.sleep.copy(typicalWake = time)) }
     override suspend fun setStreakThreshold(threshold: Duration) = settings.update { it.copy(sleep = it.sleep.copy(streakThreshold = threshold)) }

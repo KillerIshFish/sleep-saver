@@ -55,15 +55,18 @@ class ReminderReceiver : BroadcastReceiver() {
 }
 
 /**
- * Re-arms reminders when alarms were wiped (reboot, app update) or local times moved (clock or time zone change),
- * and makes sure the periodic sync is enqueued.
+ * Re-arms reminders and the morning-review fallback when alarms were wiped (reboot, app update) or local times moved
+ * (clock or time zone change), and makes sure the periodic sync is enqueued.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action !in HANDLED_ACTIONS) return
         val entry = context.notificationsEntryPoint()
         entry.syncRepository().ensurePeriodicSync()
-        launchAsync(entry.applicationScope()) { entry.reminderPlanner().replan() }
+        launchAsync(entry.applicationScope()) {
+            entry.morningReviewNotifier().restoreFallbackReminder()
+            entry.reminderPlanner().replan()
+        }
     }
 
     private companion object {
