@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -286,15 +287,27 @@ private fun DebtLevelsPreview(low: Int, high: Int) {
             }
         }
         Spacer(Modifier.height(Spacing.m))
-        Row(Modifier.fillMaxWidth()) {
-            val lowText = formatDuration(Duration.ofMinutes(low.toLong()))
-            val highText = formatDuration(Duration.ofMinutes(high.toLong()))
-            LegendItem(DebtStatus.LOW, stringResource(R.string.settings_debt_range_low, lowText), Modifier.weight(1f))
-            LegendItem(DebtStatus.MODERATE, stringResource(R.string.settings_debt_range_moderate, lowText, highText), Modifier.weight(1f))
-            LegendItem(DebtStatus.HIGH, stringResource(R.string.settings_debt_range_high, highText), Modifier.weight(1f))
+        val lowText = formatDuration(Duration.ofMinutes(low.toLong()))
+        val highText = formatDuration(Duration.ofMinutes(high.toLong()))
+        val ranges = listOf(
+            DebtStatus.LOW to stringResource(R.string.settings_debt_range_low, lowText),
+            DebtStatus.MODERATE to stringResource(R.string.settings_debt_range_moderate, lowText, highText),
+            DebtStatus.HIGH to stringResource(R.string.settings_debt_range_high, highText),
+        )
+        if (LocalDensity.current.fontScale >= LargeLegendFontScale) {
+            // Three columns don't fit very large text: one level per line.
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                ranges.forEach { (status, range) -> LegendItem(status, range) }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth()) {
+                ranges.forEach { (status, range) -> LegendItem(status, range, Modifier.weight(1f)) }
+            }
         }
     }
 }
+
+private const val LargeLegendFontScale = 1.5f
 
 @Composable
 private fun LegendItem(status: DebtStatus, range: String, modifier: Modifier = Modifier) {

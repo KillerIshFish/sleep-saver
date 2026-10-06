@@ -7,7 +7,9 @@ import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.data.repository.DataResetter
 import com.sleepsaver.core.data.repository.DemoModeController
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncResult
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
@@ -27,11 +29,13 @@ import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
 import com.sleepsaver.core.testing.SampleData
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -55,6 +59,8 @@ class SettingsViewModelTest {
     private val time = FakeTimeProvider()
     private var demo: DemoModeController = FakeDemoModeController(settings)
     private var resetter: DataResetter = FakeDataResetter()
+    private var settingsRepository: SettingsRepository = settings
+    private var syncRepository: SyncRepository = sync
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -65,9 +71,9 @@ class SettingsViewModelTest {
     private fun TestScope.viewModel(): SettingsViewModel {
         val io = UnconfinedTestDispatcher(testScheduler)
         val viewModel = SettingsViewModel(
-            settingsRepository = settings,
+            settingsRepository = settingsRepository,
             sleepRepository = sleep,
-            syncRepository = sync,
+            syncRepository = syncRepository,
             insightsRepository = insights,
             demoModeController = demo,
             exportRepository = export,
@@ -229,6 +235,24 @@ class SettingsViewModelTest {
 
         assertThat(anchor.isFallback).isFalse()
         assertThat(viewModel.state.learnedWake).isEqualTo(anchor.typicalWake)
+    }
+
+    @Test
+    fun `a change that can't be stored says so instead of crashing`() = runTest {
+        settingsRepository = object : SettingsRepository by settings {
+            override suspend fun setSleepNeed(need: Duration) = throw IOException("disk full")
+            override suspend fun setClockFormat(format: ClockFormat) = throw IOException("disk full")
+        }
+        val viewModel = viewModel()
+
+        viewModel.setSleepNeed(500)
+
+        assertThat(stored.sleepNeed).isEqualTo(Duration.ofHours(8))
+        assertThat(viewModel.state.message).isEqualTo(SettingsMessage.SAVE_FAILED)
+
+        viewModel.messageShown()
+        viewModel.setClockFormat(ClockFormat.H24)
+        assertThat(viewModel.state.message).isEqualTo(SettingsMessage.SAVE_FAILED)
     }
 
     // ------------------------------------------------------------------ Goals
@@ -402,6 +426,43 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `a second tap while syncing doesn't start another sync`() = runTest {
+        val done = CompletableDeferred<SyncResult>()
+        val calls = mutableListOf<SyncTrigger>()
+        syncRepository = object : SyncRepository by sync {
+            override suspend fun sync(trigger: SyncTrigger): SyncResult {
+                calls += trigger
+                return done.await()
+            }
+        }
+        val viewModel = viewModel()
+
+        viewModel.syncNow()
+        viewModel.syncNow()
+        assertThat(viewModel.state.sync.inProgress).isTrue()
+
+        done.complete(SyncResult(success = true))
+        advanceUntilIdle()
+
+        assertThat(calls).containsExactly(SyncTrigger.MANUAL)
+        assertThat(viewModel.state.sync.inProgress).isFalse()
+        assertThat(viewModel.state.sync.feedback).isEqualTo(SyncFeedback.Success(0))
+    }
+
+    @Test
+    fun `a sync that throws anyway is shown as failed`() = runTest {
+        syncRepository = object : SyncRepository by sync {
+            override suspend fun sync(trigger: SyncTrigger): SyncResult = throw IllegalStateException("binder died")
+        }
+        val viewModel = viewModel()
+
+        viewModel.syncNow()
+
+        assertThat(viewModel.state.sync.inProgress).isFalse()
+        assertThat(viewModel.state.sync.feedback).isEqualTo(SyncFeedback.Failed(SyncError.UNKNOWN))
+    }
+
+    @Test
     fun `a sync running elsewhere shows as in progress`() = runTest {
         val viewModel = viewModel()
 
@@ -455,6 +516,25 @@ class SettingsViewModelTest {
         assertThat(discarded).isEqualTo(2)
         assertThat(export.jsonExports).isEqualTo(0)
         assertThat(viewModel.state.message).isEqualTo(SettingsMessage.EXPORT_FAILED)
+        assertThat(viewModel.state.exporting).isNull()
+    }
+
+    @Test
+    fun `only one export runs at a time`() = runTest {
+        val viewModel = viewModel()
+        val out = TrackingStream()
+        var opened = 0
+
+        viewModel.export(ExportFormat.JSON, open = {
+            opened++
+            // A second request while this one is still writing is ignored.
+            viewModel.export(ExportFormat.CSV, open = { error("not expected") })
+            out
+        })
+
+        assertThat(opened).isEqualTo(1)
+        assertThat(export.jsonExports).isEqualTo(1)
+        assertThat(export.csvExports).isEqualTo(0)
         assertThat(viewModel.state.exporting).isNull()
     }
 

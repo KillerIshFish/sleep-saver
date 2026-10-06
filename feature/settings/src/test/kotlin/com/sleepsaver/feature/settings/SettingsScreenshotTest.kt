@@ -104,9 +104,21 @@ class SettingsScreenshotTest : ScreenshotTest() {
     fun loading() = captureScreen("settings_loading") { Screen(SettingsUiState()) }
 
     @Test
+    fun healthConnectMissing() = captureScreen("settings_hc_missing_data") {
+        Screen(SettingsSamples.healthConnectMissing, SettingsSection.DATA)
+    }
+
+    @Test
     fun largeFont() = captureScreen("settings_large_font") {
         CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.6f)) {
             Screen(SettingsSamples.ready)
+        }
+    }
+
+    @Test
+    fun largeFontData() = captureScreen("settings_large_font_data") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            Screen(SettingsSamples.fresh, SettingsSection.DATA)
         }
     }
 
@@ -161,6 +173,15 @@ class SettingsScreenshotTest : ScreenshotTest() {
                 onSave = { _, _ -> },
                 onDismiss = {},
             )
+        }
+    }
+
+    @Test
+    fun debtLevelsDialogLargeFont() = captureScreen("settings_dialog_debt_levels_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            WithDialog {
+                DebtLevelsDialogCard(lowMax = Duration.ofHours(2), highMin = Duration.ofHours(5), onSave = { _, _ -> }, onDismiss = {})
+            }
         }
     }
 

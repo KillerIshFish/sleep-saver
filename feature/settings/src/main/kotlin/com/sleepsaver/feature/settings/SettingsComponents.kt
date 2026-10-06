@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.Button
@@ -36,6 +38,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -86,7 +89,8 @@ internal fun RowDivider() {
 
 /**
  * One settings row built on [IconListItem]. Tappable edge to edge when [onClick] is set; dimmed and inert
- * when not [enabled].
+ * when not [enabled]. A [value] ("8h", "7:00 AM") sits at the end with a chevron; with very large text it
+ * moves under the title instead, so the title and description keep the row's width.
  */
 @Composable
 internal fun SettingsRow(
@@ -94,11 +98,13 @@ internal fun SettingsRow(
     title: String,
     modifier: Modifier = Modifier,
     supporting: String? = null,
+    value: String? = null,
     tint: Color = MaterialTheme.colorScheme.primary,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val stackValue = value != null && LocalDensity.current.fontScale >= StackedValueFontScale
     Box(
         modifier
             .fillMaxWidth()
@@ -108,9 +114,65 @@ internal fun SettingsRow(
             .padding(horizontal = RowPadding, vertical = Spacing.xs)
             .alpha(if (enabled) 1f else DisabledAlpha),
     ) {
-        IconListItem(icon = icon, title = title, supporting = supporting, tint = tint, trailing = trailing)
+        if (stackValue) {
+            StackedValueItem(icon = icon, title = title, value = value.orEmpty(), supporting = supporting, tint = tint)
+        } else {
+            IconListItem(
+                icon = icon,
+                title = title,
+                supporting = supporting,
+                tint = tint,
+                trailing = trailing ?: value?.let { { ValueChevron(it) } },
+            )
+        }
     }
 }
+
+/** [IconListItem]'s layout with the value as a second line under the title (for large text). */
+@Composable
+private fun StackedValueItem(icon: ImageVector, title: String, value: String, supporting: String?, tint: Color) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        }
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(start = 14.dp, end = 12.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            if (supporting != null) {
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SleepSaverTheme.colors.textSecondary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        ValueChevron()
+    }
+}
+
+/** From this font scale on, a row's value moves under its title. */
+private const val StackedValueFontScale = 1.5f
 
 /** A row with a switch; the whole row toggles it. */
 @Composable
@@ -201,7 +263,9 @@ internal fun SettingsNote(
     inlineAction: Boolean = false,
     action: (@Composable () -> Unit)? = null,
 ) {
-    val actionBelow = action != null && !inlineAction
+    // With very large text even a short action takes too much width beside the text.
+    val inline = inlineAction && LocalDensity.current.fontScale < StackedValueFontScale
+    val actionBelow = action != null && !inline
     Column(
         modifier
             .fillMaxWidth()
@@ -235,7 +299,7 @@ internal fun SettingsNote(
                     )
                 }
             }
-            if (action != null && inlineAction) action()
+            if (action != null && inline) action()
         }
         if (actionBelow) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) { action!!.invoke() }
@@ -295,6 +359,8 @@ internal fun SettingsDialogCard(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.extraLarge)
             .background(SleepSaverTheme.colors.card)
+            // Very large text or a landscape phone can make a dialog taller than the window.
+            .verticalScroll(rememberScrollState())
             .padding(Spacing.xl),
     ) {
         Text(
@@ -312,12 +378,23 @@ internal fun SettingsDialogCard(
             content()
         }
         Spacer(Modifier.height(Spacing.xl))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
-            SecondaryButton(dismissLabel, onClick = onDismiss, enabled = dismissEnabled, modifier = Modifier.weight(1f))
+        val confirm = @Composable { buttonModifier: Modifier ->
             if (destructive) {
-                DestructiveButton(confirmLabel, onClick = onConfirm, enabled = confirmEnabled, modifier = Modifier.weight(1f))
+                DestructiveButton(confirmLabel, onClick = onConfirm, enabled = confirmEnabled, modifier = buttonModifier)
             } else {
-                PrimaryButton(confirmLabel, onClick = onConfirm, enabled = confirmEnabled, modifier = Modifier.weight(1f))
+                PrimaryButton(confirmLabel, onClick = onConfirm, enabled = confirmEnabled, modifier = buttonModifier)
+            }
+        }
+        if (LocalDensity.current.fontScale >= StackedValueFontScale) {
+            // Side by side, very large labels would wrap: stack them, the main action on top.
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                confirm(Modifier.fillMaxWidth())
+                SecondaryButton(dismissLabel, onClick = onDismiss, enabled = dismissEnabled, modifier = Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                SecondaryButton(dismissLabel, onClick = onDismiss, enabled = dismissEnabled, modifier = Modifier.weight(1f))
+                confirm(Modifier.weight(1f))
             }
         }
     }

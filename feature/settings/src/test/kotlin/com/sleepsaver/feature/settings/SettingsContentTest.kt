@@ -176,6 +176,23 @@ class SettingsContentTest {
     }
 
     @Test
+    fun `health connect that needs attention offers a fix`() {
+        show(SettingsSamples.fresh)
+        scrollTo("Health Connect")
+        compose.onNodeWithText("Sleep access is off").assertIsDisplayed()
+        compose.onNodeWithText("Allow").performClick()
+
+        assertThat(actions.calls).containsExactly("healthConnect")
+    }
+
+    @Test
+    fun `nothing to sync while demo data is on`() {
+        show(SettingsSamples.ready.copy(demoMode = true))
+        scrollTo("Health Connect")
+        compose.onNodeWithText("Sync now").assertDoesNotExist()
+    }
+
+    @Test
     fun `notifications that were never allowed can be requested`() {
         show(SettingsSamples.ready.copy(notifications = NotificationAccess.PERMISSION_NEEDED))
         scrollTo("Notifications are off")

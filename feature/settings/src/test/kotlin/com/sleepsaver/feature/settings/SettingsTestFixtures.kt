@@ -77,6 +77,13 @@ internal object SettingsSamples {
         sourceOptions = SourceOption.defaults(garminHasData = false),
     )
 
+    /** A phone without Health Connect: nothing synced, the row offers to install it. */
+    val healthConnectMissing = fresh.copy(
+        healthConnect = HealthConnectAccess.NOT_INSTALLED,
+        sync = SyncUi(lastSyncedAt = null, lastError = SyncError.HEALTH_CONNECT_NOT_INSTALLED),
+        notifications = NotificationAccess.ALLOWED,
+    )
+
     /** Demo mode, an export running, a sync running and notifications blocked in system settings. */
     val busy = ready.copy(
         demoMode = true,

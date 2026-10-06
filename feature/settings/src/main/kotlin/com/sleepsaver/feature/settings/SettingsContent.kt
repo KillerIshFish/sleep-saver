@@ -222,14 +222,13 @@ private fun SettingsList(
                 }
             }
         }
-        item(key = "disclaimer") {
-            WellnessDisclaimer(
+        item(key = "end") {
+            Spacer(
                 Modifier
-                    .widthIn(max = MaxContentWidth)
-                    .padding(top = Spacing.xxl, bottom = Spacing.xl),
+                    .padding(bottom = Spacing.xxl)
+                    .windowInsetsBottomHeight(WindowInsets.safeDrawing),
             )
         }
-        item(key = "insets") { Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing)) }
     }
 }
 
@@ -249,7 +248,7 @@ private fun SleepGroup(
             title = stringResource(R.string.settings_sleep_need),
             supporting = stringResource(R.string.settings_sleep_need_body),
             onClick = { openDialog(SettingsDialog.SLEEP_NEED) },
-            trailing = { ValueChevron(formatDuration(state.sleepNeed)) },
+            value = formatDuration(state.sleepNeed),
         )
         state.needSuggestion?.let { suggestion ->
             SettingsNote(
@@ -272,7 +271,7 @@ private fun SleepGroup(
                 ?.let { stringResource(R.string.settings_typical_wake_learned, formatClockTime(it, use24h)) }
                 ?: stringResource(R.string.settings_typical_wake_caption),
             onClick = { openDialog(SettingsDialog.TYPICAL_WAKE) },
-            trailing = { ValueChevron(formatClockTime(state.typicalWake, use24h)) },
+            value = formatClockTime(state.typicalWake, use24h),
         )
     }
 }
@@ -285,7 +284,7 @@ private fun GoalsGroup(state: SettingsUiState, openDialog: (SettingsDialog) -> U
             title = stringResource(R.string.settings_streak),
             supporting = stringResource(R.string.settings_streak_body),
             onClick = { openDialog(SettingsDialog.STREAK) },
-            trailing = { ValueChevron(formatDuration(state.streakThreshold)) },
+            value = formatDuration(state.streakThreshold),
         )
         RowDivider()
         SettingsRow(
@@ -533,6 +532,9 @@ private fun AboutGroup(state: SettingsUiState, modifier: Modifier) {
             icon = Icons.Rounded.Lock,
             title = stringResource(R.string.settings_private_title),
             supporting = stringResource(R.string.settings_on_device),
+        )
+        WellnessDisclaimer(
+            Modifier.padding(start = Spacing.screenHorizontal, end = Spacing.screenHorizontal, top = Spacing.s, bottom = Spacing.m),
         )
     }
 }
