@@ -107,4 +107,4 @@ The formulas and constants are written up in [`docs/PLAN.md`](docs/PLAN.md).
 - Sleep Saver reads sleep sessions from Health Connect, plus resting heart rate, heart-rate variability and steps if
   you allow them. It stores what it needs in a local database on the phone.
 - It has no internet permission, so nothing leaves the device unless you export a CSV and share it yourself.
-- Uninstalling the app, or **Reset** in Settings, removes all of its data.
+- Uninstalling the app, or **Reset all data** in Settings, removes all of its data.
