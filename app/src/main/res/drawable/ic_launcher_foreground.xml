@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Crescent with a small star tucked into its hollow. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#3DD6C3"
+        android:pathData="M49.88,32.09 A24,24 0 1,0 74.86,63.32 A20,20 0 1,1 49.88,32.09 Z" />
+    <path
+        android:fillColor="#F1F3F6"
+        android:pathData="M74,31 L75.6,35.4 L80,37 L75.6,38.6 L74,43 L72.4,38.6 L68,37 L72.4,35.4 Z" />
+</vector>

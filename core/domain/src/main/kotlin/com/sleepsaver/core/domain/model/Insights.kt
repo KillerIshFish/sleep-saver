@@ -1,0 +1,276 @@
+package com.sleepsaver.core.domain.model
+
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+
+// ---------------------------------------------------------------- Settings
+
+/** The user-editable settings the engine needs. Defaults match SleepConfig. */
+data class UserSleepSettings(
+    val sleepNeed: Duration = Duration.ofHours(8),
+    /** From onboarding; only used until there are enough nights to estimate the circadian anchor. */
+    val typicalWake: LocalTime = LocalTime.of(7, 0),
+    val streakThreshold: Duration = Duration.ofHours(5),
+    val lowDebtMax: Duration = Duration.ofHours(2),
+    val highDebtMin: Duration = Duration.ofHours(5),
+    val source: SourceSelection = SourceSelection.Single(com.sleepsaver.core.domain.config.SleepConfig.GARMIN_CONNECT_PACKAGE),
+)
+
+// ---------------------------------------------------------------- Debt
+
+data class DebtContribution(
+    val wakeDate: LocalDate,
+    /** 1 = last night. */
+    val index: Int,
+    val weight: Double,
+    /** null when the night is missing. */
+    val totalSleep: Duration?,
+    /** need − total, floored at −maxSurplusCredit. null when missing. */
+    val delta: Duration?,
+    /** weight · delta. null when missing. */
+    val weighted: Duration?,
+)
+
+data class SleepDebt(
+    val asOf: LocalDate,
+    /** max(0, Σ w·delta). */
+    val debt: Duration,
+    /** Σ w·delta before clamping at zero (negative = banked sleep). */
+    val rawWeightedSum: Duration,
+    val contributions: List<DebtContribution>,
+    val missingNights: List<LocalDate>,
+) {
+    val hours: Double get() = debt.toMinutes() / 60.0
+}
+
+enum class DebtStatus { LOW, MODERATE, HIGH }
+
+data class Streak(
+    /** Consecutive days with debt under the threshold. */
+    val days: Int,
+    /** First day of the current streak, null when days == 0. */
+    val since: LocalDate?,
+)
+
+/** For the morning-review recalculation: how last night moved the debt. */
+data class DebtChangeBreakdown(
+    val wakeDate: LocalDate,
+    val need: Duration,
+    val slept: Duration,
+    /** debt(D−1) */
+    val before: Duration,
+    /** need − slept, capped like the debt formula (the i=1 term, weight 1). */
+    val lastNightDelta: Duration,
+    /** after − before − lastNightDelta: older nights weigh less every day. Usually ≤ 0. */
+    val fade: Duration,
+    /** debt(D) */
+    val after: Duration,
+)
+
+// ---------------------------------------------------------------- Sleep need
+
+enum class Confidence { LOW, MEDIUM, HIGH }
+
+data class SleepNeedEstimate(
+    val need: Duration,
+    val freeNightsUsed: Int,
+    val interquartileRange: Duration,
+    val confidence: Confidence,
+    val typicalWeekdayWake: LocalTime,
+)
+
+sealed interface SleepNeedEstimateResult {
+    data class Available(val estimate: SleepNeedEstimate) : SleepNeedEstimateResult
+    data class NotEnoughData(
+        val nightsSoFar: Int,
+        val nightsRequired: Int,
+        val freeNightsSoFar: Int,
+        val freeNightsRequired: Int,
+    ) : SleepNeedEstimateResult
+}
+
+// ---------------------------------------------------------------- Circadian / energy
+
+data class CircadianAnchor(
+    /** Weighted circular mean of main-sleep midpoints, minutes after local midnight [0, 1440). */
+    val midpointMinuteOfDay: Double,
+    /** W = anchor + need/2, as a local time of day. */
+    val typicalWake: LocalTime,
+    val nightsUsed: Int,
+    /** True when there weren't enough nights and the onboarding wake time was used. */
+    val isFallback: Boolean,
+)
+
+enum class PhaseType {
+    GROGGINESS,
+    MORNING_PEAK,
+    AFTERNOON_DIP,
+    EVENING_PEAK,
+    WIND_DOWN,
+    MELATONIN_WINDOW,
+}
+
+data class Phase(
+    val type: PhaseType,
+    val start: Instant,
+    val end: Instant,
+    /** Start-time shift vs yesterday's schedule; negative = earlier. null = no yesterday to compare. */
+    val shiftVsYesterday: Duration? = null,
+) {
+    fun contains(t: Instant): Boolean = !t.isBefore(start) && t.isBefore(end)
+}
+
+data class TimeSpan(val start: Instant, val end: Instant) {
+    val duration: Duration get() = Duration.between(start, end)
+    fun contains(t: Instant): Boolean = !t.isBefore(start) && t.isBefore(end)
+}
+
+data class EnergyPoint(val time: Instant, val value: Float)
+
+/** Normalised 0..1 energy, from actual wake to target bedtime, at SleepConfig.curveStep. */
+data class EnergyCurve(val points: List<EnergyPoint>) {
+    fun valueAt(t: Instant): Float? {
+        if (points.isEmpty() || t.isBefore(points.first().time) || t.isAfter(points.last().time)) return null
+        val i = points.indexOfFirst { !it.time.isBefore(t) }
+        if (i <= 0) return points.first().value
+        val a = points[i - 1]
+        val b = points[i]
+        val span = Duration.between(a.time, b.time).toMillis().toFloat()
+        val f = if (span == 0f) 0f else Duration.between(a.time, t).toMillis() / span
+        return a.value + (b.value - a.value) * f
+    }
+}
+
+data class EnergySchedule(
+    /** The day this schedule is for (= today's wake date). */
+    val date: LocalDate,
+    val zone: ZoneId,
+    /** W: typical wake for [date]. */
+    val typicalWake: ZonedDateTime,
+    /** Wa: when the user actually woke today, if last night is in. */
+    val actualWake: Instant?,
+    val wakeZone: TimeSpan,
+    val tomorrowWakeZone: TimeSpan,
+    /** B: tonight's target bedtime. */
+    val targetBedtime: Instant,
+    /** Ordered by start: grogginess, morning peak, afternoon dip, evening peak, wind-down, melatonin window. */
+    val phases: List<Phase>,
+    val curve: EnergyCurve,
+    val anchor: CircadianAnchor,
+) {
+    fun phase(type: PhaseType): Phase? = phases.firstOrNull { it.type == type }
+    fun currentPhase(now: Instant): Phase? = phases.lastOrNull { it.contains(now) }
+    fun upcomingPhases(now: Instant): List<Phase> = phases.filter { it.start.isAfter(now) }
+}
+
+// ---------------------------------------------------------------- Habits
+
+enum class HabitType {
+    MORNING_LIGHT,
+    CAFFEINE_CUTOFF,
+    LARGE_MEAL_CUTOFF,
+    ALCOHOL_CUTOFF,
+    EXERCISE_CUTOFF,
+    DIM_LIGHTS,
+    EVENING_ROUTINE,
+    BEDTIME,
+    NAP_WINDOW,
+}
+
+/** What a habit's time is measured from. */
+enum class HabitAnchor { TYPICAL_WAKE, TARGET_BEDTIME, WIND_DOWN_START, MELATONIN_START, AFTERNOON_DIP_START }
+
+/** Notification channel groups. */
+enum class ReminderCategory { MORNING_LIGHT, CUTOFFS, WIND_DOWN, BEDTIME, NAPS }
+
+data class HabitDefinition(
+    val type: HabitType,
+    val anchor: HabitAnchor,
+    /** Signed offset from the anchor (negative = before). */
+    val defaultOffset: Duration,
+    /** How long the habit's window lasts after its time, if it has one. */
+    val window: Duration?,
+    val defaultEnabled: Boolean,
+    val defaultReminder: Boolean,
+    val category: ReminderCategory,
+)
+
+/** The user's per-habit settings (stored in Room). */
+data class HabitSettings(
+    val type: HabitType,
+    val enabled: Boolean,
+    val reminderEnabled: Boolean,
+    val offset: Duration,
+)
+
+data class ScheduledHabit(
+    val type: HabitType,
+    val time: Instant,
+    val windowEnd: Instant?,
+    val enabled: Boolean,
+    val reminderEnabled: Boolean,
+    val category: ReminderCategory,
+)
+
+data class RoutineActivity(
+    val id: Long,
+    val label: String,
+    val emoji: String,
+    val isCustom: Boolean,
+    val selected: Boolean,
+)
+
+// ---------------------------------------------------------------- Home screen roll-up
+
+enum class LastNightState {
+    /** Last night's data is in. */
+    AVAILABLE,
+
+    /** Before the expected wake time; nothing to wait for yet. */
+    NOT_EXPECTED_YET,
+
+    /** Expected but not synced from Garmin yet. Show the waiting state + "Sync now". */
+    WAITING,
+
+    /** Still missing after SleepConfig.waitingGiveUpAt: offer manual entry. */
+    MISSING,
+}
+
+data class DailyInsights(
+    val today: LocalDate,
+    val now: Instant,
+    val zone: ZoneId,
+    val lastNight: Night?,
+    val lastNightState: LastNightState,
+    /** debt(today) when last night is in, otherwise debt(yesterday). */
+    val debt: SleepDebt,
+    /** debt − previous day's debt; null without a previous day. */
+    val debtChange: Duration?,
+    val status: DebtStatus,
+    val streak: Streak,
+    val energyPotential: Int,
+    val schedule: EnergySchedule,
+    val currentPhase: Phase?,
+    val upcomingPhases: List<Phase>,
+    val habits: List<ScheduledHabit>,
+    val nextHabit: ScheduledHabit?,
+    /** Missing nights inside the 14-night debt window. */
+    val missingNights: List<LocalDate>,
+    val needEstimate: SleepNeedEstimateResult,
+)
+
+// ---------------------------------------------------------------- Vitals (optional data)
+
+enum class VitalType { RESTING_HR, HRV_RMSSD, SLEEP_HR_AVG, STEPS_DAY }
+
+data class VitalSample(
+    val id: String,
+    val type: VitalType,
+    val time: Instant,
+    val value: Double,
+    val origin: String,
+)
