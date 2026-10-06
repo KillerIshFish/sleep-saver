@@ -46,7 +46,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class SleepViewModel @Inject constructor(
-    @param:ApplicationContext context: Context,
+    @ApplicationContext context: Context,
     private val savedStateHandle: SavedStateHandle,
     insightsRepository: InsightsRepository,
     private val syncRepository: SyncRepository,
