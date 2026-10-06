@@ -11,6 +11,10 @@
     <string name="progress_tab_sleep_times">Sleep times</string>
     <string name="progress_tab_sleep_debt">Sleep debt</string>
     <string name="progress_tab_sleep_quality">Sleep quality</string>
+    <!-- Used when the full tab names don't fit (large system fonts). -->
+    <string name="progress_tab_sleep_times_short">Times</string>
+    <string name="progress_tab_sleep_debt_short">Debt</string>
+    <string name="progress_tab_sleep_quality_short">Quality</string>
 
     <!-- Empty states -->
     <string name="progress_empty_title">Your trends start here</string>

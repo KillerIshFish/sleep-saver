@@ -51,7 +51,7 @@ internal val ChartCardPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 20
  * Text inside charts grows with the system font size only up to this factor: 14 columns can't fit bigger labels.
  * Every number in a chart is also in the list below it, which scales fully.
  */
-private const val MAX_CHART_FONT_SCALE = 1.2f
+private const val MAX_CHART_FONT_SCALE = 1.1f
 
 /** Bars on the 14-column charts. */
 internal val BarWidth = 10.dp

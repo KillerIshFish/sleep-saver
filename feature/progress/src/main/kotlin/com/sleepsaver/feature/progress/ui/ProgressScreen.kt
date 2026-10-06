@@ -3,6 +3,7 @@ package com.sleepsaver.feature.progress.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,12 +39,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -140,12 +144,7 @@ internal fun ProgressContent(
                         ProgressHeader(state.window, onPreviousWindow, onNextWindow, onOpenSettings)
                     }
                     item(key = "tabs") {
-                        SegmentedControl(
-                            options = listOf(
-                                stringResource(R.string.progress_tab_sleep_times),
-                                stringResource(R.string.progress_tab_sleep_debt),
-                                stringResource(R.string.progress_tab_sleep_quality),
-                            ),
+                        ProgressTabs(
                             selectedIndex = tabIndex,
                             onSelectedChange = { tabIndex = it },
                             modifier = Modifier.padding(top = Spacing.xl, bottom = Spacing.l),
@@ -218,6 +217,40 @@ private fun ProgressHeader(
         IconButton(onClick = onOpenSettings, modifier = Modifier.padding(start = 4.dp)) {
             Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.progress_settings), tint = colors.textSecondary)
         }
+    }
+}
+
+/**
+ * "Sleep times | Sleep debt | Sleep quality", or "Times | Debt | Quality" when the full names don't fit their
+ * segments (large system fonts), so no tab is cut to "Sleep …".
+ */
+@Composable
+private fun ProgressTabs(selectedIndex: Int, onSelectedChange: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val full = listOf(
+        stringResource(R.string.progress_tab_sleep_times),
+        stringResource(R.string.progress_tab_sleep_debt),
+        stringResource(R.string.progress_tab_sleep_quality),
+    )
+    val short = listOf(
+        stringResource(R.string.progress_tab_sleep_times_short),
+        stringResource(R.string.progress_tab_sleep_debt_short),
+        stringResource(R.string.progress_tab_sleep_quality_short),
+    )
+    val measurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelLarge
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        // SegmentedControl: 4 dp inside the pill, 8 dp padding around each label.
+        val labelWidth = (maxWidth - 8.dp) / full.size - 16.dp
+        val fits = remember(full, style, density, labelWidth) {
+            val available = with(density) { labelWidth.toPx() }
+            full.all { measurer.measure(it, style, maxLines = 1).size.width <= available }
+        }
+        SegmentedControl(
+            options = if (fits) full else short,
+            selectedIndex = selectedIndex,
+            onSelectedChange = onSelectedChange,
+        )
     }
 }
 
