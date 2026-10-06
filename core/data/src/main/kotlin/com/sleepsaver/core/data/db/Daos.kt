@@ -159,6 +159,9 @@ interface MorningReviewDao {
     @Query("DELETE FROM morning_reviews WHERE atEpochMs >= :sinceMs")
     suspend fun deleteSince(sinceMs: Long)
 
+    @Query("SELECT * FROM morning_reviews ORDER BY wakeDate")
+    suspend fun getAll(): List<MorningReviewEntity>
+
     @Query("DELETE FROM morning_reviews")
     suspend fun deleteAll()
 }
