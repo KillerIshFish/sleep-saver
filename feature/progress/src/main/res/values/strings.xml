@@ -17,6 +17,10 @@
     <string name="progress_empty_body">Once a few nights come in from your watch, this page shows when you slept, how your sleep debt moved and how restful each night was. You can also add a night yourself.</string>
     <string name="progress_add_night">Add a night</string>
     <string name="progress_open_settings">Open settings</string>
+    <string name="progress_empty_hc_title">Health Connect isn't ready</string>
+    <string name="progress_empty_hc_body">Sleep Saver reads your watch's sleep through Health Connect. Set it up from Settings and your nights will fill this page. You can also add a night yourself.</string>
+    <string name="progress_empty_permission_title">Sleep access is off</string>
+    <string name="progress_empty_permission_body">Sleep Saver needs permission to read sleep in Health Connect before it can chart your nights. Turn it on from Settings, or add a night yourself.</string>
     <string name="progress_window_empty_title">Nothing recorded these two weeks</string>
     <string name="progress_window_empty_body">No sleep came in between these dates. Add a night you remember, or jump back to the latest weeks.</string>
     <string name="progress_go_latest">Jump to latest</string>
@@ -51,7 +55,8 @@
     <!-- Label on the dashed line: "Streak limit · 5h" -->
     <string name="progress_streak_limit">Streak limit · %1$s</string>
     <string name="progress_debt_last_night_pending">Last night isn\'t in yet</string>
-    <string name="progress_debt_night_missing">Night missing, skipped</string>
+    <!-- The day's own night has no data, so its debt leaves it out: "Saturday night missing" -->
+    <string name="progress_debt_night_missing">%1$s night missing</string>
     <string name="progress_debt_empty">No debt to chart for these dates yet.</string>
     <string name="progress_debt_low_hint">Below the streak limit keeps your steady streak going.</string>
 

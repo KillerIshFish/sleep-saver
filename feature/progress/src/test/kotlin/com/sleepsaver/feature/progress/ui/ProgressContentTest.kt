@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -15,6 +16,7 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.testing.PHONE_PORTRAIT_DARK
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
+import com.sleepsaver.feature.progress.NoNightsReason
 import com.sleepsaver.feature.progress.ProgressFixtures
 import com.sleepsaver.feature.progress.ProgressUiState
 import org.junit.Rule
@@ -136,6 +138,52 @@ class ProgressContentTest {
 
         assertThat(added).containsExactly(today)
         assertThat(settingsOpened).isEqualTo(1)
+    }
+
+    @Test
+    fun `without Health Connect the fix comes first`() {
+        show(ProgressUiState.NoNights(today, NoNightsReason.HEALTH_CONNECT_UNAVAILABLE))
+
+        compose.onNodeWithText("Health Connect isn't ready").assertIsDisplayed()
+        compose.onNodeWithText("Open settings").performClick()
+        compose.onNodeWithText("Add a night").performClick()
+
+        assertThat(settingsOpened).isEqualTo(1)
+        assertThat(added).containsExactly(today)
+    }
+
+    @Test
+    fun `without sleep access the empty state says so`() {
+        show(ProgressUiState.NoNights(today, NoNightsReason.PERMISSION_DENIED))
+
+        compose.onNodeWithText("Sleep access is off").assertIsDisplayed()
+        compose.onNodeWithText("Open settings").performClick()
+
+        assertThat(settingsOpened).isEqualTo(1)
+    }
+
+    @Test
+    fun `the selected tab survives recreation`() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            SleepSaverTheme {
+                ProgressContent(
+                    state = ProgressFixtures.ready(),
+                    onPreviousWindow = {},
+                    onNextWindow = {},
+                    onLatestWindow = {},
+                    onOpenNight = {},
+                    onAddMissingNight = {},
+                    onOpenSettings = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Sleep debt").performClick()
+        compose.onNodeWithText("All sleep debt").assertExists()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("All sleep debt").assertExists()
     }
 
     @Test

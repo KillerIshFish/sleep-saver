@@ -3,6 +3,7 @@ package com.sleepsaver.feature.progress.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.ui.components.SectionHeader
@@ -58,13 +60,10 @@ private val DebtPlotHeight = 200.dp
 
 internal fun LazyListScope.sleepDebtItems(state: ProgressUiState.Ready) {
     item(key = "debt-chart") {
-        SleepSaverCard(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 16.dp),
-        ) {
+        SleepSaverCard(modifier = Modifier.fillMaxWidth(), contentPadding = ChartCardPadding) {
             DebtChartView(state.debt, state.today)
             Spacer(Modifier.height(Spacing.l))
-            Legend(Modifier.padding(horizontal = 8.dp)) {
+            Legend(Modifier.padding(horizontal = 12.dp)) {
                 DebtStatus.entries.forEach { status ->
                     val color = status.color
                     LegendItem(status.label()) { drawCircle(color, radius = 4.dp.toPx(), center = center) }
@@ -90,13 +89,23 @@ internal fun LazyListScope.sleepDebtItems(state: ProgressUiState.Ready) {
 
 @Composable
 internal fun DebtChartView(chart: DebtChart, today: LocalDate, modifier: Modifier = Modifier) {
+    ChartTextScale {
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val columnWidth = (maxWidth - AxisWidth) / chart.points.size.coerceAtLeast(1)
+            DebtPlot(chart, today, weekdayLabels(chart.points.map { it.date }, columnWidth))
+        }
+    }
+}
+
+@Composable
+private fun DebtPlot(chart: DebtChart, today: LocalDate, days: List<String>) {
     val colors = SleepSaverTheme.colors
     val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     val tide = MaterialTheme.colorScheme.primary
     val card = colors.card
     val onSurface = MaterialTheme.colorScheme.onSurface
     val statusColors = DebtStatus.entries.associateWith { it.color }
-    Row(modifier.fillMaxWidth()) {
+    Row(Modifier.fillMaxWidth()) {
         Column(Modifier.weight(1f)) {
             Box(
                 Modifier
@@ -158,21 +167,25 @@ internal fun DebtChartView(chart: DebtChart, today: LocalDate, modifier: Modifie
                         style = chartLabelStyle,
                         color = colors.textSecondary,
                         modifier = Modifier
-                            .offset(x = 4.dp, y = DebtPlotHeight * (1f - t) - 16.dp)
+                            .offset(x = 4.dp, y = streakLabelOffset(t))
                             .clip(CircleShape)
                             .background(card)
                             .padding(horizontal = 4.dp, vertical = 1.dp),
                     )
                 }
                 if (chart.isEmpty) {
+                    // In the top band of the plot, clear of the streak line and its label.
                     Text(
                         text = stringResource(R.string.progress_debt_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 24.dp),
+                            .align(Alignment.TopCenter)
+                            .padding(top = 18.dp, start = 16.dp, end = 16.dp)
+                            .clip(CircleShape)
+                            .background(card)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
                     )
                 }
             }
@@ -198,9 +211,9 @@ internal fun DebtChartView(chart: DebtChart, today: LocalDate, modifier: Modifie
             }
             Spacer(Modifier.height(2.dp))
             Row(Modifier.fillMaxWidth()) {
-                chart.points.forEach { point ->
+                chart.points.forEachIndexed { index, point ->
                     Text(
-                        text = weekdayShort(point.date),
+                        text = days[index],
                         style = chartLabelStyle,
                         color = if (point.date == today) onSurface else colors.textTertiary,
                         textAlign = TextAlign.Center,
@@ -218,6 +231,12 @@ internal fun DebtChartView(chart: DebtChart, today: LocalDate, modifier: Modifie
             height = DebtPlotHeight,
         )
     }
+}
+
+/** Above the streak line at [fraction] of the plot height, or just below it when the line runs along the top. */
+private fun streakLabelOffset(fraction: Float): Dp {
+    val line = DebtPlotHeight * (1f - fraction)
+    return if (line < 18.dp) line + 3.dp else line - 16.dp
 }
 
 /** Indices of consecutive points that have a value. */
@@ -261,7 +280,7 @@ private fun DebtRowItem(point: DebtPoint, today: LocalDate) {
             val (note, noteColor) = when {
                 point.waiting -> stringResource(R.string.progress_debt_last_night_pending) to colors.textSecondary
                 point.debt == null -> stringResource(R.string.progress_no_data) to colors.textTertiary
-                point.nightMissing -> stringResource(R.string.progress_debt_night_missing) to colors.textSecondary
+                point.nightMissing -> stringResource(R.string.progress_debt_night_missing, weekdayFull(point.date.minusDays(1))) to colors.textSecondary
                 status != null -> status.label() to status.color
                 else -> "" to Color.Unspecified
             }

@@ -26,7 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +58,7 @@ import com.sleepsaver.core.ui.components.WellnessDisclaimer
 import com.sleepsaver.core.ui.format.formatWindowHeader
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
+import com.sleepsaver.feature.progress.NoNightsReason
 import com.sleepsaver.feature.progress.ProgressTab
 import com.sleepsaver.feature.progress.ProgressUiState
 import com.sleepsaver.feature.progress.ProgressViewModel
@@ -121,15 +124,7 @@ internal fun ProgressContent(
             ) {
                 ProgressHeader(window = null, onPreviousWindow, onNextWindow, onOpenSettings)
                 Spacer(Modifier.height(Spacing.xxxl))
-                EmptyState(
-                    icon = Icons.Rounded.Insights,
-                    title = stringResource(R.string.progress_empty_title),
-                    body = stringResource(R.string.progress_empty_body),
-                    primaryActionLabel = stringResource(R.string.progress_add_night),
-                    onPrimaryAction = { onAddMissingNight(state.today) },
-                    secondaryActionLabel = stringResource(R.string.progress_open_settings),
-                    onSecondaryAction = onOpenSettings,
-                )
+                NoNightsState(state, onAddMissingNight, onOpenSettings)
                 Spacer(Modifier.height(Spacing.xxl))
                 WellnessDisclaimer()
             }
@@ -241,6 +236,52 @@ private fun PagerButton(enabled: Boolean, onClick: () -> Unit, description: Stri
             imageVector = if (forward) Icons.AutoMirrored.Rounded.KeyboardArrowRight else Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
             contentDescription = description,
             modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+/**
+ * The whole tab when no night has come in. When the last sync said why (Health Connect missing, sleep access off),
+ * the fix comes first: Settings holds the data-source and Health Connect setup. Otherwise adding a night leads.
+ */
+@Composable
+private fun NoNightsState(
+    state: ProgressUiState.NoNights,
+    onAddMissingNight: (LocalDate) -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val addNight = stringResource(R.string.progress_add_night)
+    val openSettings = stringResource(R.string.progress_open_settings)
+    val addToday = { onAddMissingNight(state.today) }
+    when (state.reason) {
+        NoNightsReason.NO_DATA -> EmptyState(
+            icon = Icons.Rounded.Insights,
+            title = stringResource(R.string.progress_empty_title),
+            body = stringResource(R.string.progress_empty_body),
+            primaryActionLabel = addNight,
+            onPrimaryAction = addToday,
+            secondaryActionLabel = openSettings,
+            onSecondaryAction = onOpenSettings,
+        )
+
+        NoNightsReason.HEALTH_CONNECT_UNAVAILABLE -> EmptyState(
+            icon = Icons.Rounded.HealthAndSafety,
+            title = stringResource(R.string.progress_empty_hc_title),
+            body = stringResource(R.string.progress_empty_hc_body),
+            primaryActionLabel = openSettings,
+            onPrimaryAction = onOpenSettings,
+            secondaryActionLabel = addNight,
+            onSecondaryAction = addToday,
+        )
+
+        NoNightsReason.PERMISSION_DENIED -> EmptyState(
+            icon = Icons.Rounded.Lock,
+            title = stringResource(R.string.progress_empty_permission_title),
+            body = stringResource(R.string.progress_empty_permission_body),
+            primaryActionLabel = openSettings,
+            onPrimaryAction = onOpenSettings,
+            secondaryActionLabel = addNight,
+            onSecondaryAction = addToday,
         )
     }
 }

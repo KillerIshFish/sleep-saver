@@ -3,15 +3,21 @@ package com.sleepsaver.feature.progress
 import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
+import com.sleepsaver.core.testing.FakeSyncRepository
 import com.sleepsaver.core.testing.SampleData
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -35,6 +41,7 @@ class ProgressViewModelTest {
         debtSeriesResult = SampleData.debtSeries(today.minusDays(90), today, nights),
     )
     private val settings = FakeSettingsRepository(AppSettings(onboardingDone = true))
+    private val sync = FakeSyncRepository()
     private val clock = FakeTimeProvider()
     private val savedState = SavedStateHandle()
 
@@ -44,8 +51,10 @@ class ProgressViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.viewModel(): ProgressViewModel {
-        val vm = ProgressViewModel(savedState, sleep, insights, settings, clock)
+    private fun TestScope.viewModel(
+        compute: CoroutineDispatcher = UnconfinedTestDispatcher(testScheduler),
+    ): ProgressViewModel {
+        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, compute)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
         return vm
     }
@@ -112,6 +121,23 @@ class ProgressViewModelTest {
     }
 
     @Test
+    fun `a double tap on previous can't page past the oldest night`() = runTest {
+        // Only the last 20 nights: the window before the current one is the oldest.
+        sleep.nightsState.value = nights.filter { it.wakeDate > today.minusDays(20) }
+        // The charts are only rebuilt when the test lets the scheduler run, like a busy device.
+        val vm = viewModel(compute = StandardTestDispatcher(testScheduler))
+        assertThat(vm.ready().window.canGoBack).isTrue()
+
+        vm.showPreviousWindow()
+        vm.showPreviousWindow() // arrives while the screen still shows the latest window
+
+        val previous = vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today.minusDays(14) }
+        assertThat((previous as ProgressUiState.Ready).window.canGoBack).isFalse()
+        advanceUntilIdle()
+        assertThat((vm.uiState.value as ProgressUiState.Ready).window.to).isEqualTo(today.minusDays(14))
+    }
+
+    @Test
     fun `the page survives recreation`() = runTest {
         viewModel().apply { ready(); showPreviousWindow(); ready() }
 
@@ -126,7 +152,30 @@ class ProgressViewModelTest {
 
         val state = viewModel().uiState.first { it !is ProgressUiState.Loading }
 
-        assertThat(state).isEqualTo(ProgressUiState.NoNights(today))
+        assertThat(state).isEqualTo(ProgressUiState.NoNights(today, NoNightsReason.NO_DATA))
+    }
+
+    @Test
+    fun `the empty state knows when Health Connect is missing or sleep access is off`() = runTest {
+        sleep.nightsState.value = emptyList()
+        sync.mutableState.value = SyncState(lastError = SyncError.HEALTH_CONNECT_NOT_INSTALLED)
+        val vm = viewModel()
+
+        assertThat((vm.uiState.first { it is ProgressUiState.NoNights } as ProgressUiState.NoNights).reason)
+            .isEqualTo(NoNightsReason.HEALTH_CONNECT_UNAVAILABLE)
+
+        sync.mutableState.value = SyncState(lastError = SyncError.PERMISSION_DENIED)
+        vm.uiState.first { (it as? ProgressUiState.NoNights)?.reason == NoNightsReason.PERMISSION_DENIED }
+
+        sync.mutableState.value = SyncState(lastError = SyncError.RATE_LIMITED)
+        vm.uiState.first { (it as? ProgressUiState.NoNights)?.reason == NoNightsReason.NO_DATA }
+    }
+
+    @Test
+    fun `a sync error doesn't hide nights that are already in`() = runTest {
+        sync.mutableState.value = SyncState(lastError = SyncError.PERMISSION_DENIED)
+
+        assertThat(viewModel().ready().hasNightsInWindow).isTrue()
     }
 
     @Test

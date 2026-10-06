@@ -77,6 +77,14 @@ object ProgressFixtures {
         return assemble((base + extra).sortedBy { it.start }, listOf(edit))
     }
 
+    /** Three weeks of 4-hour nights ending today: debt climbs far past the chart's usual 12 hours. */
+    fun shortNights(): List<Night> = assemble(
+        (0 until 21).map { k ->
+            val wake = day(k)
+            session("short:$k", at(wake.minusDays(1), 23, 50).plusMinutes((k % 4) * 20L), at(wake, 4, 10).plusMinutes((k % 3) * 15L))
+        }.sortedBy { it.start },
+    )
+
     fun ready(
         nights: List<Night> = SampleData.nights(),
         windowsBack: Int = 0,

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -69,19 +70,16 @@ internal fun LazyListScope.sleepQualityItems(
 ) {
     val quality = state.quality
     item(key = "quality-stages") {
-        SleepSaverCard(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 16.dp),
-        ) {
+        SleepSaverCard(modifier = Modifier.fillMaxWidth(), contentPadding = ChartCardPadding) {
             Text(
                 text = stringResource(R.string.progress_stages_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(start = 8.dp, bottom = Spacing.l),
+                modifier = Modifier.padding(start = 12.dp, bottom = Spacing.l),
             )
             StageChartView(quality.chart, state.today, onOpenNight)
             Spacer(Modifier.height(Spacing.l))
-            StageLegend(quality.chart, Modifier.padding(horizontal = 8.dp))
+            StageLegend(quality.chart, Modifier.padding(horizontal = 12.dp))
         }
     }
     item(key = "quality-summary") {
@@ -122,11 +120,30 @@ internal fun StageChartView(
     onOpenNight: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = SleepSaverTheme.colors
     val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     val onSurface = MaterialTheme.colorScheme.onSurface
     val maxSeconds = chart.maxHours * 3600f
-    Row(modifier.fillMaxWidth()) {
+    ChartTextScale {
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val columnWidth = (maxWidth - AxisWidth) / chart.bars.size.coerceAtLeast(1)
+            val days = weekdayLabels(chart.bars.map { it.wakeDate.minusDays(1) }, columnWidth)
+            StagePlot(chart, days, today, maxSeconds, grid, onSurface, onOpenNight)
+        }
+    }
+}
+
+@Composable
+private fun StagePlot(
+    chart: StageChart,
+    days: List<String>,
+    today: LocalDate,
+    maxSeconds: Float,
+    grid: Color,
+    onSurface: Color,
+    onOpenNight: (LocalDate) -> Unit,
+) {
+    val colors = SleepSaverTheme.colors
+    Row(Modifier.fillMaxWidth()) {
         Box(Modifier.weight(1f)) {
             Canvas(
                 Modifier
@@ -161,7 +178,7 @@ internal fun StageChartView(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = weekdayShort(bar.wakeDate.minusDays(1)),
+                            text = days[index],
                             style = chartLabelStyle,
                             color = if (index == chart.bars.lastIndex) onSurface else colors.textTertiary,
                             maxLines = 1,

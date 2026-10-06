@@ -3,10 +3,13 @@ package com.sleepsaver.feature.progress.ui
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
 import com.sleepsaver.core.ui.testing.captureScreen
+import com.sleepsaver.feature.progress.NoNightsReason
 import com.sleepsaver.feature.progress.ProgressFixtures
 import com.sleepsaver.feature.progress.ProgressTab
 import com.sleepsaver.feature.progress.ProgressUiState
@@ -86,6 +89,35 @@ class ProgressScreenshotTest : ScreenshotTest() {
 
     @Test
     fun loading() = captureScreen("progress_loading") { Progress(ProgressUiState.Loading) }
+
+    @Test
+    fun noNightsHealthConnectMissing() = captureScreen("progress_no_nights_health_connect") {
+        Progress(ProgressUiState.NoNights(SampleData.today, NoNightsReason.HEALTH_CONNECT_UNAVAILABLE))
+    }
+
+    @Test
+    fun noNightsPermissionDenied() = captureScreen("progress_no_nights_permission") {
+        Progress(ProgressUiState.NoNights(SampleData.today, NoNightsReason.PERMISSION_DENIED))
+    }
+
+    @Test
+    fun highDebt() = captureScreen("progress_high_debt") { Progress(ProgressFixtures.ready(ProgressFixtures.shortNights()), ProgressTab.SLEEP_DEBT) }
+
+    @Test
+    fun largeFontSleepTimes() = captureScreen("progress_large_font_sleep_times") { LargeFont { Progress(eventful) } }
+
+    @Test
+    fun largeFontSleepDebt() = captureScreen("progress_large_font_sleep_debt") { LargeFont { Progress(sample, ProgressTab.SLEEP_DEBT) } }
+
+    @Test
+    fun largeFontQuality() = captureScreen("progress_large_font_quality") {
+        LargeFont { Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 2) }
+    }
+
+    @Composable
+    private fun LargeFont(content: @Composable () -> Unit) {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f), content = content)
+    }
 
     /** The two weeks before the current window, with no nights in them (an older night exists before). */
     private fun emptyWindowState(): ProgressUiState.Ready {

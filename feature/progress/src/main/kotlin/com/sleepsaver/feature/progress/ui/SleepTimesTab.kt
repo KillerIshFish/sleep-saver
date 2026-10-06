@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -71,13 +72,10 @@ internal fun LazyListScope.sleepTimesItems(
     onAddMissingNight: (LocalDate) -> Unit,
 ) {
     item(key = "times-chart") {
-        SleepSaverCard(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 16.dp),
-        ) {
+        SleepSaverCard(modifier = Modifier.fillMaxWidth(), contentPadding = ChartCardPadding) {
             SleepTimesChartView(state.sleepTimes, state.today, onOpenNight, onAddMissingNight)
             Spacer(Modifier.height(Spacing.l))
-            SleepTimesLegend(state.sleepTimes, Modifier.padding(horizontal = 8.dp))
+            SleepTimesLegend(state.sleepTimes, Modifier.padding(horizontal = 12.dp))
         }
     }
     item(key = "times-list-header") {
@@ -106,7 +104,26 @@ internal fun SleepTimesChartView(
 ) {
     val grid = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     val use24h = LocalUse24HourClock.current
-    Row(modifier.fillMaxWidth()) {
+    ChartTextScale {
+        BoxWithConstraints(modifier.fillMaxWidth()) {
+            val columnWidth = (maxWidth - AxisWidth) / chart.columns.size.coerceAtLeast(1)
+            val days = weekdayLabels(chart.columns.map { it.nightOf }, columnWidth)
+            SleepTimesPlot(chart, days, today, grid, use24h, onOpenNight, onAddMissingNight)
+        }
+    }
+}
+
+@Composable
+private fun SleepTimesPlot(
+    chart: SleepTimesChart,
+    days: List<String>,
+    today: LocalDate,
+    grid: Color,
+    use24h: Boolean,
+    onOpenNight: (LocalDate) -> Unit,
+    onAddMissingNight: (LocalDate) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth()) {
         Box(Modifier.weight(1f)) {
             Canvas(
                 Modifier
@@ -123,6 +140,7 @@ internal fun SleepTimesChartView(
                     NightColumnView(
                         column = column,
                         chart = chart,
+                        day = days[index],
                         today = today,
                         isLatest = index == chart.columns.lastIndex,
                         onClick = { if (column.isMissing) onAddMissingNight(column.wakeDate) else onOpenNight(column.wakeDate) },
@@ -139,6 +157,7 @@ internal fun SleepTimesChartView(
 private fun NightColumnView(
     column: SleepTimesColumn,
     chart: SleepTimesChart,
+    day: String,
     today: LocalDate,
     isLatest: Boolean,
     onClick: () -> Unit,
@@ -160,7 +179,7 @@ private fun NightColumnView(
         ) {
             val barWidth = min(BarWidth.toPx(), size.width * 0.6f)
             if (column.isMissing) {
-                drawPlaceholder(chart.placeholderTop, chart.placeholderBottom, barWidth, colors.textTertiary, colors.textSecondary)
+                drawPlaceholder(chart.placeholderTop, chart.placeholderBottom, barWidth, colors.textTertiary, colors.textSecondary, colors.card)
             }
             column.segments.forEach { segment ->
                 val fill = when (segment.kind) {
@@ -183,7 +202,7 @@ private fun NightColumnView(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            text = weekdayShort(column.nightOf),
+            text = day,
             style = chartLabelStyle,
             color = if (isLatest) onSurface else colors.textTertiary,
             maxLines = 1,
@@ -259,8 +278,15 @@ private fun DrawScope.drawSegment(segment: BarSegment, barWidth: Float, fill: Co
     }
 }
 
-/** A dashed outline where the night would be, with a "+" in it. */
-private fun DrawScope.drawPlaceholder(topFraction: Float, bottomFraction: Float, barWidth: Float, outline: Color, plus: Color) {
+/** A dashed outline where the night would be, with a "+" in it (on a [background] disc that hides the grid). */
+private fun DrawScope.drawPlaceholder(
+    topFraction: Float,
+    bottomFraction: Float,
+    barWidth: Float,
+    outline: Color,
+    plus: Color,
+    background: Color,
+) {
     val width = barWidth + 4.dp.toPx()
     val top = topFraction * size.height
     val height = (bottomFraction - topFraction) * size.height
@@ -274,6 +300,7 @@ private fun DrawScope.drawPlaceholder(topFraction: Float, bottomFraction: Float,
     )
     val center = Offset(size.width / 2, top + height / 2)
     val arm = 4.dp.toPx()
+    drawCircle(background, radius = arm + 2.dp.toPx(), center = center)
     val strokeWidth = 1.5.dp.toPx()
     drawLine(plus, center - Offset(arm, 0f), center + Offset(arm, 0f), strokeWidth, StrokeCap.Round)
     drawLine(plus, center - Offset(0f, arm), center + Offset(0f, arm), strokeWidth, StrokeCap.Round)
@@ -284,15 +311,20 @@ private fun SleepTimesLegend(chart: SleepTimesChart, modifier: Modifier = Modifi
     val tide = MaterialTheme.colorScheme.primary
     val colors = SleepSaverTheme.colors
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val hasExtra = chart.columns.any { column -> column.segments.any { it.kind == SegmentKind.EXTRA } }
+    val columns = chart.columns
+    val hasMain = columns.any { column -> column.segments.any { it.kind == SegmentKind.MAIN } }
+    val hasExtra = columns.any { column -> column.segments.any { it.kind == SegmentKind.EXTRA } }
+    val hasNap = chart.hasOffAxis || columns.any { column -> column.segments.any { it.kind == SegmentKind.NAP } }
     Legend(modifier) {
-        LegendItem(stringResource(R.string.progress_legend_asleep)) { pill(tide) }
+        if (hasMain) LegendItem(stringResource(R.string.progress_legend_asleep)) { pill(tide) }
         if (hasExtra) LegendItem(stringResource(R.string.progress_legend_extra)) { pill(tide.copy(alpha = 0.45f)) }
-        LegendItem(stringResource(R.string.progress_legend_nap)) { pill(colors.napBlock, colors.sleepBlockStroke) }
-        LegendItem(stringResource(R.string.progress_legend_edited)) {
-            drawCircle(onSurface.copy(alpha = 0.9f), radius = 2.5.dp.toPx(), center = center)
+        if (hasNap) LegendItem(stringResource(R.string.progress_legend_nap)) { pill(colors.napBlock, colors.sleepBlockStroke) }
+        if (columns.any { it.isEdited }) {
+            LegendItem(stringResource(R.string.progress_legend_edited)) {
+                drawCircle(onSurface.copy(alpha = 0.9f), radius = 2.5.dp.toPx(), center = center)
+            }
         }
-        if (chart.columns.any { it.isMissing }) {
+        if (columns.any { it.isMissing }) {
             LegendItem(stringResource(R.string.progress_legend_missing)) {
                 drawRoundRect(
                     color = colors.textTertiary,

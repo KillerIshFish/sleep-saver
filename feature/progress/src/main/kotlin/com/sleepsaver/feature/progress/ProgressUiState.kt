@@ -70,11 +70,23 @@ data class NightRow(
 
 enum class ProgressTab { SLEEP_TIMES, SLEEP_DEBT, SLEEP_QUALITY }
 
+/** Why there are no nights at all, so the empty state can point at the right fix. */
+enum class NoNightsReason {
+    /** Nothing has come in yet (new install, watch not synced, wrong source). */
+    NO_DATA,
+
+    /** Health Connect is missing or needs an update. */
+    HEALTH_CONNECT_UNAVAILABLE,
+
+    /** Sleep Saver isn't allowed to read sleep. */
+    PERMISSION_DENIED,
+}
+
 sealed interface ProgressUiState {
     data object Loading : ProgressUiState
 
     /** No night with data at all: the whole tab is an empty state. */
-    data class NoNights(val today: LocalDate) : ProgressUiState
+    data class NoNights(val today: LocalDate, val reason: NoNightsReason = NoNightsReason.NO_DATA) : ProgressUiState
 
     data class Ready(
         val today: LocalDate,
