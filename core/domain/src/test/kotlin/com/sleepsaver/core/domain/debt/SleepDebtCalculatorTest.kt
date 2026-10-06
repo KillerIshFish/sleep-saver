@@ -165,6 +165,15 @@ class SleepDebtCalculatorTest {
         }
 
         @Test
+        fun `fractions of a second are summed before rounding`() {
+            // 0.4 s short every night: each weighted term rounds to 0 s on its own, the sum (≈ 2.39 s) to 2 s.
+            val debt = calc.debtAsOf(D, nightsBack(*Array(14) { need.minusMillis(400) }), need)
+
+            assertThat(debt.contributions.first().weighted).isEqualTo(Duration.ZERO)
+            assertThat(debt.debt).isEqualTo(s(2))
+        }
+
+        @Test
         fun `no nights at all gives zero debt with every night missing`() {
             val debt = calc.debtAsOf(D, emptyMap(), need)
 
@@ -424,6 +433,14 @@ class SleepDebtCalculatorTest {
             val nights = nightsOn(D.minusDays(9), D, skip = setOf(2L, 3L, 5L, 6L).map { D.minusDays(it) }.toSet())
 
             assertThat(calc.streak(D, nights, need)).isEqualTo(Streak(6, D.minusDays(9)))
+        }
+
+        @Test
+        fun `a high-debt day just past a bridged gap ends the streak`() {
+            // A 0 h night 3 days back (8 h debt), two missing days, then a night at need: 0.85^3 * 8 h ≈ 4.9 h.
+            val nights = Fx.byDate(Fx.night(D.minusDays(3), total = Duration.ZERO), Fx.night(D, total = need))
+
+            assertThat(calc.streak(D, nights, need)).isEqualTo(Streak(1, D))
         }
 
         @Test

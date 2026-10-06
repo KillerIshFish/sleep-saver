@@ -223,6 +223,40 @@ class SleepNeedEstimatorTest {
             val result = estimator.estimate(short, need, short.maxOf { it.wakeDate })
             assertThat((result as SleepNeedEstimateResult.NotEnoughData).nightsSoFar).isEqualTo(13)
         }
+
+        @Test
+        fun `no nights at all is not enough data`() {
+            assertThat(estimator.estimate(emptyList(), need, MONDAY))
+                .isEqualTo(SleepNeedEstimateResult.NotEnoughData(0, 14, 0, 4))
+        }
+
+        @Test
+        fun `without weekday nights there is no typical wake and no estimate`() {
+            val weekends = typicalWeeks(70).filter { it.wakeDate.isWeekend() }
+
+            assertThat(estimator.estimate(weekends, need, weekends.today()))
+                .isEqualTo(SleepNeedEstimateResult.NotEnoughData(20, 14, 0, 4))
+        }
+
+        @Test
+        fun `a late wake on a weekday counts as a free night`() {
+            val wednesday = MONDAY.plusDays(16)
+            val nights = typicalWeeks(35).map { if (it.wakeDate == wednesday) lieIn(wednesday, total = h(9)) else it }
+
+            val estimate = estimator.estimate(nights, need, nights.today()).available()
+
+            assertThat(estimate.typicalWeekdayWake).isEqualTo(LocalTime.of(6, 30))
+            assertThat(estimate.freeNightsUsed).isEqualTo(11)
+            assertThat(estimate.need).isEqualTo(m(515))
+        }
+
+        @Test
+        fun `a present night without a wake time counts as a night but never as free`() {
+            val nights = typicalWeeks(14).map { if (it.wakeDate.dayOfWeek == DayOfWeek.SUNDAY) it.copy(wokeUp = null) else it }
+
+            assertThat(estimator.estimate(nights, need, nights.today()))
+                .isEqualTo(SleepNeedEstimateResult.NotEnoughData(14, 14, 2, 4))
+        }
     }
 
     @Nested

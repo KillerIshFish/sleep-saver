@@ -9,6 +9,7 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import kotlin.math.floor
 
@@ -103,7 +104,8 @@ class SleepNeedEstimator(private val config: SleepConfig = SleepConfig.DEFAULT) 
     private fun localWake(night: Night): LocalTime? {
         val wokeUp = night.wokeUp ?: return null
         val offset = night.wokeUpOffset ?: night.main?.endOffset ?: return null
-        return LocalTime.ofInstant(wokeUp, offset)
+        // Not LocalTime.ofInstant: that needs API 31 and minSdk is 28.
+        return LocalDateTime.ofInstant(wokeUp, offset).toLocalTime()
     }
 
     private companion object {
