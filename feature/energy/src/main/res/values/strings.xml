@@ -36,6 +36,8 @@
     <string name="energy_extra_label">More sleep · %1$s</string>
     <string name="energy_pending_title">Last night\'s sleep</string>
     <string name="energy_pending_body">It shows up here once your watch syncs.</string>
+    <string name="energy_upcoming_title">Your sleep goes here</string>
+    <string name="energy_upcoming_body">It appears after you wake and your watch syncs.</string>
     <string name="energy_missing_title">No sleep recorded</string>
     <string name="energy_missing_body">Tap to add last night by hand.</string>
     <string name="energy_wake_zone">Wake zone</string>
@@ -58,6 +60,7 @@
     <!-- Accessibility -->
     <string name="energy_block_description">%1$s: %2$s, %3$s asleep</string>
     <string name="energy_pending_description">Last night\'s sleep hasn\'t arrived yet</string>
+    <string name="energy_upcoming_description">Your sleep shows here once you wake and your watch syncs</string>
     <string name="energy_edit_night">Edit night</string>
     <string name="energy_add_night">Add last night</string>
     <string name="energy_habit_marker_description">%1$s at %2$s</string>

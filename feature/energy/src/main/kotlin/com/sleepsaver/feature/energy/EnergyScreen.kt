@@ -213,7 +213,7 @@ private fun ReadyContent(
                 LastNightBanner(
                     missing = state.lastNightState == LastNightState.MISSING,
                     syncing = state.syncing,
-                    onAdd = { onEditNight(state.today) },
+                    onAdd = { onEditNight(state.day) },
                     onSync = onSync,
                     modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xs),
                 )
@@ -223,7 +223,7 @@ private fun ReadyContent(
                 focusTime = focusTime ?: state.now,
                 onBlockTap = { block ->
                     when (block.kind) {
-                        TimelineBlockKind.PENDING -> onEditNight(state.today)
+                        TimelineBlockKind.PENDING -> onEditNight(state.day)
                         else -> onEditNight(block.wakeDate)
                     }
                 },

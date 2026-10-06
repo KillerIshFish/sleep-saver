@@ -65,6 +65,11 @@ class EnergyScreenshotTest : ScreenshotTest() {
     }
 
     @Test
+    fun nightOwlAfterMidnight() = captureScreen("energy_night_owl_after_midnight") {
+        Screen(EnergyTestData.nightOwlAfterMidnight())
+    }
+
+    @Test
     fun longNeedOverlappingPhases() = captureScreen("energy_long_need_evening") {
         Screen(EnergyTestData.ready(now = at(17, 30), settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)))
     }

@@ -177,6 +177,26 @@ class TimelineGeometryTest {
         assertNoLabelOverlap(layout)
     }
 
+    @Test
+    fun `a night owl after midnight still sees yesterday's day around last night's block`() {
+        val state = EnergyTestData.nightOwlAfterMidnight()
+        assertThat(state.day).isEqualTo(state.today.minusDays(1))
+        val night = state.lastNight!!
+        assertThat(night.wakeDate).isEqualTo(state.day)
+        assertThat(state.lastNightState).isEqualTo(com.sleepsaver.core.domain.model.LastNightState.AVAILABLE)
+
+        val layout = buildTimelineLayout(state, testSpec())
+
+        assertThat(layout.mainBlock!!.wakeDate).isEqualTo(state.day)
+        assertThat(layout.blocks.none { it.kind == TimelineBlockKind.PENDING }).isTrue()
+        val melatonin = state.schedule.phase(PhaseType.MELATONIN_WINDOW)!!
+        assertThat(state.now).isLessThan(melatonin.end)
+        assertThat(layout.geometry.range.contains(state.now)).isTrue()
+        assertThat(layout.geometry.range.end).isEqualTo(melatonin.end + Duration.ofHours(1))
+        assertThat(layout.now!!.y).isGreaterThan(layout.geometry.ticks(zone).single { it.isMidnight }.y)
+        assertNoLabelOverlap(layout)
+    }
+
     // ---------------------------------------------------------------- Labels
 
     @Test
@@ -257,6 +277,7 @@ class TimelineGeometryTest {
             EnergyTestData.ready(now = at(21, 10)),
             EnergyTestData.waiting(),
             EnergyTestData.nightOwl(),
+            EnergyTestData.nightOwlAfterMidnight(),
             EnergyTestData.ready(settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)),
         ).forEach { assertNoLabelOverlap(buildTimelineLayout(it, testSpec())) }
     }

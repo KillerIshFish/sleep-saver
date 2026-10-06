@@ -68,6 +68,26 @@ internal object EnergyTestData {
         return ready(now = now, nights = nights, settings = SampleData.settings.copy(typicalWake = LocalTime.of(10, 0)))
     }
 
+    /**
+     * A night owl at 00:40, still on yesterday's schedule because yesterday's bedtime (~01:55) is ahead: what the
+     * engine reports between midnight and the end of yesterday's melatonin window. Built from the evening before
+     * with the calendar moved past midnight, so it doesn't depend on the engine's own rollover.
+     */
+    fun nightOwlAfterMidnight(): EnergyUiState.Ready {
+        val yesterday = SampleData.today.minusDays(1)
+        val evening = at(yesterday, 23, 30)
+        val now = at(SampleData.today, 0, 40)
+        val nights = patternNights(yesterday, LocalTime.of(2, 10), LocalTime.of(10, 5))
+        val settings = SampleData.settings.copy(typicalWake = LocalTime.of(10, 0))
+        val insights = SampleData.insights(now = evening, zone = zone, settings = settings, nights = nights).copy(
+            today = SampleData.today,
+            now = now,
+            lastNight = null,
+            lastNightState = com.sleepsaver.core.domain.model.LastNightState.NOT_EXPECTED_YET,
+        )
+        return energyReadyState(insights, nights, settings.sleepNeed, now)
+    }
+
     fun session(id: String, start: LocalDateTime, end: LocalDateTime, zone: ZoneId = this.zone): RawSleepSession {
         val s = start.atZone(zone).toInstant()
         val e = end.atZone(zone).toInstant()

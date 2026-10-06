@@ -543,20 +543,26 @@ private fun BlockOverlay(
 ) {
     val density = LocalDensity.current
     val currentBlock by rememberUpdatedState(block)
+    val currentGeometry by rememberUpdatedState(layout.geometry)
     val currentTap by rememberUpdatedState(onBlockTap)
     val currentLongPress by rememberUpdatedState(onMainLongPress)
     val width = with(density) { (block.right - block.left).toDp() }
     val height = with(density) { block.height.toDp() }
     val isMain = block.kind == TimelineBlockKind.MAIN
+    // Before the usual wake time the placeholder is only a promise: nothing to edit yet.
+    val tappable = block.kind != TimelineBlockKind.PENDING ||
+        state.lastNightState == LastNightState.WAITING || state.lastNightState == LastNightState.MISSING
     val zone = state.zone
     val range = blockRange(block, zone)
     val description = when (block.kind) {
-        TimelineBlockKind.PENDING -> stringResource(R.string.energy_pending_description)
+        TimelineBlockKind.PENDING -> stringResource(
+            if (tappable) R.string.energy_pending_description else R.string.energy_upcoming_description,
+        )
         TimelineBlockKind.NAP -> stringResource(R.string.energy_nap_label, formatDuration(block.asleep)) + ", " + range
         TimelineBlockKind.EXTRA -> stringResource(R.string.energy_extra_label, formatDuration(block.asleep)) + ", " + range
         TimelineBlockKind.MAIN -> stringResource(
             R.string.energy_block_description,
-            formatNightLabel(block.wakeDate, state.today),
+            formatNightLabel(block.wakeDate, state.day),
             range,
             formatDuration(block.asleep),
         )
@@ -569,11 +575,15 @@ private fun BlockOverlay(
             .offset { IntOffset(block.left.roundToInt(), block.top.roundToInt()) }
             .size(width, height)
             .clip(shape)
-            .pointerInput(isMain) {
+            .pointerInput(isMain, tappable) {
                 detectTapGestures(
-                    onTap = { currentTap(currentBlock) },
+                    onTap = if (tappable) {
+                        { currentTap(currentBlock) }
+                    } else {
+                        null
+                    },
                     onLongPress = if (isMain) {
-                        { offset -> currentLongPress(currentBlock, layout.geometry.timeAt(currentBlock.top + offset.y)) }
+                        { offset -> currentLongPress(currentBlock, currentGeometry.timeAt(currentBlock.top + offset.y)) }
                     } else {
                         null
                     },
@@ -581,8 +591,10 @@ private fun BlockOverlay(
             }
             .clearAndSetSemantics {
                 contentDescription = description
-                role = Role.Button
-                onClick(label = tapLabel) { currentTap(currentBlock); true }
+                if (tappable) {
+                    role = Role.Button
+                    onClick(label = tapLabel) { currentTap(currentBlock); true }
+                }
                 if (isMain) {
                     customActions = listOf(
                         CustomAccessibilityAction(addAwakeLabel) {
@@ -670,28 +682,34 @@ private fun BlockTime(label: String, time: String, labelFirst: Boolean, modifier
 @Composable
 private fun PendingBlockContent(lastNightState: LastNightState, height: Dp) {
     if (height < 96.dp) return
-    val missing = lastNightState == LastNightState.MISSING
+    val (icon, title, body) = when (lastNightState) {
+        LastNightState.MISSING -> Triple(Icons.Rounded.EditCalendar, R.string.energy_missing_title, R.string.energy_missing_body)
+        LastNightState.WAITING -> Triple(Icons.Rounded.CloudSync, R.string.energy_pending_title, R.string.energy_pending_body)
+        // Before the usual wake time the night may not even have started: no promise, no action.
+        LastNightState.NOT_EXPECTED_YET, LastNightState.AVAILABLE ->
+            Triple(Icons.Rounded.Bedtime, R.string.energy_upcoming_title, R.string.energy_upcoming_body)
+    }
     Column(
         Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            imageVector = if (missing) Icons.Rounded.EditCalendar else Icons.Rounded.CloudSync,
+            imageVector = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
             modifier = Modifier.size(28.dp),
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = stringResource(if (missing) R.string.energy_missing_title else R.string.energy_pending_title),
+            text = stringResource(title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = stringResource(if (missing) R.string.energy_missing_body else R.string.energy_pending_body),
+            text = stringResource(body),
             style = MaterialTheme.typography.bodyMedium,
             color = SleepSaverTheme.colors.textSecondary,
             textAlign = TextAlign.Center,

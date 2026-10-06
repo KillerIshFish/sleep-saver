@@ -278,7 +278,7 @@ private fun buildBlocks(
         }
     } else {
         val wake = state.schedule.typicalWake.toInstant()
-        add(TimelineBlockKind.PENDING, state.today, wake - state.sleepNeed, wake, state.sleepNeed, null, null)
+        add(TimelineBlockKind.PENDING, state.day, wake - state.sleepNeed, wake, state.sleepNeed, null, null)
     }
 
     // Everything else that falls inside the range: extra segments and naps, the latest available nights,
