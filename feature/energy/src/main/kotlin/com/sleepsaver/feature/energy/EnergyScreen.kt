@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +73,7 @@ import com.sleepsaver.feature.energy.timeline.TomorrowWakeIcon
 import com.sleepsaver.feature.energy.timeline.awakeStartFor
 import com.sleepsaver.feature.energy.timeline.buildTimelineLayout
 import com.sleepsaver.feature.energy.timeline.rememberTimelineSpec
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -350,6 +353,15 @@ private fun TimelineScroller(
             (layout.geometry.yOf(focusTime) - viewport / 3f).roundToInt().coerceAtLeast(0)
         }
         val scrollState = rememberScrollState(initialScroll)
+        // When the range's start moves (last night arrives in place of the placeholder), keep the same moment
+        // in view instead of letting the content jump under the user.
+        val rangeStart = layout.geometry.range.start
+        var shownStart by remember { mutableStateOf(rangeStart) }
+        LaunchedEffect(rangeStart) {
+            val shiftPx = Duration.between(rangeStart, shownStart).toMillis() / MillisPerHour * layout.spec.pxPerHour
+            shownStart = rangeStart
+            if (shiftPx != 0f) scrollState.scrollBy(shiftPx)
+        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -393,7 +405,7 @@ private fun TomorrowWakeLine(state: EnergyUiState.Ready) {
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TomorrowWakeIcon, contentDescription = null, tint = SleepSaverTheme.colors.debtModerate, modifier = Modifier.size(16.dp))
+        Icon(TomorrowWakeIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(Spacing.s))
         Text(
             text = stringResource(R.string.energy_tomorrow_wake, timeRange(zone.start, zone.end, state.zone)),
@@ -402,3 +414,5 @@ private fun TomorrowWakeLine(state: EnergyUiState.Ready) {
         )
     }
 }
+
+private const val MillisPerHour = 3_600_000f

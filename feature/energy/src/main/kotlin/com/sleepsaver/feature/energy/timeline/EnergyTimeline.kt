@@ -97,6 +97,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.TextStyle as DayTextStyle
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** Column positions and label sizes, in dp/sp. */
@@ -372,10 +373,14 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
                 size = Size(w, (mark.bottom - mark.top).coerceAtLeast(w)),
                 cornerRadius = CornerRadius(w / 2, w / 2),
             )
-            val labelY = mark.labelTop + spec.pillHeight / 2
-            val from = Offset(mark.barX + w + 2.dp.toPx(), mark.anchorY)
-            val to = Offset(layout.labelLeft - 2.dp.toPx(), labelY)
-            drawLine(tint.copy(alpha = 0.45f), from, to, 1.dp.toPx(), StrokeCap.Round)
+            drawConnector(
+                color = tint.copy(alpha = 0.45f),
+                fromX = mark.barX + w + 2.dp.toPx(),
+                anchorY = mark.anchorY,
+                railX = layout.lanesRight + 5.dp.toPx(),
+                labelY = mark.labelTop + spec.pillHeight / 2,
+                toX = layout.labelLeft - 2.dp.toPx(),
+            )
         }
 
         drawCurve(layout, state.now, palette)
@@ -383,10 +388,16 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
         // Habits: a tick at the exact time beside the lanes with a connector to the label, and a dotted guide
         // across the curve column to a dot on the curve.
         layout.habits.forEach { mark ->
-            val labelY = mark.labelTop + spec.habitHeight / 2
-            val start = Offset(layout.lanesRight + 3.dp.toPx(), mark.anchorY)
-            drawLine(palette.connector, start, Offset(layout.labelLeft - 6.dp.toPx(), labelY), 1.dp.toPx(), StrokeCap.Round)
-            drawCircle(palette.connector, radius = 2.dp.toPx(), center = start)
+            val railX = layout.lanesRight + 5.dp.toPx()
+            drawConnector(
+                color = palette.connector,
+                fromX = railX,
+                anchorY = mark.anchorY,
+                railX = railX,
+                labelY = mark.labelTop + spec.habitHeight / 2,
+                toX = layout.labelLeft - 6.dp.toPx(),
+            )
+            drawCircle(palette.connector, radius = 2.dp.toPx(), center = Offset(railX, mark.anchorY))
             drawLine(
                 color = palette.curve.copy(alpha = 0.35f),
                 start = Offset(spec.curveLeft, mark.anchorY),
@@ -409,6 +420,24 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
             }
         }
     }
+}
+
+/**
+ * From a label's exact time to the label: straight across when the label sits at its time, otherwise along a
+ * vertical rail beside the phase lanes, so labels pushed down by their neighbours read as a tidy list.
+ */
+private fun DrawScope.drawConnector(color: Color, fromX: Float, anchorY: Float, railX: Float, labelY: Float, toX: Float) {
+    val path = Path().apply {
+        moveTo(fromX, anchorY)
+        if (abs(labelY - anchorY) < 1.dp.toPx()) {
+            lineTo(toX, labelY)
+        } else {
+            lineTo(railX, anchorY)
+            lineTo(railX, labelY)
+            lineTo(toX, labelY)
+        }
+    }
+    drawPath(path, color, style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 private fun DrawScope.drawScaleLegend(

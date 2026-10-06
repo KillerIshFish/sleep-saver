@@ -213,7 +213,7 @@ class TimelineGeometryTest {
     @Test
     fun `labels at the same time stack downward in input order`() {
         val tops = placeLabels(
-            listOf(LabelSlot(100f, 20f), LabelSlot(100f, 30f), LabelSlot(100f, 20f)),
+            listOf(LabelSlot(100f, 20f, anchor = 100f), LabelSlot(100f, 30f, anchor = 100f), LabelSlot(100f, 20f, anchor = 100f)),
             minTop = 0f,
             maxBottom = 1000f,
             gap = 5f,
