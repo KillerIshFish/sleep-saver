@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="habits_back">Back</string>
+    <string name="habits_cancel">Cancel</string>
+    <string name="habits_go_back">Go back</string>
+    <string name="habits_loading">Loading your habits</string>
+    <!-- Shown instead of a time when there is no schedule yet. -->
+    <string name="habits_no_time">—</string>
+    <string name="habits_unavailable_title">Habits didn\'t load</string>
+    <string name="habits_unavailable_body">Something went wrong while reading your habits. Go back and try again in a moment.</string>
+
+    <!-- Habit list -->
+    <string name="habits_title">Habits</string>
+    <string name="habits_subtitle">Timed to your energy schedule</string>
+    <string name="habits_section_scheduled">In your schedule</string>
+    <string name="habits_section_available">Add to your schedule</string>
+    <string name="habits_scheduled_empty">Nothing here yet. Switch on a habit below and it will show up on your energy timeline.</string>
+    <string name="habits_available_empty">Every habit is already in your schedule.</string>
+    <string name="habits_times_pending">Times appear once your first night has synced. You can pick habits now.</string>
+    <!-- Screen readers: "Show Caffeine cutoff in my schedule". -->
+    <string name="habits_toggle_schedule">Show %1$s in my schedule</string>
+    <!-- Screen readers: "Remind me about Caffeine cutoff". -->
+    <string name="habits_toggle_reminder">Remind me about %1$s</string>
+    <string name="habits_open_habit">Open</string>
+
+    <!-- One-line descriptions in the list -->
+    <string name="habits_tagline_morning_light">Daylight after you wake</string>
+    <string name="habits_tagline_caffeine">Last coffee, tea or cola</string>
+    <string name="habits_tagline_large_meal">Finish heavy meals by now</string>
+    <string name="habits_tagline_alcohol">Last drink of the evening</string>
+    <string name="habits_tagline_exercise">Wrap up intense training</string>
+    <string name="habits_tagline_dim_lights">Lower lamps and screens</string>
+    <string name="habits_tagline_evening_routine">Your wind-down activities</string>
+    <string name="habits_tagline_bedtime">Easiest time to drift off</string>
+    <string name="habits_tagline_nap_window">Short nap, only if needed</string>
+
+    <!-- Why each habit helps (detail screen) -->
+    <string name="habits_why_morning_light">Bright light early in the day is the strongest cue your body clock gets. It keeps your rhythm anchored, so sleepiness shows up on time tonight and mornings feel easier. We time it from when you usually wake, because watch data can take a while to arrive.</string>
+    <string name="habits_why_caffeine">Caffeine fades slowly: hours after your last cup, much of it is still at work. Stopping about 10 hours before bed gives it time to wear off, so it doesn\'t make sleep harder to start or shallower once it does.</string>
+    <string name="habits_why_large_meal">A big meal keeps digestion busy and warms you up, and both get in the way of settling into deep sleep. Finishing heavy meals about 3 hours before bed lets things calm down. A light snack later is fine.</string>
+    <string name="habits_why_alcohol">A drink can make you feel drowsy, but alcohol breaks sleep up later in the night and leaves less of it restful. Leaving about 3 hours between your last drink and bedtime gives your body time to clear it.</string>
+    <string name="habits_why_exercise">Moving during the day helps you sleep, but a hard session late keeps your heart rate and body temperature up. Finishing intense workouts about 2 hours before bed leaves time to cool down. Gentle stretching is fine any time.</string>
+    <string name="habits_why_dim_lights">Bright evening light tells your body it\'s still daytime and holds sleepiness back. Turning down lamps and screens as your wind-down starts lets your natural night-time signals build.</string>
+    <string name="habits_why_evening_routine">A short, familiar routine tells your mind the day is over. Pick a few easy things you enjoy and start them as your wind-down begins, so drifting off comes more naturally.</string>
+    <string name="habits_why_bedtime">This is when your best window for falling asleep opens, worked out from your rhythm and sleep need. Getting into bed now makes it easier to drift off and helps you pay down sleep debt.</string>
+    <string name="habits_why_nap_window">Energy naturally sags in the early afternoon, which makes it the easiest time to nap. Keep it to 20–30 minutes so you wake up refreshed and still sleep well tonight.</string>
+
+    <!-- Habit detail -->
+    <string name="habits_detail_today">Today</string>
+    <string name="habits_detail_show">Show in my schedule</string>
+    <string name="habits_detail_show_body">Appears on your energy timeline</string>
+    <string name="habits_detail_remind">Remind me</string>
+    <string name="habits_detail_remind_body">A quiet notification when it\'s time</string>
+    <string name="habits_detail_remind_needs_habit">Turn on the habit to get reminders</string>
+    <string name="habits_detail_timing">Timing</string>
+    <string name="habits_detail_reset">Reset to default</string>
+    <!-- "Default: 10h" -->
+    <string name="habits_detail_default">Default: %1$s</string>
+    <string name="habits_detail_activities">Your activities</string>
+    <string name="habits_detail_activities_none">You haven\'t picked any activities yet.</string>
+    <string name="habits_detail_choose_activities">Choose activities</string>
+    <string name="habits_detail_not_found_title">This habit isn\'t available</string>
+    <string name="habits_detail_not_found_body">It may have changed in an update. Head back to see the habits you can use.</string>
+    <string name="habits_detail_times_pending">Your time for this appears once your first night has synced.</string>
+    <string name="habits_detail_times_loading">Working out today\'s time…</string>
+    <string name="habits_detail_no_time_today">Today\'s schedule has no time for this yet. Check back after your next sync.</string>
+
+    <!-- Captions under the timing stepper -->
+    <string name="habits_timing_before_bedtime">before your target bedtime</string>
+    <string name="habits_timing_after_wake">after you usually wake up</string>
+    <string name="habits_timing_shift_wind_down">compared with the start of your wind-down</string>
+    <string name="habits_timing_shift_sleep_window">compared with the start of your best sleep window</string>
+    <string name="habits_timing_shift_dip">compared with the start of your afternoon dip</string>
+    <string name="habits_shift_none">On time</string>
+    <!-- "30m earlier" -->
+    <string name="habits_shift_earlier">%1$s earlier</string>
+    <!-- "30m later" -->
+    <string name="habits_shift_later">%1$s later</string>
+
+    <!-- What today's time is measured from. %1$s = amount ("10h"), %2$s = clock time ("10:45 PM"). -->
+    <string name="habits_anchor_bedtime_before">%1$s before your %2$s target bedtime</string>
+    <string name="habits_anchor_bedtime_after">%1$s after your %2$s target bedtime</string>
+    <string name="habits_anchor_bedtime_at">Right at your %1$s target bedtime</string>
+    <string name="habits_anchor_wake_before">%1$s before you usually wake at %2$s</string>
+    <string name="habits_anchor_wake_after">%1$s after you usually wake at %2$s</string>
+    <string name="habits_anchor_wake_at">Right when you usually wake, at %1$s</string>
+    <string name="habits_anchor_wind_down_before">%1$s before your wind-down starts at %2$s</string>
+    <string name="habits_anchor_wind_down_after">%1$s after your wind-down starts at %2$s</string>
+    <string name="habits_anchor_wind_down_at">As your wind-down starts at %1$s</string>
+    <string name="habits_anchor_sleep_window_before">%1$s before your best sleep window opens at %2$s</string>
+    <string name="habits_anchor_sleep_window_after">%1$s after your best sleep window opens at %2$s</string>
+    <string name="habits_anchor_sleep_window_at">As your best sleep window opens at %1$s</string>
+    <string name="habits_anchor_dip_before">%1$s before your afternoon dip starts at %2$s</string>
+    <string name="habits_anchor_dip_after">%1$s after your afternoon dip starts at %2$s</string>
+    <string name="habits_anchor_dip_at">As your afternoon dip starts at %1$s</string>
+
+    <!-- Notifications blocked -->
+    <string name="habits_notifications_off_title">Notifications are off</string>
+    <string name="habits_notifications_off_body">Reminders can\'t reach you until Sleep Saver is allowed to send notifications.</string>
+    <string name="habits_notifications_turn_on">Turn on notifications</string>
+
+    <!-- Evening routine -->
+    <string name="habits_routine_close">Close</string>
+    <string name="habits_routine_title">Evening routine</string>
+    <string name="habits_routine_subtitle">Spend the last of today\'s energy, then ease into sleep.</string>
+    <string name="habits_routine_hint">Pick wind-down activities you look forward to: low effort and relaxing.</string>
+    <string name="habits_routine_custom">Custom</string>
+    <string name="habits_routine_add_custom">Add your own activity</string>
+    <string name="habits_routine_add_to_schedule">Add to schedule</string>
+    <string name="habits_routine_save">Save routine</string>
+    <string name="habits_routine_long_press_hint">Press and hold one of your own to remove it.</string>
+    <string name="habits_routine_remove_action">Remove</string>
+    <!-- "Remove “Tea”?" -->
+    <string name="habits_routine_delete_title">Remove “%1$s”?</string>
+    <string name="habits_routine_delete_body">It comes out of your routine. You can add it again any time.</string>
+    <string name="habits_routine_delete_confirm">Remove</string>
+    <string name="habits_routine_custom_title">Add your own</string>
+    <string name="habits_routine_custom_body">Anything calm you enjoy before bed.</string>
+    <string name="habits_routine_custom_label">Activity</string>
+    <string name="habits_routine_custom_label_placeholder">e.g. Herbal tea</string>
+    <string name="habits_routine_custom_emoji">Emoji</string>
+    <string name="habits_routine_custom_add">Add</string>
+</resources>
