@@ -24,6 +24,7 @@ import com.sleepsaver.feature.onboarding.connect.ConnectionUiState
 import com.sleepsaver.feature.onboarding.connect.SourceCard
 import com.sleepsaver.feature.onboarding.connect.SourceCheck
 import com.sleepsaver.feature.onboarding.steps.ConnectStep
+import com.sleepsaver.feature.onboarding.steps.HabitsStep
 import com.sleepsaver.feature.onboarding.steps.SleepNeedStep
 import org.junit.Test
 import java.time.LocalTime
@@ -133,6 +134,16 @@ class OnboardingScreenshotTest : ScreenshotTest() {
     // ------------------------------------------------------------ 5. habits
 
     @Test fun habits() = screen("onboarding_habits", OnboardingUiState(step = OnboardingStep.HABITS, habits = Previews.habits))
+
+    @Test fun habitsBottom() = captureScreen("onboarding_habits_bottom") {
+        HabitsStep(Previews.habits, busy = false, onToggle = {}, onRemindChange = {}, onFinish = {}, scrollState = ScrollState(Int.MAX_VALUE))
+    }
+
+    @Test fun connectLargeFont() = captureScreen("onboarding_connect_garmin_missing_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            OnboardingContent(OnboardingUiState(step = OnboardingStep.CONNECT, connection = Previews.garminMissing), actions)
+        }
+    }
 
     @Test fun habitsNoTimes() = screen(
         "onboarding_habits_no_reminders",

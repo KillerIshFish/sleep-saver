@@ -103,7 +103,7 @@ internal fun OnboardingScreen(
         OnboardingActions(
             onStart = viewModel::start,
             onBack = { viewModel.back() },
-            onOpenPrivacyPolicy = { currentOnOpenPrivacyPolicy() },
+            onOpenPrivacyPolicy = { if (launchGuard.tryAcquire()) currentOnOpenPrivacyPolicy() },
             connect = ConnectActions(
                 onConnect = {
                     if (launchGuard.tryAcquire()) {
@@ -139,8 +139,10 @@ internal fun OnboardingScreen(
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 when {
                     !needsPermission -> viewModel.finish()
+                    // The dialog is already on its way; its answer finishes onboarding.
                     !launchGuard.tryAcquire() -> Unit
                     runCatching { notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }.isFailure -> viewModel.finish()
+                    else -> Unit
                 }
             },
         )

@@ -49,7 +49,7 @@
     <string name="onboarding_update_action">Update Health Connect</string>
 
     <string name="onboarding_unsupported_title">Health Connect isn\'t available here</string>
-    <string name="onboarding_unsupported_body">This phone can\'t run Health Connect, so Sleep Saver can\'t read your Garmin sleep. You can still look around with a month of realistic sample nights.</string>
+    <string name="onboarding_unsupported_body">This phone can\'t run Health Connect, so Sleep Saver can\'t read your Garmin sleep. You can still look around with two months of realistic sample nights.</string>
 
     <string name="onboarding_denied_title">Sleep access is off</string>
     <string name="onboarding_denied_body">Sleep Saver needs to read your sleep to work out your debt and your day. If no window appeared, open Health Connect, go to App permissions, pick Sleep Saver and turn on Sleep.</string>

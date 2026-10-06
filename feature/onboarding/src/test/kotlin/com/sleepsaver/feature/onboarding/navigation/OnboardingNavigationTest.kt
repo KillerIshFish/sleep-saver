@@ -31,6 +31,7 @@ class OnboardingNavigationTest {
     private lateinit var navController: NavHostController
     private var finished = 0
     private var privacyOpened = 0
+    private var setupBack: () -> Unit = {}
 
     private fun setUp(start: Any) {
         compose.setContent {
@@ -49,7 +50,10 @@ class OnboardingNavigationTest {
                             Button(onClick = privacy) { Text("privacy") }
                         }
                     },
-                    setup = { back -> Button(onClick = back) { Text("back from setup") } },
+                    setup = { back ->
+                        setupBack = back
+                        Button(onClick = back) { Text("back from setup") }
+                    },
                 )
             }
         }
@@ -86,12 +90,17 @@ class OnboardingNavigationTest {
     fun `a double tap on back pops only the setup screen`() {
         setUp(HomeRoute)
         compose.onNodeWithText("open setup").performClick()
+        compose.onNodeWithText("back from setup").assertExists()
 
-        compose.mainClock.autoAdvance = false
-        compose.onNodeWithText("back from setup").performClick()
-        compose.onNodeWithText("back from setup").performClick()
-        compose.mainClock.autoAdvance = true
+        // Two taps before the screen goes away: the second must not pop home as well.
+        compose.runOnIdle {
+            setupBack()
+            setupBack()
+        }
 
-        compose.runOnIdle { assertThat(navController.currentDestination?.hasRoute<HomeRoute>()).isTrue() }
+        compose.runOnIdle {
+            assertThat(navController.currentDestination?.hasRoute<HomeRoute>()).isTrue()
+            assertThat(navController.previousBackStackEntry).isNull()
+        }
     }
 }

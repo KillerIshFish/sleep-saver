@@ -1,6 +1,8 @@
 package com.sleepsaver.feature.onboarding.steps
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,9 +57,11 @@ internal fun HabitsStep(
     onRemindChange: (Boolean) -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     StepLayout(
         modifier = modifier,
+        scrollState = scrollState,
         bottom = {
             PrimaryButton(stringResource(R.string.onboarding_finish), onClick = onFinish, enabled = !busy, modifier = Modifier.fillMaxWidth())
         },

@@ -228,7 +228,15 @@ private fun StatusCard(state: HealthConnectSetupUiState, actions: SetupActions) 
                 PermissionRows(permissions, onAllow = actions.connect.onConnect)
                 if (permissions.sleepGranted) SleepDataRow(connection, actions.connect)
             }
-            LastSyncRow(state.sync, demoMode = connection.demoMode, now = state.now, zone = state.zone, onSyncNow = actions.onSyncNow)
+            LastSyncRow(
+                sync = state.sync,
+                demoMode = connection.demoMode,
+                // A sync can only help once Health Connect is there and sleep is allowed; until then the fixes above do.
+                canSync = connection.isConnected,
+                now = state.now,
+                zone = state.zone,
+                onSyncNow = actions.onSyncNow,
+            )
         }
     }
 }
@@ -278,9 +286,9 @@ private fun sourceText(selection: SourceSelection, missing: Boolean): String = w
 }
 
 @Composable
-private fun LastSyncRow(sync: SyncState, demoMode: Boolean, now: Instant, zone: ZoneId, onSyncNow: () -> Unit) {
+private fun LastSyncRow(sync: SyncState, demoMode: Boolean, canSync: Boolean, now: Instant, zone: ZoneId, onSyncNow: () -> Unit) {
     val title = stringResource(R.string.setup_row_last_sync)
-    val syncNow = stringResource(R.string.setup_sync_now)
+    val syncNow = stringResource(R.string.setup_sync_now).takeIf { canSync }
     val running = sync.status != SyncStatus.Idle
     val lastError = sync.lastError
     val lastSuccess = sync.lastSuccessAt
