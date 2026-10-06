@@ -91,6 +91,8 @@ data class SleepConfig(
     val melatoninHalfWidth: Duration = Duration.ofMinutes(30),
     val windDownLength: Duration = Duration.ofMinutes(60),
     val wakeZoneHalfWidth: Duration = Duration.ofMinutes(30),
+    /** A phase squeezed below this (e.g. the morning peak after long grogginess) is extended to this length. */
+    val minPhaseLength: Duration = Duration.ofMinutes(30),
 
     // --- "Last night isn't here yet" (§3.10) ---
     /** We start expecting last night's data this long before typical wake. */
