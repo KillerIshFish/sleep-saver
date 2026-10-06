@@ -180,7 +180,7 @@ private fun StagePlot(
                         Text(
                             text = days[index],
                             style = chartLabelStyle,
-                            color = if (index == chart.bars.lastIndex) onSurface else colors.textTertiary,
+                            color = if (bar.wakeDate == today) onSurface else colors.textTertiary,
                             maxLines = 1,
                             softWrap = false,
                             modifier = Modifier.wrapContentWidth(unbounded = true),

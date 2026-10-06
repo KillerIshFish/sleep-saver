@@ -142,7 +142,7 @@ private fun SleepTimesPlot(
                         chart = chart,
                         day = days[index],
                         today = today,
-                        isLatest = index == chart.columns.lastIndex,
+                        isLatest = column.wakeDate == today,
                         onClick = { if (column.isMissing) onAddMissingNight(column.wakeDate) else onOpenNight(column.wakeDate) },
                         modifier = Modifier.weight(1f),
                     )
@@ -159,6 +159,7 @@ private fun NightColumnView(
     chart: SleepTimesChart,
     day: String,
     today: LocalDate,
+    /** Last night: its label is highlighted. */
     isLatest: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
