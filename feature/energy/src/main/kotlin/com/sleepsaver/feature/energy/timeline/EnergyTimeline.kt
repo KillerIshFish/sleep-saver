@@ -388,16 +388,13 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
         // Habits: a tick at the exact time beside the lanes with a connector to the label, and a dotted guide
         // across the curve column to a dot on the curve.
         layout.habits.forEach { mark ->
+            // Only a label its neighbours pushed away needs pointing back to its time.
             val railX = layout.lanesRight + 5.dp.toPx()
-            drawConnector(
-                color = palette.connector,
-                fromX = railX,
-                anchorY = mark.anchorY,
-                railX = railX,
-                labelY = mark.labelTop + spec.habitHeight / 2,
-                toX = layout.labelLeft - 6.dp.toPx(),
-            )
-            drawCircle(palette.connector, radius = 2.dp.toPx(), center = Offset(railX, mark.anchorY))
+            val labelY = mark.labelTop + spec.habitHeight / 2
+            if (abs(labelY - mark.anchorY) >= 1.dp.toPx()) {
+                drawConnector(palette.connector, railX, mark.anchorY, railX, labelY, layout.labelLeft - 6.dp.toPx())
+                drawCircle(palette.connector, radius = 2.dp.toPx(), center = Offset(railX, mark.anchorY))
+            }
             drawLine(
                 color = palette.curve.copy(alpha = 0.35f),
                 start = Offset(spec.curveLeft, mark.anchorY),
