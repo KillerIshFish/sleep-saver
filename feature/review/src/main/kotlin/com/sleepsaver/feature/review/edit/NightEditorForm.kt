@@ -168,6 +168,7 @@ private fun ErrorNote(error: EditError) {
             when (error) {
                 EditError.WAKE_BEFORE_SLEEP -> R.string.review_error_order
                 EditError.TOO_LONG -> R.string.review_error_too_long
+                EditError.IN_FUTURE -> R.string.review_error_future
             },
         ),
     )

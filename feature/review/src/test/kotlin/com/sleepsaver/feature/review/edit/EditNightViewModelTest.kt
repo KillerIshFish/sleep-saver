@@ -116,7 +116,7 @@ class EditNightViewModelTest {
 
     @Test
     fun `a missing night is added as a manual night from typical wake and need`() = runTest {
-        val missing = wakeDate.plusDays(1)
+        val missing = wakeDate.minusDays(1)
         val vm = viewModel(missing)
         advanceUntilIdle()
         val editor = vm.uiState.value.editor!!
@@ -139,8 +139,8 @@ class EditNightViewModelTest {
     fun `a missing night starts at the schedule's typical wake when there is one`() = runTest {
         insights.scheduleResult = SampleData.schedule()
         val vm = EditNightViewModel(
-            SavedStateHandle(mapOf("wakeDate" to SampleData.today.plusDays(1).toString())),
-            FakeSleepRepository(SampleData.nights()),
+            SavedStateHandle(mapOf("wakeDate" to SampleData.today.toString())),
+            FakeSleepRepository(SampleData.nights(includeLastNight = false)),
             settings,
             insights,
             FakeTimeProvider(),

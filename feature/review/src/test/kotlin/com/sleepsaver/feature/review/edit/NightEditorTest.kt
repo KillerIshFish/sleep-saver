@@ -188,6 +188,25 @@ class NightEditorTest {
     }
 
     @Test
+    fun `a night can't end in the future`() {
+        // 06:12 on the wake date, before the usual 07:00 wake: a new night ends at the last five-minute mark.
+        val early = at(wakeDate, 6, 12)
+        val e = NightEditorState.from(wakeDate, null, need, typicalWake, zone, now = early)
+
+        assertThat(e.wokeUp).isEqualTo(at(wakeDate, 6, 10))
+        assertThat(e.fellAsleep).isEqualTo(at(wakeDate, 6, 10).minus(need))
+        assertThat(e.wokeUpMax).isEqualTo(early)
+        assertThat(e.canSave).isTrue()
+        assertThat(e.withWokeUp(at(wakeDate, 6, 30)).error).isEqualTo(EditError.IN_FUTURE)
+
+        // A recorded night keeps its six-hour range, cut off at now.
+        val recorded = NightEditorState.from(wakeDate, TestNight.night(), need, typicalWake, zone, now = now)
+        assertThat(recorded.wokeUpMax).isEqualTo(now)
+        assertThat(recorded.fellAsleepMax).isEqualTo(TestNight.start.plus(Duration.ofHours(6)))
+        assertThat(recorded.error).isNull()
+    }
+
+    @Test
     fun `scrubbers range six hours around where the night started`() {
         val e = editor().withFellAsleep(at(wakeDate.minusDays(1), 22))
 

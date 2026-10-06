@@ -24,7 +24,7 @@ enum class EditKind {
     NEW,
 }
 
-enum class EditError { WAKE_BEFORE_SLEEP, TOO_LONG }
+enum class EditError { WAKE_BEFORE_SLEEP, TOO_LONG, IN_FUTURE }
 
 /** The values the editor started from, so only what the user changes gets saved. */
 data class EditBaseline(
@@ -61,6 +61,8 @@ data class NightEditorState(
     val source: NightSource,
     val isEdited: Boolean,
     val baseline: EditBaseline,
+    /** "Now" when the editor opened: a night can't end in the future. null = no limit. */
+    val latest: Instant? = null,
 ) {
     val timeInBed: Duration get() = Duration.between(fellAsleep, wokeUp)
 
@@ -80,18 +82,21 @@ data class NightEditorState(
 
     val napMax: Int get() = maxOf(MAX_STEPPER_MINUTES, roundUpToStep(baseline.napMinutes))
 
-    /** The scrubbers move up to six hours either way from where the night started. */
+    /** The scrubbers move up to six hours either way from where the night started, and never past [latest]. */
     val fellAsleepMin: Instant get() = baseline.fellAsleep.minus(SCRUB_RANGE)
-    val fellAsleepMax: Instant get() = baseline.fellAsleep.plus(SCRUB_RANGE)
+    val fellAsleepMax: Instant get() = notAfterLatest(baseline.fellAsleep.plus(SCRUB_RANGE))
     val wokeUpMin: Instant get() = baseline.wokeUp.minus(SCRUB_RANGE)
-    val wokeUpMax: Instant get() = baseline.wokeUp.plus(SCRUB_RANGE)
+    val wokeUpMax: Instant get() = notAfterLatest(baseline.wokeUp.plus(SCRUB_RANGE))
 
     val error: EditError?
         get() = when {
             !wokeUp.isAfter(fellAsleep) -> EditError.WAKE_BEFORE_SLEEP
             timeInBed > MAX_TIME_IN_BED -> EditError.TOO_LONG
+            latest != null && wokeUp.isAfter(latest.plus(FUTURE_SLACK)) -> EditError.IN_FUTURE
             else -> null
         }
+
+    private fun notAfterLatest(time: Instant): Instant = if (latest != null && time.isAfter(latest)) latest else time
 
     /** True when saving would change something (a new night always does). */
     val hasChanges: Boolean get() = kind == EditKind.NEW || toSave(Instant.EPOCH) != NightSave.NoChange
@@ -190,9 +195,13 @@ data class NightEditorState(
         val SCRUB_RANGE: Duration = Duration.ofHours(6)
         val MAX_TIME_IN_BED: Duration = Duration.ofHours(16)
 
+        /** A recorded wake time can sit a moment past "now" (clock skew between watch and phone). */
+        private val FUTURE_SLACK: Duration = Duration.ofMinutes(1)
+
         /**
          * Starts editing [night] (null or not present = add a missing night: fell asleep = typical wake − need,
-         * woke up = typical wake, in [deviceZone]).
+         * woke up = typical wake, in [deviceZone]). With [now], a new night that would end in the future ends at
+         * the last five-minute mark instead, and no wake time can be moved past it.
          */
         fun from(
             wakeDate: LocalDate,
@@ -200,6 +209,7 @@ data class NightEditorState(
             sleepNeed: Duration,
             typicalWake: LocalTime,
             deviceZone: ZoneId,
+            now: Instant? = null,
         ): NightEditorState {
             val fell = night?.fellAsleep
             val woke = night?.wokeUp
@@ -229,9 +239,12 @@ data class NightEditorState(
                         awakePeriods = night.main?.awakePeriods.orEmpty(),
                         offset = offset,
                     ),
+                    latest = now?.let { maxOf(it, woke) },
                 )
             }
-            val wake = wakeDate.atTime(typicalWake).atZone(deviceZone).toInstant()
+            val typical = wakeDate.atTime(typicalWake).atZone(deviceZone).toInstant()
+            val lastMark = now?.let { Instant.ofEpochSecond(Math.floorDiv(it.epochSecond, STEP_SECONDS) * STEP_SECONDS) }
+            val wake = if (lastMark != null && typical.isAfter(lastMark)) lastMark else typical
             val asleep = wake.minus(sleepNeed)
             val offset = deviceZone.rules.getOffset(wake)
             return NightEditorState(
@@ -255,8 +268,11 @@ data class NightEditorState(
                     awakePeriods = emptyList(),
                     offset = offset,
                 ),
+                latest = now,
             )
         }
+
+        private const val STEP_SECONDS = STEP * 60L
 
         /** Stepping from an off-grid value (e.g. 23 min) lands on the next 5-minute mark in that direction. */
         internal fun snapToStep(old: Int, new: Int): Int {

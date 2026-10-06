@@ -35,7 +35,7 @@ internal suspend fun loadEditor(
         runCatching { withTimeoutOrNull(SCHEDULE_TIMEOUT_MS) { insightsRepository.schedule(wakeDate).first() } }
             .getOrNull()?.typicalWake?.toLocalTime() ?: settings.typicalWake
     }
-    return NightEditorState.from(wakeDate, night, settings.sleepNeed, typicalWake, timeProvider.zone())
+    return NightEditorState.from(wakeDate, night, settings.sleepNeed, typicalWake, timeProvider.zone(), timeProvider.now())
 }
 
 private const val SCHEDULE_TIMEOUT_MS = 1_500L

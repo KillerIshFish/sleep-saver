@@ -75,6 +75,7 @@
     <string name="review_naps_caption">All your daytime naps on the day you woke up.</string>
     <string name="review_error_order">Woke up has to be after fell asleep.</string>
     <string name="review_error_too_long">That’s more than 16 hours in bed. Check the times.</string>
+    <string name="review_error_future">Woke up can’t be later than now.</string>
     <string name="review_revert_original">Revert to original</string>
     <string name="review_revert_title">Revert this night?</string>
     <string name="review_revert_body">Your edits will be removed and the night goes back to what %1$s recorded.</string>
