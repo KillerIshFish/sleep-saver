@@ -184,7 +184,8 @@ internal fun HealthConnectSetupContent(
                         stage != ConnectStage.CHECKING -> StageCard(stage, actions.connect, enabled = !state.busy)
                     }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        if (connection.status == HealthConnectStatus.AVAILABLE) {
+                        // The "sleep access is off" card already has this as its second button.
+                        if (connection.status == HealthConnectStatus.AVAILABLE && stage != ConnectStage.DENIED) {
                             TextLinkButton(stringResource(R.string.onboarding_open_health_connect), onClick = actions.connect.onOpenHealthConnect)
                         }
                         if (!connection.demoMode && stage != ConnectStage.NOT_SUPPORTED) {
