@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Header -->
+    <string name="energy_title">Energy</string>
+    <string name="energy_subtitle">Energy potential %1$d%% · %2$s debt</string>
+    <string name="energy_settings">Settings</string>
+    <string name="energy_loading">Mapping your day…</string>
+
+    <!-- Empty state -->
+    <string name="energy_empty_title">Your energy schedule needs a few nights of sleep</string>
+    <string name="energy_empty_body">Once Sleep Saver can read your recent sleep, it maps when you\'re likely to feel sharp, when energy sags and when to start winding down.</string>
+    <string name="energy_empty_action">Set up data</string>
+    <string name="energy_importing">Reading your sleep history…</string>
+    <string name="energy_hc_missing_title">Health Connect is needed</string>
+    <string name="energy_hc_missing_body">Sleep Saver reads your watch\'s sleep through Health Connect. Install it, connect your data, and your energy map appears here.</string>
+    <string name="energy_hc_update_title">Health Connect needs an update</string>
+    <string name="energy_hc_update_body">Update Health Connect so Sleep Saver can read your recent sleep and map your day.</string>
+    <string name="energy_permission_title">Sleep Saver can\'t read your sleep yet</string>
+    <string name="energy_permission_body">Allow access to sleep in Health Connect. Everything stays on this phone.</string>
+
+    <!-- Last night not in yet -->
+    <string name="energy_waiting_banner">Last night hasn\'t synced yet. Times follow your usual rhythm until it does.</string>
+    <string name="energy_missing_banner">No sleep recorded for last night. Times follow your usual rhythm.</string>
+    <string name="energy_missing_action">Add it</string>
+    <string name="energy_sync_now">Sync now</string>
+    <string name="energy_syncing">Syncing…</string>
+
+    <!-- Timeline -->
+    <string name="energy_now">Now %1$s</string>
+    <string name="energy_fell_asleep">Fell asleep</string>
+    <string name="energy_woke_up">Woke up</string>
+    <string name="energy_asleep">asleep</string>
+    <string name="energy_hold_hint">Press and hold to add awake time</string>
+    <string name="energy_awake_band">Awake %1$s</string>
+    <string name="energy_nap_label">Nap · %1$s</string>
+    <string name="energy_extra_label">More sleep · %1$s</string>
+    <string name="energy_pending_title">Last night\'s sleep</string>
+    <string name="energy_pending_body">It shows up here once your watch syncs.</string>
+    <string name="energy_upcoming_title">Your sleep goes here</string>
+    <string name="energy_upcoming_body">It appears after you wake and your watch syncs.</string>
+    <string name="energy_missing_title">No sleep recorded</string>
+    <string name="energy_missing_body">Tap to add last night by hand.</string>
+    <string name="energy_wake_zone">Wake zone</string>
+    <string name="energy_scale_low">Lower</string>
+    <string name="energy_scale_title">Energy</string>
+    <string name="energy_scale_high">Higher</string>
+    <string name="energy_tomorrow_wake">Tomorrow\'s wake zone %1$s</string>
+
+    <!-- Short habit names for the timeline markers -->
+    <string name="energy_habit_short_morning_light">Get daylight</string>
+    <string name="energy_habit_short_caffeine">Last caffeine</string>
+    <string name="energy_habit_short_meal">Last big meal</string>
+    <string name="energy_habit_short_alcohol">Last drink</string>
+    <string name="energy_habit_short_exercise">Last hard workout</string>
+    <string name="energy_habit_short_dim_lights">Dim the lights</string>
+    <string name="energy_habit_short_routine">Evening routine</string>
+    <string name="energy_habit_short_bedtime">Bedtime</string>
+    <string name="energy_habit_short_nap">Nap window</string>
+
+    <!-- Accessibility -->
+    <string name="energy_block_description">%1$s: %2$s, %3$s asleep</string>
+    <string name="energy_pending_description">Last night\'s sleep hasn\'t arrived yet</string>
+    <string name="energy_upcoming_description">Your sleep shows here once you wake and your watch syncs</string>
+    <string name="energy_edit_night">Edit night</string>
+    <string name="energy_add_night">Add last night</string>
+    <string name="energy_habit_marker_description">%1$s at %2$s</string>
+    <string name="energy_phase_description">%1$s, %2$s</string>
+
+    <!-- Habits sheet -->
+    <string name="energy_habits">Habits</string>
+    <string name="energy_habits_next">Next: %1$s at %2$s</string>
+    <string name="energy_habits_done">Nothing else planned for today</string>
+    <string name="energy_habits_add">Add a habit</string>
+    <string name="energy_habits_in_plan">In your plan</string>
+    <string name="energy_habits_available">Not in your plan</string>
+    <string name="energy_habit_off">Off</string>
+    <string name="energy_reminder_for">Reminder for %1$s</string>
+
+    <!-- Add awake time -->
+    <string name="energy_add_awake_title">Add awake time</string>
+    <string name="energy_add_awake_body">Mark a stretch when you were up during the night. It comes off this night\'s sleep.</string>
+    <string name="energy_add_awake_from">Awake from</string>
+    <string name="energy_add_awake_for">For</string>
+    <string name="energy_add_awake_confirm">Add</string>
+    <string name="energy_cancel">Cancel</string>
+</resources>
