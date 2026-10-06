@@ -1,8 +1,10 @@
 package com.sleepsaver.feature.sleep.navigation
 
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
-import com.sleepsaver.feature.sleep.SleepPlaceholder
+import com.sleepsaver.feature.sleep.SleepScreen
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 
@@ -10,6 +12,10 @@ import java.time.LocalDate
 @Serializable
 data object SleepRoute
 
+/**
+ * The home screen. Taps while the screen isn't resumed (still animating in or out, or already left) are dropped,
+ * so a double tap can't navigate twice.
+ */
 fun NavGraphBuilder.sleepScreen(
     onOpenNight: (LocalDate) -> Unit,
     onOpenReview: (LocalDate) -> Unit,
@@ -20,5 +26,21 @@ fun NavGraphBuilder.sleepScreen(
     onOpenSettings: () -> Unit,
     onOpenHealthConnectSetup: () -> Unit,
 ) {
-    composable<SleepRoute> { SleepPlaceholder() }
+    composable<SleepRoute> { entry ->
+        SleepScreen(
+            onOpenNight = { date -> entry.ifResumed { onOpenNight(date) } },
+            onOpenReview = { date -> entry.ifResumed { onOpenReview(date) } },
+            onAddNap = { entry.ifResumed(onAddNap) },
+            onAddMissingNight = { date -> entry.ifResumed { onAddMissingNight(date) } },
+            onOpenHabits = { entry.ifResumed(onOpenHabits) },
+            onOpenEnergy = { entry.ifResumed(onOpenEnergy) },
+            onOpenSettings = { entry.ifResumed(onOpenSettings) },
+            onOpenHealthConnectSetup = { entry.ifResumed(onOpenHealthConnectSetup) },
+        )
+    }
+}
+
+/** Same guard as `dropUnlessResumed`, for callbacks that take an argument. */
+private inline fun NavBackStackEntry.ifResumed(block: () -> Unit) {
+    if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) block()
 }
