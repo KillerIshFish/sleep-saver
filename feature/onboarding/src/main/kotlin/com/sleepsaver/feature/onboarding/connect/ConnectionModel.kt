@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,6 +43,10 @@ internal class ConnectionModel(
     private val checked = MutableStateFlow(Checked())
     private val asked = MutableStateFlow(false)
     private var refreshJob: Job? = null
+
+    /** Numbers each [refresh]; [permissionsChecked] is the newest one whose status and permissions are in. */
+    private var refreshesStarted = 0
+    private val permissionsChecked = MutableStateFlow(0)
 
     val state: StateFlow<ConnectionUiState> = combine(
         checked,
@@ -71,11 +76,13 @@ internal class ConnectionModel(
      */
     fun refresh(showProgress: Boolean = false): Job {
         refreshJob?.cancel()
+        val id = ++refreshesStarted
         return scope.launch {
             val status = guarded(HealthConnectStatus.NOT_INSTALLED) { gateway.status() }
             val garminInstalled = guarded(false) { gateway.isGarminConnectInstalled() }
             if (status != HealthConnectStatus.AVAILABLE) {
                 checked.value = Checked(status = status, garminInstalled = garminInstalled)
+                permissionsChecked.update { maxOf(it, id) }
                 return@launch
             }
             val permissions = guarded(NOTHING_GRANTED) { gateway.permissionState() }
@@ -88,6 +95,7 @@ internal class ConnectionModel(
                     checkingOrigins = permissions.sleepGranted && showProgress,
                 )
             }
+            permissionsChecked.update { maxOf(it, id) }
             if (!permissions.sleepGranted) return@launch
             val origins = guarded(emptyList()) { gateway.sleepOrigins() }
             checked.update { it.copy(origins = origins, checkingOrigins = false) }
@@ -96,6 +104,15 @@ internal class ConnectionModel(
 
     /** As of the last finished check. */
     val sleepGranted: Boolean get() = checked.value.permissions?.sleepGranted == true
+
+    /**
+     * Suspends until the status and permissions of the latest [refresh] (or a newer one) are in. A resume can
+     * cancel a running check and start another; this waits for whichever finishes, so the answer is never stale.
+     */
+    suspend fun awaitLatestCheck() {
+        val target = refreshesStarted
+        permissionsChecked.first { it >= target }
+    }
 
     /** The permission screen closed. Whatever was granted, re-read the real state. */
     fun onPermissionsResult(): Job {
@@ -116,9 +133,11 @@ internal class ConnectionModel(
 
     fun manageDataIntent(): Intent? = guarded(null) { gateway.manageDataIntent() }
 
-    /** Garmin Connect itself when installed, otherwise its store page. */
-    fun garminConnectIntent(): Intent? =
-        guarded(null) { gateway.garminConnectLaunchIntent() } ?: guarded(null) { gateway.garminConnectStoreIntent() }
+    /** Garmin Connect itself when installed, then its store page (also the fallback when the app won't open). */
+    fun garminConnectIntents(): List<Intent> = listOfNotNull(
+        guarded(null) { gateway.garminConnectLaunchIntent() },
+        guarded(null) { gateway.garminConnectStoreIntent() },
+    )
 
     private companion object {
         val NOTHING_GRANTED = HealthPermissionState(

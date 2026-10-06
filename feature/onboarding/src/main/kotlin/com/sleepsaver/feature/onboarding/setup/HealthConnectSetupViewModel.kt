@@ -16,6 +16,7 @@ import com.sleepsaver.feature.onboarding.connect.ConnectionModel
 import com.sleepsaver.feature.onboarding.connect.ConnectionUiState
 import com.sleepsaver.feature.onboarding.connect.guarded
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +51,7 @@ class HealthConnectSetupViewModel @Inject constructor(
 
     private val connection = ConnectionModel(gateway, settingsRepository, viewModelScope)
     private val busy = MutableStateFlow(false)
+    private var syncJob: Job? = null
     private val now = MutableStateFlow(currentTime())
     private val zone: ZoneId = guarded(ZoneId.systemDefault()) { timeProvider.zone() }
 
@@ -81,10 +83,11 @@ class HealthConnectSetupViewModel @Inject constructor(
     suspend fun permissionsToRequest(): Set<String> = connection.permissionsToRequest()
 
     fun onPermissionsResult() {
-        val check = connection.onPermissionsResult()
-        // A newly granted permission (sleep, history) is worth a sync straight away.
+        connection.onPermissionsResult()
+        // A newly granted permission (sleep, history) is worth a sync straight away. The resume that follows the
+        // permission screen restarts the check, so wait for the newest one rather than the job started here.
         viewModelScope.launch {
-            check.join()
+            connection.awaitLatestCheck()
             if (connection.sleepGranted) syncNow()
         }
     }
@@ -99,10 +102,13 @@ class HealthConnectSetupViewModel @Inject constructor(
 
     fun manageDataIntent(): Intent? = connection.manageDataIntent()
 
-    fun garminConnectIntent(): Intent? = connection.garminConnectIntent()
+    /** Garmin Connect, then its store page as the fallback. */
+    fun garminConnectIntents(): List<Intent> = connection.garminConnectIntents()
 
+    /** A manual sync, then a fresh look at the connection. A second tap while one runs is ignored. */
     fun syncNow() {
-        viewModelScope.launch {
+        if (syncJob?.isActive == true) return
+        syncJob = viewModelScope.launch {
             guarded(null) { syncRepository.sync(SyncTrigger.MANUAL) }
             now.value = currentTime()
             connection.refresh()

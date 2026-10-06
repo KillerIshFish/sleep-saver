@@ -134,6 +134,7 @@
     <!-- Step 4: sleep need and wake time -->
     <string name="onboarding_need_title">How much sleep do you need?</string>
     <string name="onboarding_need_body">The amount that leaves you feeling rested. Most adults need between 7 and 9 hours.</string>
+    <string name="onboarding_need_label">Sleep need per night</string>
     <string name="onboarding_need_suggestion">Your free nights suggest %1$s (%2$s)</string>
     <plurals name="onboarding_need_suggestion_nights">
         <item quantity="one">Based on %1$d night you woke later than on a usual weekday.</item>

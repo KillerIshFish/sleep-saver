@@ -17,6 +17,7 @@ import com.sleepsaver.feature.onboarding.connect.history
 import com.sleepsaver.feature.onboarding.connect.sourceCheck
 import com.sleepsaver.feature.onboarding.setup.SyncAgo
 import com.sleepsaver.feature.onboarding.setup.syncAgo
+import com.sleepsaver.feature.onboarding.ui.LaunchGuard
 import com.sleepsaver.feature.onboarding.ui.appLabel
 import com.sleepsaver.feature.onboarding.ui.fallbackLabel
 import org.junit.Test
@@ -158,6 +159,20 @@ class OnboardingLogicTest {
         assertThat(syncAgo(now.minusSeconds(3 * 3600 + 10), now, zone)).isEqualTo(SyncAgo.Hours(3))
         val old = now.minus(Duration.ofDays(2))
         assertThat(syncAgo(old, now, zone)).isEqualTo(SyncAgo.On(old, LocalDate.of(2026, 10, 6)))
+    }
+
+    // ------------------------------------------------------------ launch guard
+
+    @Test
+    fun `the launch guard lets one launch through per second`() {
+        var now = 10_000L
+        val guard = LaunchGuard(windowMillis = 1_000, clock = { now })
+
+        assertThat(guard.tryAcquire()).isTrue()
+        now += 200
+        assertThat(guard.tryAcquire()).isFalse()
+        now += 900
+        assertThat(guard.tryAcquire()).isTrue()
     }
 
     // ------------------------------------------------------------ app labels

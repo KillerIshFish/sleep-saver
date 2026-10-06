@@ -1,5 +1,8 @@
 package com.sleepsaver.feature.onboarding
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
@@ -88,6 +91,33 @@ class OnboardingContentTest {
     }
 
     @Test
+    fun `a double tap on back goes back one step only`() {
+        var step by mutableStateOf(OnboardingStep.HABITS)
+        val backs = mutableListOf<OnboardingStep>()
+        compose.setContent {
+            SleepSaverTheme {
+                OnboardingContent(
+                    OnboardingUiState(step = step, sleepNeed = Previews.sleepNeed, habits = Previews.habits),
+                    OnboardingActions(onBack = { backs += step; step = OnboardingStep.entries[step.ordinal - 1] }),
+                )
+            }
+        }
+
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.mainClock.advanceTimeBy(120)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+
+        assertThat(backs).containsExactly(OnboardingStep.HABITS)
+        assertThat(step).isEqualTo(OnboardingStep.SLEEP_NEED)
+        // Once the step has settled, back works again.
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.runOnIdle { assertThat(step).isEqualTo(OnboardingStep.IMPORT) }
+    }
+
+    @Test
     fun `connect asks for access and always offers demo data`() {
         show(OnboardingUiState(step = OnboardingStep.CONNECT, connection = Previews.needsPermission))
 
@@ -143,9 +173,11 @@ class OnboardingContentTest {
         show(OnboardingUiState(step = OnboardingStep.CONNECT, connection = Previews.garminMissing))
         val list = compose.onNode(hasScrollAction())
 
+        // Each target is scrolled into view first: a click lands at the node's centre, which may be off screen.
         list.performScrollToNode(hasText("No Garmin sleep yet"))
         list.performScrollToNode(hasText("Open Garmin Connect"))
         compose.onNodeWithText("Open Garmin Connect").performClick()
+        list.performScrollToNode(hasText("Check again"))
         compose.onNodeWithText("Check again").performClick()
         list.performScrollToNode(hasText("Use Fitbit instead"))
         compose.onNodeWithText("Use Fitbit instead").performClick()

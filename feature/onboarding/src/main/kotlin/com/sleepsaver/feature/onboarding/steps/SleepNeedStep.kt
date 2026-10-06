@@ -61,6 +61,13 @@ internal fun SleepNeedStep(
     ) {
         StepHeading(stringResource(R.string.onboarding_need_title), stringResource(R.string.onboarding_need_body))
         Spacer(Modifier.height(Spacing.xl))
+        // Labelled like the wake-time scrubber below, so the two settings read as a pair.
+        Text(
+            text = stringResource(R.string.onboarding_need_label),
+            style = MaterialTheme.typography.labelLarge,
+            color = SleepSaverTheme.colors.textSecondary,
+        )
+        Spacer(Modifier.height(Spacing.s))
         MinuteStepper(
             minutes = state.needMinutes,
             onMinutesChange = onNeedChange,

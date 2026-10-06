@@ -68,9 +68,11 @@ import com.sleepsaver.feature.onboarding.connect.SourceCard
 import com.sleepsaver.feature.onboarding.connect.SourceCheck
 import com.sleepsaver.feature.onboarding.connect.StageCard
 import com.sleepsaver.feature.onboarding.steps.syncErrorText
+import com.sleepsaver.feature.onboarding.ui.LaunchGuard
 import com.sleepsaver.feature.onboarding.ui.RowStatus
 import com.sleepsaver.feature.onboarding.ui.StatusRow
 import com.sleepsaver.feature.onboarding.ui.rememberAppLabel
+import com.sleepsaver.feature.onboarding.ui.startFirst
 import com.sleepsaver.feature.onboarding.ui.startSafely
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -95,6 +97,8 @@ internal fun HealthConnectSetupScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // One external screen at a time: a double tap must not stack two permission dialogs or two store pages.
+    val launchGuard = remember { LaunchGuard() }
     val permissionLauncher = rememberLauncherForActivityResult(viewModel.permissionContract) { viewModel.onPermissionsResult() }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
@@ -105,15 +109,19 @@ internal fun HealthConnectSetupScreen(
             onBack = { currentOnBack() },
             connect = ConnectActions(
                 onConnect = {
-                    scope.launch {
-                        val permissions = viewModel.permissionsToRequest()
-                        val launched = permissions.isNotEmpty() && runCatching { permissionLauncher.launch(permissions) }.isSuccess
-                        if (!launched) viewModel.onPermissionsUnavailable()
+                    if (launchGuard.tryAcquire()) {
+                        scope.launch {
+                            val permissions = viewModel.permissionsToRequest()
+                            val launched = permissions.isNotEmpty() && runCatching { permissionLauncher.launch(permissions) }.isSuccess
+                            if (!launched) viewModel.onPermissionsUnavailable()
+                        }
                     }
                 },
-                onInstall = { if (!context.startSafely(viewModel.installOrUpdateIntent())) viewModel.checkAgain() },
-                onOpenHealthConnect = { context.startSafely(viewModel.manageDataIntent()) },
-                onOpenGarmin = { context.startSafely(viewModel.garminConnectIntent()) },
+                onInstall = {
+                    if (launchGuard.tryAcquire() && !context.startSafely(viewModel.installOrUpdateIntent())) viewModel.checkAgain()
+                },
+                onOpenHealthConnect = { if (launchGuard.tryAcquire()) context.startSafely(viewModel.manageDataIntent()) },
+                onOpenGarmin = { if (launchGuard.tryAcquire()) context.startFirst(viewModel.garminConnectIntents()) },
                 onCheckAgain = viewModel::checkAgain,
                 onUseSource = viewModel::useSource,
                 onExploreDemo = viewModel::exploreDemo,

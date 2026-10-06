@@ -38,7 +38,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -92,7 +93,7 @@ class OnboardingViewModel @Inject constructor(
     private val connection = ConnectionModel(gateway, settingsRepository, viewModelScope)
     private val zone: ZoneId = guarded(ZoneId.systemDefault()) { timeProvider.zone() }
     private val today: LocalDate = guarded(LocalDate.now(zone)) { timeProvider.now().atZone(zone).toLocalDate() }
-    private val local = MutableStateFlow(Local(step = restoredStep()))
+    private val local = MutableStateFlow(restoreLocal())
     private var importJob: Job? = null
 
     private val sources = combine(
@@ -123,17 +124,11 @@ class OnboardingViewModel @Inject constructor(
     val permissionContract: ActivityResultContract<Set<String>, Set<String>> get() = connection.permissionContract
 
     init {
+        // What the user picked survives process death too, not only the step.
+        local.onEach(::saveLocal).launchIn(viewModelScope)
         connection.refresh()
         // Restored on the import step after process death: pick the import back up.
-        if (local.value.step == OnboardingStep.IMPORT) {
-            viewModelScope.launch {
-                if (guarded(false) { settingsRepository.current().demoMode }) {
-                    local.update { it.copy(importPhase = ImportPhase.DEMO) }
-                } else {
-                    startImport()
-                }
-            }
-        }
+        if (local.value.step == OnboardingStep.IMPORT) resumeImport()
     }
 
     // ------------------------------------------------------------ navigation
@@ -144,7 +139,10 @@ class OnboardingViewModel @Inject constructor(
     fun back(): Boolean {
         val step = local.value.step
         if (step == OnboardingStep.WELCOME || local.value.busy) return false
-        setStep(OnboardingStep.entries[step.ordinal - 1])
+        val previous = OnboardingStep.entries[step.ordinal - 1]
+        setStep(previous)
+        // Back onto an import that never ran in this process (restored further on): run it rather than spin.
+        if (previous == OnboardingStep.IMPORT) resumeImport()
         return true
     }
 
@@ -174,7 +172,8 @@ class OnboardingViewModel @Inject constructor(
 
     fun manageDataIntent(): Intent? = connection.manageDataIntent()
 
-    fun garminConnectIntent(): Intent? = connection.garminConnectIntent()
+    /** Garmin Connect, then its store page as the fallback. */
+    fun garminConnectIntents(): List<Intent> = connection.garminConnectIntents()
 
     /** Continue with the user's own Health Connect data (leaving demo mode if it was on). */
     fun continueFromConnect() {
@@ -193,7 +192,7 @@ class OnboardingViewModel @Inject constructor(
 
     /** Skip Health Connect: load the demo nights and go straight on (nothing to import). */
     fun exploreDemo() {
-        if (local.value.busy) return
+        if (local.value.step != OnboardingStep.CONNECT || local.value.busy) return
         viewModelScope.launch {
             local.update { it.copy(busy = true) }
             guarded(Unit) { demoModeController.setDemoMode(true) }
@@ -212,6 +211,18 @@ class OnboardingViewModel @Inject constructor(
     fun continueFromImport() {
         if (local.value.step != OnboardingStep.IMPORT || local.value.importPhase == ImportPhase.RUNNING) return
         setStep(OnboardingStep.SLEEP_NEED)
+    }
+
+    /** The import step with nothing run yet in this process: demo data is instant, otherwise import. */
+    private fun resumeImport() {
+        if (local.value.importPhase != ImportPhase.NOT_STARTED || importJob?.isActive == true) return
+        viewModelScope.launch {
+            if (guarded(false) { settingsRepository.current().demoMode }) {
+                local.update { it.copy(importPhase = ImportPhase.DEMO) }
+            } else {
+                startImport()
+            }
+        }
     }
 
     private fun startImport() {
@@ -285,13 +296,31 @@ class OnboardingViewModel @Inject constructor(
 
     private fun setStep(step: OnboardingStep) {
         local.update { it.copy(step = step) }
-        savedStateHandle[KEY_STEP] = step.name
         if (step == OnboardingStep.CONNECT) connection.refresh()
     }
 
-    private fun restoredStep(): OnboardingStep =
-        savedStateHandle.get<String>(KEY_STEP)?.let { name -> OnboardingStep.entries.firstOrNull { it.name == name } }
-            ?: OnboardingStep.WELCOME
+    /** Mirrors the user's choices into [savedStateHandle]. A running or failed import is simply run again. */
+    private fun saveLocal(local: Local) {
+        savedStateHandle[KEY_STEP] = local.step.name
+        savedStateHandle[KEY_IMPORT] = local.importPhase.takeIf { it == ImportPhase.DONE || it == ImportPhase.DEMO }?.name
+        savedStateHandle[KEY_NEED] = local.needMinutes
+        savedStateHandle[KEY_WAKE] = local.wake?.let { it.hour * 60 + it.minute }
+        savedStateHandle[KEY_SELECTED] = local.selected?.mapTo(ArrayList()) { it.name }
+        savedStateHandle[KEY_REMIND] = local.remind
+    }
+
+    private fun restoreLocal(): Local = guarded(Local(step = OnboardingStep.WELCOME)) {
+        Local(
+            step = savedStateHandle.get<String>(KEY_STEP)?.let { enumOrNull<OnboardingStep>(it) } ?: OnboardingStep.WELCOME,
+            importPhase = savedStateHandle.get<String>(KEY_IMPORT)?.let { enumOrNull<ImportPhase>(it) } ?: ImportPhase.NOT_STARTED,
+            needMinutes = savedStateHandle.get<Int>(KEY_NEED),
+            wake = savedStateHandle.get<Int>(KEY_WAKE)?.takeIf { it in 0 until 24 * 60 }?.let { LocalTime.of(it / 60, it % 60) },
+            selected = savedStateHandle.get<ArrayList<String>>(KEY_SELECTED)?.mapNotNullTo(mutableSetOf()) { enumOrNull<HabitType>(it) },
+            remind = savedStateHandle.get<Boolean>(KEY_REMIND),
+        )
+    }
+
+    private inline fun <reified E : Enum<E>> enumOrNull(name: String): E? = enumValues<E>().firstOrNull { it.name == name }
 
     private fun importState(local: Local, sync: SyncState, nights: List<Night>): ImportUiState = when (local.importPhase) {
         ImportPhase.NOT_STARTED -> ImportUiState.NotStarted
@@ -339,5 +368,10 @@ class OnboardingViewModel @Inject constructor(
 
     private companion object {
         const val KEY_STEP = "onboarding_step"
+        const val KEY_IMPORT = "onboarding_import"
+        const val KEY_NEED = "onboarding_need_minutes"
+        const val KEY_WAKE = "onboarding_wake_minute"
+        const val KEY_SELECTED = "onboarding_habits"
+        const val KEY_REMIND = "onboarding_remind"
     }
 }

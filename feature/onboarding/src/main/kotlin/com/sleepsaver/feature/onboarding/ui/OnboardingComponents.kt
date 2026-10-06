@@ -1,9 +1,12 @@
 package com.sleepsaver.feature.onboarding.ui
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -315,17 +318,51 @@ private fun FlowLink(modifier: Modifier = Modifier) {
 
 // ---------------------------------------------------------------- platform helpers
 
-/** Starts [intent], returning false (instead of crashing) when nothing can open it. */
+/**
+ * Starts [intent], returning false (instead of crashing) when nothing can open it. From an Activity it opens in
+ * our task, so back returns here; otherwise it needs a task of its own.
+ */
 internal fun Context.startSafely(intent: Intent?): Boolean {
     if (intent == null) return false
+    val launch = if (findActivity() != null) intent else Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     return try {
-        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        (findActivity() ?: this).startActivity(launch)
         true
     } catch (e: ActivityNotFoundException) {
         false
     } catch (e: SecurityException) {
         false
+    } catch (e: IllegalArgumentException) {
+        // Some OEM builds throw this for malformed market:// links.
+        false
     }
+}
+
+/**
+ * Lets one external launch (permission dialog, store page, another app) through per [windowMillis]. Our screen
+ * stays resumed until the other activity is actually up, so a quick double tap would otherwise open it twice.
+ */
+internal class LaunchGuard(private val windowMillis: Long = 1_000, private val clock: () -> Long = SystemClock::elapsedRealtime) {
+    private var last = Long.MIN_VALUE
+
+    fun tryAcquire(): Boolean {
+        val now = clock()
+        if (last != Long.MIN_VALUE && now - last < windowMillis) return false
+        last = now
+        return true
+    }
+}
+
+/** Starts the first of [intents] that something can open; false when none can. */
+internal fun Context.startFirst(intents: List<Intent>): Boolean = intents.any { startSafely(it) }
+
+private fun Context.findActivity(): Activity? {
+    var context: Context? = this
+    while (context != null) {
+        if (context is Activity) return context
+        context = (context as? ContextWrapper)?.baseContext
+    }
+    return null
 }
 
 /** A readable name for the app that wrote sleep: "Garmin Connect", "Fitbit", or the installed app's label. */

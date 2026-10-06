@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,7 +49,9 @@ import com.sleepsaver.feature.onboarding.steps.HabitsStep
 import com.sleepsaver.feature.onboarding.steps.ImportStep
 import com.sleepsaver.feature.onboarding.steps.SleepNeedStep
 import com.sleepsaver.feature.onboarding.steps.WelcomeStep
+import com.sleepsaver.feature.onboarding.ui.LaunchGuard
 import com.sleepsaver.feature.onboarding.ui.StepTopBar
+import com.sleepsaver.feature.onboarding.ui.startFirst
 import com.sleepsaver.feature.onboarding.ui.startSafely
 import kotlinx.coroutines.launch
 import java.time.LocalTime
@@ -82,13 +85,14 @@ internal fun OnboardingScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // One external screen at a time: a double tap must not stack two permission dialogs or two store pages.
+    val launchGuard = remember { LaunchGuard() }
 
     val permissionLauncher = rememberLauncherForActivityResult(viewModel.permissionContract) { viewModel.onPermissionsResult() }
     // Whatever the answer, onboarding finishes: without the permission reminders simply stay silent.
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.finish() }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
-    BackHandler(enabled = state.step != OnboardingStep.WELCOME) { viewModel.back() }
 
     val currentOnFinished by rememberUpdatedState(onFinished)
     LaunchedEffect(state.finished) { if (state.finished) currentOnFinished() }
@@ -102,15 +106,19 @@ internal fun OnboardingScreen(
             onOpenPrivacyPolicy = { currentOnOpenPrivacyPolicy() },
             connect = ConnectActions(
                 onConnect = {
-                    scope.launch {
-                        val permissions = viewModel.permissionsToRequest()
-                        val launched = permissions.isNotEmpty() && runCatching { permissionLauncher.launch(permissions) }.isSuccess
-                        if (!launched) viewModel.onPermissionsUnavailable()
+                    if (launchGuard.tryAcquire()) {
+                        scope.launch {
+                            val permissions = viewModel.permissionsToRequest()
+                            val launched = permissions.isNotEmpty() && runCatching { permissionLauncher.launch(permissions) }.isSuccess
+                            if (!launched) viewModel.onPermissionsUnavailable()
+                        }
                     }
                 },
-                onInstall = { if (!context.startSafely(viewModel.installOrUpdateIntent())) viewModel.checkAgain() },
-                onOpenHealthConnect = { context.startSafely(viewModel.manageDataIntent()) },
-                onOpenGarmin = { context.startSafely(viewModel.garminConnectIntent()) },
+                onInstall = {
+                    if (launchGuard.tryAcquire() && !context.startSafely(viewModel.installOrUpdateIntent())) viewModel.checkAgain()
+                },
+                onOpenHealthConnect = { if (launchGuard.tryAcquire()) context.startSafely(viewModel.manageDataIntent()) },
+                onOpenGarmin = { if (launchGuard.tryAcquire()) context.startFirst(viewModel.garminConnectIntents()) },
                 onCheckAgain = viewModel::checkAgain,
                 onUseSource = viewModel::useSource,
                 onExploreDemo = viewModel::exploreDemo,
@@ -125,11 +133,15 @@ internal fun OnboardingScreen(
             onToggleHabit = viewModel::toggleHabit,
             onRemindChange = viewModel::setRemind,
             onFinish = {
+                // Android 13+ asks before any notification; older versions allow them by default.
                 val needsPermission = currentState.habits.wantsNotifications &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                val asked = needsPermission && runCatching { notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }.isSuccess
-                if (!asked) viewModel.finish()
+                when {
+                    !needsPermission -> viewModel.finish()
+                    !launchGuard.tryAcquire() -> Unit
+                    runCatching { notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) }.isFailure -> viewModel.finish()
+                }
             },
         )
     }
@@ -137,13 +149,24 @@ internal fun OnboardingScreen(
     OnboardingContent(state = state, actions = actions, modifier = modifier)
 }
 
-/** The whole flow for [state]: progress bar, then the current step, sliding forwards and back. */
+/**
+ * The whole flow for [state]: progress bar, then the current step, sliding forwards and back. Back (the arrow
+ * and the system gesture) goes one step back, and is ignored while a step is still sliding in, so a double tap
+ * can't skip a step.
+ */
 @Composable
 internal fun OnboardingContent(
     state: OnboardingUiState,
     actions: OnboardingActions,
     modifier: Modifier = Modifier,
 ) {
+    val transition = updateTransition(state.step, label = "onboardingStep")
+    val onBack: () -> Unit = remember(transition, actions) {
+        { if (transition.currentState == transition.targetState) actions.onBack() }
+    }
+    // On the first step the system handles back (it leaves the app).
+    BackHandler(enabled = state.step != OnboardingStep.WELCOME, onBack = onBack)
+
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
             Modifier
@@ -164,18 +187,16 @@ internal fun OnboardingContent(
                     StepTopBar(
                         current = state.step.ordinal,
                         total = OnboardingStep.entries.size,
-                        onBack = actions.onBack.takeIf { !state.busy },
+                        onBack = onBack.takeIf { !state.busy },
                     )
                 }
-                AnimatedContent(
-                    targetState = state.step,
+                transition.AnimatedContent(
                     transitionSpec = {
                         val forward = targetState.ordinal > initialState.ordinal
                         val direction = if (forward) 1 else -1
                         (slideInHorizontally(tween(TransitionMillis)) { it / 5 * direction } + fadeIn(tween(TransitionMillis)))
                             .togetherWith(slideOutHorizontally(tween(TransitionMillis)) { -it / 5 * direction } + fadeOut(tween(TransitionMillis / 2)))
                     },
-                    label = "onboardingStep",
                 ) { step ->
                     Step(step, state, actions)
                 }

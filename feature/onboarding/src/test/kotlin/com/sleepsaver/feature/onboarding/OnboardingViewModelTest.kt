@@ -97,6 +97,79 @@ class OnboardingViewModelTest {
         assertThat(env.state.step).isEqualTo(OnboardingStep.SLEEP_NEED)
     }
 
+    @Test
+    fun `choices and the finished import survive process death`() {
+        val handle = SavedStateHandle()
+        val env = Env(handle = handle)
+        env.sleep.nightsState.value = SampleData.nights()
+        env.viewModel.start()
+        env.viewModel.continueFromConnect()
+        env.viewModel.continueFromImport()
+        env.viewModel.setNeed(505)
+        env.viewModel.setWake(LocalTime.of(6, 40))
+        env.viewModel.toggleHabit(HabitType.NAP_WINDOW)
+        env.viewModel.setRemind(false)
+
+        val restored = Env(handle = SavedStateHandle(handle.keys().associateWith { handle.get<Any>(it) }))
+        restored.sleep.nightsState.value = SampleData.nights()
+
+        assertThat(restored.state.step).isEqualTo(OnboardingStep.SLEEP_NEED)
+        assertThat(restored.state.sleepNeed.needMinutes).isEqualTo(505)
+        assertThat(restored.state.sleepNeed.wake).isEqualTo(LocalTime.of(6, 40))
+        assertThat(restored.state.habits.options.first { it.type == HabitType.NAP_WINDOW }.selected).isTrue()
+        assertThat(restored.state.habits.remind).isFalse()
+        restored.viewModel.back()
+        assertThat(restored.state.import).isInstanceOf(ImportUiState.Done::class.java)
+        assertThat(restored.fakeSync.importCalls).isEqualTo(0)
+    }
+
+    @Test
+    fun `restored on the import step, the import runs again`() {
+        val env = Env(handle = SavedStateHandle(mapOf("onboarding_step" to "IMPORT")))
+
+        assertThat(env.state.import).isInstanceOf(ImportUiState.Done::class.java)
+        assertThat(env.fakeSync.importCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun `restored on the import step in demo mode, nothing is imported`() {
+        val env = Env(
+            settings = FakeSettingsRepository(AppSettings(demoMode = true)),
+            handle = SavedStateHandle(mapOf("onboarding_step" to "IMPORT")),
+        )
+
+        assertThat(env.state.import).isInstanceOf(ImportUiState.Demo::class.java)
+        assertThat(env.fakeSync.importCalls).isEqualTo(0)
+    }
+
+    @Test
+    fun `going back onto an import that never ran in this process runs it instead of spinning`() {
+        val env = Env(handle = SavedStateHandle(mapOf("onboarding_step" to "SLEEP_NEED")))
+
+        env.viewModel.back()
+
+        assertThat(env.state.step).isEqualTo(OnboardingStep.IMPORT)
+        assertThat(env.state.import).isInstanceOf(ImportUiState.Done::class.java)
+        assertThat(env.fakeSync.importCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun `the demo path finishes without touching Health Connect`() {
+        val env = Env(gateway = FakeHealthConnectGateway(status = HealthConnectStatus.NOT_SUPPORTED))
+        env.viewModel.start()
+
+        env.viewModel.exploreDemo()
+        env.viewModel.continueFromImport()
+        env.viewModel.continueFromSleepNeed()
+        env.viewModel.finish()
+
+        assertThat(env.state.finished).isTrue()
+        assertThat(env.settings.state.value.onboardingDone).isTrue()
+        assertThat(env.settings.state.value.demoMode).isTrue()
+        assertThat(env.fakeSync.importCalls).isEqualTo(0)
+        assertThat(env.fakeSync.syncCalls).isEmpty()
+    }
+
     // ------------------------------------------------------------ Health Connect status
 
     @Test
@@ -259,12 +332,12 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `Garmin Connect opens itself when installed and its store page otherwise`() {
+    fun `Garmin Connect opens itself when installed, with its store page as the fallback`() {
         val env = Env()
-        assertThat(env.viewModel.garminConnectIntent()).isNotNull()
+        assertThat(env.viewModel.garminConnectIntents()).hasSize(2)
 
         env.gateway.garminInstalled = false
-        assertThat(env.viewModel.garminConnectIntent()).isNotNull()
+        assertThat(env.viewModel.garminConnectIntents()).hasSize(1)
     }
 
     // ------------------------------------------------------------ demo

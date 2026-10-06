@@ -277,7 +277,8 @@ private fun MissingSourceCard(
                 NumberedStep(3, stringResource(R.string.onboarding_garmin_step_3))
             }
         }
-        Spacer(Modifier.height(Spacing.xl))
+        // A lone "Check again" link sits closer to the text than the Garmin button does.
+        Spacer(Modifier.height(if (otherLabel == null) Spacing.xl else Spacing.s))
         if (otherLabel == null) {
             SecondaryButton(
                 text = stringResource(if (garminInstalled) R.string.onboarding_open_garmin else R.string.onboarding_get_garmin),

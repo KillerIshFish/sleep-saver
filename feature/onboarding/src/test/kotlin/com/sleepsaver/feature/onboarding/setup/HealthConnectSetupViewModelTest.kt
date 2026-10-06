@@ -2,8 +2,12 @@ package com.sleepsaver.feature.onboarding.setup
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
+import com.sleepsaver.core.data.healthconnect.HealthPermissionState
 import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.SyncRepository
+import com.sleepsaver.core.data.repository.SyncResult
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.SourceSelection
@@ -15,6 +19,7 @@ import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.onboarding.connect.ConnectStage
 import com.sleepsaver.feature.onboarding.connect.SourceCheck
 import com.sleepsaver.feature.onboarding.testing.FakeTimeProvider
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -78,6 +83,54 @@ class HealthConnectSetupViewModelTest {
 
         assertThat(env.state.connection.stage).isEqualTo(ConnectStage.CONNECTED)
         assertThat(env.sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+    }
+
+    @Test
+    fun `the resume right after the permission screen doesn't swallow the sync`() {
+        val gate = CompletableDeferred<Unit>()
+        val fake = FakeHealthConnectGateway(permissions = FakeHealthConnectGateway.NONE_GRANTED)
+        val slow = object : HealthConnectGateway by fake {
+            var hold = false
+            override suspend fun permissionState(): HealthPermissionState {
+                if (hold) gate.await()
+                return fake.permissions
+            }
+        }
+        val settings = FakeSettingsRepository()
+        val sync = FakeSyncRepository()
+        val viewModel = HealthConnectSetupViewModel(slow, settings, sync, FakeDemoModeController(settings), FakeTimeProvider())
+        assertThat(viewModel.uiState.value.connection.stage).isEqualTo(ConnectStage.NEEDS_PERMISSION)
+
+        fake.permissions = FakeHealthConnectGateway.ALL_GRANTED
+        slow.hold = true
+        viewModel.onPermissionsResult() // its check is still reading permissions…
+        viewModel.refresh() // …when the screen resumes and starts another one
+        gate.complete(Unit)
+
+        assertThat(viewModel.uiState.value.connection.stage).isEqualTo(ConnectStage.CONNECTED)
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+    }
+
+    @Test
+    fun `a second sync tap while one runs is ignored`() {
+        val gate = CompletableDeferred<Unit>()
+        val settings = FakeSettingsRepository()
+        val calls = mutableListOf<SyncTrigger>()
+        val sync = object : SyncRepository by FakeSyncRepository() {
+            override suspend fun sync(trigger: SyncTrigger): SyncResult {
+                calls += trigger
+                gate.await()
+                return SyncResult(success = true)
+            }
+        }
+        val viewModel = HealthConnectSetupViewModel(FakeHealthConnectGateway(), settings, sync, FakeDemoModeController(settings), FakeTimeProvider())
+
+        viewModel.syncNow()
+        viewModel.syncNow()
+        gate.complete(Unit)
+        viewModel.syncNow()
+
+        assertThat(calls).containsExactly(SyncTrigger.MANUAL, SyncTrigger.MANUAL)
     }
 
     @Test
@@ -145,6 +198,6 @@ class HealthConnectSetupViewModelTest {
 
         assertThat(env.viewModel.installOrUpdateIntent()).isNotNull()
         assertThat(env.viewModel.manageDataIntent()).isNotNull()
-        assertThat(env.viewModel.garminConnectIntent()).isNotNull()
+        assertThat(env.viewModel.garminConnectIntents()).isNotEmpty()
     }
 }
