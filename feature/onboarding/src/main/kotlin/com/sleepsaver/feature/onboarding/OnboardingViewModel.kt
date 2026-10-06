@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -95,6 +96,7 @@ class OnboardingViewModel @Inject constructor(
     private val today: LocalDate = guarded(LocalDate.now(zone)) { timeProvider.now().atZone(zone).toLocalDate() }
     private val local = MutableStateFlow(restoreLocal())
     private var importJob: Job? = null
+    private var needSaveJob: Job? = null
 
     private val sources = combine(
         sleepRepository.nights.catch { emit(emptyList()) },
@@ -256,8 +258,10 @@ class OnboardingViewModel @Inject constructor(
         val need = uiState.value.sleepNeed
         // Keep what's on screen even if the repositories change while saving.
         local.update { it.copy(needMinutes = need.needMinutes, wake = need.wake) }
-        viewModelScope.launch {
-            guarded(Unit) { settingsRepository.setSleepNeed(java.time.Duration.ofMinutes(need.needMinutes.toLong())) }
+        val previousSave = needSaveJob
+        needSaveJob = viewModelScope.launch {
+            previousSave?.join()
+            guarded(Unit) { settingsRepository.setSleepNeed(Duration.ofMinutes(need.needMinutes.toLong())) }
             guarded(Unit) { settingsRepository.setTypicalWake(need.wake) }
         }
         setStep(OnboardingStep.HABITS)
@@ -278,6 +282,8 @@ class OnboardingViewModel @Inject constructor(
         val habits = uiState.value.habits
         local.update { it.copy(busy = true) }
         viewModelScope.launch {
+            // Finishing leaves the screen and clears this ViewModel: the sleep need must be stored by then.
+            needSaveJob?.join()
             habits.options.forEach { option ->
                 guarded(Unit) { habitsRepository.setEnabled(option.type, option.selected) }
                 guarded(Unit) { habitsRepository.setReminder(option.type, habits.remind) }
