@@ -15,7 +15,9 @@ import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
+import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncRepository
+import com.sleepsaver.core.data.repository.SyncResult
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
@@ -120,18 +122,18 @@ class SettingsViewModel @Inject constructor(
     fun setSleepNeed(minutes: Int) {
         val need = minutes.roundTo(SettingsLimits.NEED_STEP_MINUTES)
             .coerceIn(SettingsLimits.NEED_MIN_MINUTES, SettingsLimits.NEED_MAX_MINUTES)
-        viewModelScope.launch { settingsRepository.setSleepNeed(Duration.ofMinutes(need.toLong())) }
+        save { settingsRepository.setSleepNeed(Duration.ofMinutes(need.toLong())) }
     }
 
     /** Applies the suggestion shown on screen (whatever the current estimate is). */
     fun useSuggestedNeed() {
         val suggestion = uiState.value.needSuggestion ?: return
-        viewModelScope.launch { settingsRepository.setSleepNeed(suggestion.need) }
+        save { settingsRepository.setSleepNeed(suggestion.need) }
     }
 
     fun setTypicalWake(time: LocalTime) {
         val minuteOfDay = (time.hour * 60 + time.minute).roundTo(SettingsLimits.WAKE_STEP_MINUTES) % MINUTES_PER_DAY
-        viewModelScope.launch { settingsRepository.setTypicalWake(LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)) }
+        save { settingsRepository.setTypicalWake(LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)) }
     }
 
     // ------------------------------------------------------------------ Goals
@@ -139,7 +141,7 @@ class SettingsViewModel @Inject constructor(
     fun setStreakThreshold(minutes: Int) {
         val threshold = minutes.roundTo(SettingsLimits.STREAK_STEP_MINUTES)
             .coerceIn(SettingsLimits.STREAK_MIN_MINUTES, SettingsLimits.STREAK_MAX_MINUTES)
-        viewModelScope.launch { settingsRepository.setStreakThreshold(Duration.ofMinutes(threshold.toLong())) }
+        save { settingsRepository.setStreakThreshold(Duration.ofMinutes(threshold.toLong())) }
     }
 
     /**
@@ -148,7 +150,7 @@ class SettingsViewModel @Inject constructor(
      */
     fun setDebtLevels(lowMaxMinutes: Int, highMinMinutes: Int): Boolean {
         if (!isValidDebtLevels(lowMaxMinutes, highMinMinutes)) return false
-        viewModelScope.launch {
+        save {
             settingsRepository.setDebtThresholds(
                 lowMax = Duration.ofMinutes(lowMaxMinutes.toLong()),
                 highMin = Duration.ofMinutes(highMinMinutes.toLong()),
@@ -160,7 +162,7 @@ class SettingsViewModel @Inject constructor(
     // ------------------------------------------------------------------ Data
 
     fun selectSource(source: SourceSelection) {
-        viewModelScope.launch { settingsRepository.setSource(source) }
+        save { settingsRepository.setSource(source) }
     }
 
     /** Loads or clears the demo nights. Not cancelled by leaving the screen: a half switch would mix data. */
@@ -177,7 +179,15 @@ class SettingsViewModel @Inject constructor(
         if (local.value.syncing) return
         local.update { it.copy(syncing = true, syncFeedback = null) }
         viewModelScope.launch {
-            val result = syncRepository.sync(SyncTrigger.MANUAL)
+            // The repository promises not to throw; a failure is still shown rather than crashing the screen.
+            val result = try {
+                syncRepository.sync(SyncTrigger.MANUAL)
+            } catch (e: CancellationException) {
+                local.update { it.copy(syncing = false) }
+                throw e
+            } catch (_: Exception) {
+                SyncResult(success = false, error = SyncError.UNKNOWN)
+            }
             val feedback = if (result.success) SyncFeedback.Success(result.sessionsChanged) else SyncFeedback.Failed(result.error)
             local.update { it.copy(syncing = false, syncFeedback = feedback) }
             refreshHealthConnect()
@@ -216,11 +226,11 @@ class SettingsViewModel @Inject constructor(
     // ------------------------------------------------------------------ Notifications and display
 
     fun setMorningReviewEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsRepository.setMorningReviewEnabled(enabled) }
+        save { settingsRepository.setMorningReviewEnabled(enabled) }
     }
 
     fun setClockFormat(format: ClockFormat) {
-        viewModelScope.launch { settingsRepository.setClockFormat(format) }
+        save { settingsRepository.setClockFormat(format) }
     }
 
     // ------------------------------------------------------------------ Reset
@@ -244,13 +254,13 @@ class SettingsViewModel @Inject constructor(
     /** For problems only the screen can see (e.g. no app to open a system page). */
     fun showMessage(message: SettingsMessage) = local.update { it.copy(message = message) }
 
-    /** Re-reads Health Connect and notification access: call when the screen resumes. */
+    /** Re-reads Health Connect and notification access (off the main thread): call when the screen resumes. */
     fun refreshSystemStatus() {
-        local.update {
-            it.copy(
-                notifications = attemptOr(it.notifications) { platform.notificationAccess() },
-                appVersion = it.appVersion.ifEmpty { attemptOr("") { platform.appVersion() } },
-            )
+        viewModelScope.launch {
+            val known = local.value
+            val notifications = withContext(ioDispatcher) { attemptOr(known.notifications) { platform.notificationAccess() } }
+            val version = known.appVersion.ifEmpty { withContext(ioDispatcher) { attemptOr("") { platform.appVersion() } } }
+            local.update { it.copy(notifications = notifications, appVersion = version) }
         }
         viewModelScope.launch { refreshHealthConnect() }
     }
@@ -276,6 +286,13 @@ class SettingsViewModel @Inject constructor(
             HealthConnectAccess.NOT_SUPPORTED
         }
         local.update { it.copy(healthConnect = access) }
+    }
+
+    /** Runs a settings write; if storage fails, says so instead of crashing the screen. */
+    private fun save(write: suspend () -> Unit) {
+        viewModelScope.launch {
+            if (!attempt { write() }) local.update { it.copy(message = SettingsMessage.SAVE_FAILED) }
+        }
     }
 
     private fun labelOf(packageName: String): String? = attemptOr(null) { platform.appLabel(packageName) }

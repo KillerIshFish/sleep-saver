@@ -134,7 +134,18 @@ enum class ExportFormat(val mimeType: String, val extension: String) {
     JSON("application/json", "json"),
 }
 
-enum class SettingsMessage { EXPORTED_CSV, EXPORTED_JSON, EXPORT_FAILED, DEMO_FAILED, RESET_FAILED, SETTINGS_UNAVAILABLE }
+enum class SettingsMessage {
+    EXPORTED_CSV,
+    EXPORTED_JSON,
+    EXPORT_FAILED,
+
+    /** No app on the phone can create a file (the system file picker is missing or disabled). */
+    EXPORT_UNAVAILABLE,
+    DEMO_FAILED,
+    RESET_FAILED,
+    SAVE_FAILED,
+    SETTINGS_UNAVAILABLE,
+}
 
 /** The ranges the pickers allow. The ViewModel clamps to them as well, whatever the UI sends. */
 object SettingsLimits {

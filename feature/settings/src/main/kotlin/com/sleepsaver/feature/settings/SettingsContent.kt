@@ -32,8 +32,8 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DataObject
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.FileDownload
-import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -332,13 +332,7 @@ private fun DataGroup(
             onCheckedChange = { on -> if (on) actions.onDemoModeChange(true) else openDialog(SettingsDialog.DEMO_OFF) },
         )
         RowDivider()
-        SettingsRow(
-            icon = Icons.Rounded.HealthAndSafety,
-            title = stringResource(R.string.settings_health_connect),
-            supporting = stringResource(state.healthConnect.textRes),
-            onClick = actions::onOpenHealthConnect,
-            trailing = { ValueChevron() },
-        )
+        HealthConnectRow(state.healthConnect, actions::onOpenHealthConnect)
         RowDivider()
         SyncRow(state.sync, state, actions::onSyncNow)
         RowDivider()
@@ -356,9 +350,30 @@ private fun DataGroup(
     }
 }
 
+/** Health Connect's status; when something needs fixing, a short action ("Allow", "Install") replaces the chevron. */
+@Composable
+private fun HealthConnectRow(access: HealthConnectAccess, onOpen: () -> Unit) {
+    val fixLabel = access.fixLabelRes?.let { stringResource(it) }
+    SettingsRow(
+        icon = Icons.Rounded.MonitorHeart,
+        title = stringResource(R.string.settings_health_connect),
+        supporting = stringResource(access.textRes),
+        onClick = onOpen,
+        trailing = {
+            if (fixLabel != null) {
+                // Shifted by its own inner padding so the label ends where the chevrons do.
+                TextLinkButton(fixLabel, onClick = onOpen, modifier = Modifier.offset(x = 10.dp))
+            } else {
+                ValueChevron()
+            }
+        },
+    )
+}
+
 @Composable
 private fun SyncRow(sync: SyncUi, state: SettingsUiState, onSyncNow: () -> Unit) {
     val feedback: String? = when {
+        state.demoMode -> stringResource(R.string.settings_sync_demo)
         sync.inProgress -> stringResource(R.string.settings_syncing)
         sync.feedback is SyncFeedback.Success -> if (sync.feedback.sessionsChanged == 0) {
             stringResource(R.string.settings_sync_up_to_date)
@@ -373,19 +388,23 @@ private fun SyncRow(sync: SyncUi, state: SettingsUiState, onSyncNow: () -> Unit)
         icon = Icons.Rounded.Sync,
         title = lastSyncedText(sync, state),
         supporting = feedback,
-        trailing = {
-            if (sync.inProgress) {
-                RowProgress()
-            } else {
-                // Shifted by its own inner padding so the label ends where the chevrons do.
-                TextLinkButton(
-                    stringResource(R.string.settings_sync_now),
-                    onClick = onSyncNow,
-                    modifier = Modifier.offset(x = 10.dp),
-                )
-            }
-        },
+        // Nothing syncs while demo nights stand in for the real ones.
+        trailing = if (state.demoMode) null else ({ SyncTrailing(sync.inProgress, onSyncNow) }),
     )
+}
+
+@Composable
+private fun SyncTrailing(inProgress: Boolean, onSyncNow: () -> Unit) {
+    if (inProgress) {
+        RowProgress()
+    } else {
+        // Shifted by its own inner padding so the label ends where the chevrons do.
+        TextLinkButton(
+            stringResource(R.string.settings_sync_now),
+            onClick = onSyncNow,
+            modifier = Modifier.offset(x = 10.dp),
+        )
+    }
 }
 
 @Composable
@@ -596,8 +615,10 @@ private val SettingsMessage.textRes: Int
         SettingsMessage.EXPORTED_CSV -> R.string.settings_exported_csv
         SettingsMessage.EXPORTED_JSON -> R.string.settings_exported_json
         SettingsMessage.EXPORT_FAILED -> R.string.settings_export_failed
+        SettingsMessage.EXPORT_UNAVAILABLE -> R.string.settings_export_unavailable
         SettingsMessage.DEMO_FAILED -> R.string.settings_demo_failed
         SettingsMessage.RESET_FAILED -> R.string.settings_reset_failed
+        SettingsMessage.SAVE_FAILED -> R.string.settings_save_failed
         SettingsMessage.SETTINGS_UNAVAILABLE -> R.string.settings_no_settings_app
     }
 
@@ -606,6 +627,15 @@ private val Confidence.textRes: Int
         Confidence.LOW -> R.string.settings_confidence_low
         Confidence.MEDIUM -> R.string.settings_confidence_medium
         Confidence.HIGH -> R.string.settings_confidence_high
+    }
+
+/** The short fix-it action on the Health Connect row, or null when there's nothing to fix there. */
+private val HealthConnectAccess.fixLabelRes: Int?
+    get() = when (this) {
+        HealthConnectAccess.PERMISSION_NEEDED -> R.string.settings_hc_fix_allow
+        HealthConnectAccess.NOT_INSTALLED -> R.string.settings_hc_fix_install
+        HealthConnectAccess.UPDATE_REQUIRED -> R.string.settings_hc_fix_update
+        HealthConnectAccess.CHECKING, HealthConnectAccess.CONNECTED, HealthConnectAccess.NOT_SUPPORTED -> null
     }
 
 private val HealthConnectAccess.textRes: Int

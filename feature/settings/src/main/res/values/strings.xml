@@ -86,10 +86,14 @@
     <string name="settings_health_connect">Health Connect</string>
     <string name="settings_hc_checking">Checking…</string>
     <string name="settings_hc_connected">Connected · reading sleep</string>
-    <string name="settings_hc_permission">Sleep access is off. Tap to turn it on.</string>
-    <string name="settings_hc_not_installed">Not installed. Tap to set it up.</string>
-    <string name="settings_hc_update">Needs an update. Tap to fix.</string>
-    <string name="settings_hc_not_supported">Not available on this phone</string>
+    <string name="settings_hc_permission">Sleep access is off</string>
+    <string name="settings_hc_not_installed">Not installed yet</string>
+    <string name="settings_hc_update">Needs an update first</string>
+    <string name="settings_hc_not_supported">Not available on this phone. Demo data still works.</string>
+    <!-- Short fix-it actions at the end of the Health Connect row -->
+    <string name="settings_hc_fix_allow">Allow</string>
+    <string name="settings_hc_fix_install">Install</string>
+    <string name="settings_hc_fix_update">Update</string>
 
     <!-- Sync -->
     <!-- "Last synced 10:20 AM" -->
@@ -101,6 +105,7 @@
     <string name="settings_never_synced">Not synced yet</string>
     <string name="settings_sync_now">Sync now</string>
     <string name="settings_syncing">Syncing…</string>
+    <string name="settings_sync_demo">Paused while demo data is on</string>
     <string name="settings_sync_up_to_date">You\'re up to date</string>
     <plurals name="settings_sync_updated">
         <item quantity="one">%1$d sleep session updated</item>
@@ -171,5 +176,7 @@
     <!-- Snackbars -->
     <string name="settings_demo_failed">Couldn\'t switch demo data. Try again.</string>
     <string name="settings_reset_failed">Reset didn\'t finish. Try again.</string>
+    <string name="settings_save_failed">Couldn\'t save that change. Try again.</string>
+    <string name="settings_export_unavailable">No app on this phone can save files</string>
     <string name="settings_no_settings_app">Couldn\'t open the system settings</string>
 </resources>

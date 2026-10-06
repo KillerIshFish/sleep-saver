@@ -363,12 +363,11 @@ internal fun SourceDialogCard(
                             selectedColor = MaterialTheme.colorScheme.primary,
                             unselectedColor = SleepSaverTheme.colors.textTertiary,
                         ),
-                        modifier = Modifier.padding(horizontal = Spacing.s),
                     )
                     Column(
                         Modifier
                             .weight(1f)
-                            .padding(start = Spacing.xs),
+                            .padding(start = Spacing.m),
                     ) {
                         Text(option.title(), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                         option.detail()?.let {

@@ -88,6 +88,7 @@ class SettingsContentTest {
     @Test
     fun `cancel leaves the setting alone`() {
         show()
+        scrollTo("Streak threshold")
         compose.onNodeWithText("Streak threshold").performClick()
         compose.onNodeWithContentDescription("Increase").performClick()
         compose.onNodeWithText("Cancel").performClick()
@@ -98,6 +99,7 @@ class SettingsContentTest {
     @Test
     fun `debt levels keep low below high`() {
         show(SettingsSamples.ready.copy(lowDebtMax = Duration.ofMinutes(210), highDebtMin = Duration.ofMinutes(240)))
+        scrollTo("Debt levels")
         compose.onNodeWithText("Debt levels").performClick()
 
         // Low is 3h 30m and High 4h: Low can't go up and High can't go down.
@@ -161,6 +163,7 @@ class SettingsContentTest {
         show()
         scrollTo("Health Connect")
         compose.onNodeWithText("Health Connect").performClick()
+        scrollTo("Sync now")
         compose.onNodeWithText("Sync now").performClick()
         scrollTo("Export as CSV")
         compose.onNodeWithText("Export as CSV").performClick()

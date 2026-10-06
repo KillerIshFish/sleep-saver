@@ -113,7 +113,7 @@ internal fun SettingsScreen(
                 try {
                     exportLaunchers.getValue(format).launch(name)
                 } catch (_: ActivityNotFoundException) {
-                    viewModel.showMessage(SettingsMessage.EXPORT_FAILED)
+                    viewModel.showMessage(SettingsMessage.EXPORT_UNAVAILABLE)
                 }
             }
             override fun onOpenPrivacyPolicy() = currentOnOpenPrivacyPolicy()
