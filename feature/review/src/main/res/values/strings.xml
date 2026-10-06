@@ -122,6 +122,8 @@
     <string name="review_stage_deep">Deep</string>
     <string name="review_stage_asleep">Asleep</string>
     <string name="review_no_stages">%1$s didn’t share sleep stages for this night, so it’s shown as one stretch.</string>
+    <string name="review_no_stages_generic">No sleep stages came in for this night, so it’s shown as one stretch.</string>
+    <string name="review_no_stages_manual">Nights you add yourself don’t have sleep stages, so it’s shown as one stretch.</string>
     <!-- Screen readers: "Sleep stages from 11:02 PM to 6:51 AM" -->
     <string name="review_hypnogram_description">Sleep stages from %1$s to %2$s</string>
     <string name="review_interruptions">Interruptions</string>

@@ -148,6 +148,14 @@ internal fun nightTitle(wakeDate: LocalDate, today: LocalDate): String {
     }
 }
 
+/** "Last night", "Saturday night" or "Night of Mon, Sep 28" (a bare date reads like a day, not a night). */
+@Composable
+@ReadOnlyComposable
+internal fun nightLabel(wakeDate: LocalDate, today: LocalDate): String {
+    val label = formatNightLabel(wakeDate, today)
+    return if (label.endsWith(" night")) label else stringResource(R.string.review_title_dated, label)
+}
+
 /** "Mon, Oct 5 into Tue, Oct 6". */
 @Composable
 @ReadOnlyComposable

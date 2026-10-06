@@ -50,7 +50,7 @@ import com.sleepsaver.core.ui.components.SectionCard
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.format.formatDuration
-import com.sleepsaver.core.ui.format.formatNightLabel
+import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.timeRange
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
@@ -63,7 +63,9 @@ import com.sleepsaver.feature.review.common.PageHeader
 import com.sleepsaver.feature.review.common.ReviewPage
 import com.sleepsaver.feature.review.common.manualNapId
 import com.sleepsaver.feature.review.common.nightDates
+import com.sleepsaver.feature.review.common.nightLabel
 import com.sleepsaver.feature.review.common.originLabel
+import com.sleepsaver.feature.review.common.originLabelRes
 import java.time.Duration
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -110,7 +112,7 @@ internal fun NightDetailContent(
         scrollState = if (state.loading) null else scrollState,
     ) {
         PageHeader(
-            title = formatNightLabel(state.wakeDate, state.today),
+            title = nightLabel(state.wakeDate, state.today),
             subtitle = nightDates(state.wakeDate, state.today),
         )
         when {
@@ -270,14 +272,26 @@ private fun StagesCard(night: Night, main: SleepBlock, zone: ZoneId, origin: Str
             )
             StageLegend(totals, night.timeInBed ?: Duration.between(main.start, main.end))
         } else {
-            SleepTimelineBar(
-                block = main,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(28.dp),
-            )
+            Column {
+                SleepTimelineBar(
+                    block = main,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(28.dp),
+                )
+                Row(Modifier.fillMaxWidth().padding(top = Spacing.xs)) {
+                    val axis = MaterialTheme.typography.labelMedium
+                    Text(clockTime(main.start, main.startOffset), style = axis, color = SleepSaverTheme.colors.textTertiary)
+                    Spacer(Modifier.weight(1f))
+                    Text(clockTime(main.end, main.endOffset), style = axis, color = SleepSaverTheme.colors.textTertiary)
+                }
+            }
             Text(
-                text = stringResource(R.string.review_no_stages, originLabel(origin)),
+                text = when {
+                    night.isManual -> stringResource(R.string.review_no_stages_manual)
+                    originLabelRes(origin) != null -> stringResource(R.string.review_no_stages, originLabel(origin))
+                    else -> stringResource(R.string.review_no_stages_generic)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = SleepSaverTheme.colors.textSecondary,
             )
