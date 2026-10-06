@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Layers
@@ -453,6 +454,7 @@ private fun MissingNightsCard(state: SleepUiState.Ready, actions: SleepActions, 
             if (hidden > 0) {
                 InfoChip(
                     text = pluralStringResource(R.plurals.sleep_missing_nights_more, hidden, hidden),
+                    icon = Icons.Rounded.ExpandMore,
                     onClick = { expanded = true },
                 )
             }

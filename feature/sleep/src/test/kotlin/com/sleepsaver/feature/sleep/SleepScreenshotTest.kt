@@ -72,7 +72,7 @@ class SleepScreenshotTest : ScreenshotTest() {
         SleepContent(ready(pendingReview = today), SleepActions())
     }
 
-    /** A 10 h need the nights don't meet: high debt, and the free-night estimate suggests less. */
+    /** A 10 h need the nights don't meet: high debt (coral gauge), energy potential at its 50 % floor. */
     private fun highDebt(): SleepUiState.Ready {
         val sleep = UserSleepSettings(sleepNeed = Duration.ofHours(10))
         return ready(SampleData.insights(settings = sleep), settings = AppSettings(sleep = sleep, onboardingDone = true))
@@ -81,8 +81,15 @@ class SleepScreenshotTest : ScreenshotTest() {
     @Test
     fun highDebtDay() = captureScreen("sleep_home_high_debt") { SleepContent(highDebt(), SleepActions()) }
 
+    /** An 8 h 30 m need: moderate debt (amber gauge). */
     @Test
-    fun highDebtScrolled() = captureScreen("sleep_home_high_debt_scrolled") { Scrolled(highDebt()) }
+    fun moderateDebtDay() = captureScreen("sleep_home_moderate_debt") {
+        val sleep = UserSleepSettings(sleepNeed = Duration.ofMinutes(8 * 60 + 30))
+        SleepContent(
+            ready(SampleData.insights(settings = sleep), settings = AppSettings(sleep = sleep, onboardingDone = true)),
+            SleepActions(),
+        )
+    }
 
     /** Two nights without data in the window, and a need estimate worth offering. */
     private fun suggestionAndMissingNights(): SleepUiState.Ready {
