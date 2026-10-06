@@ -14,6 +14,8 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.db.MorningReviewEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
+import com.sleepsaver.core.data.demo.DemoEditBackup
+import com.sleepsaver.core.data.demo.DemoEditBackupFile
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.testing.inMemoryDatabase
@@ -28,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -66,9 +69,13 @@ class DataResetterImplTest {
         val workManager = WorkManager.getInstance(context)
         val request = OneTimeWorkRequestBuilder<NoOpWorker>().setInitialDelay(1, TimeUnit.HOURS).build()
         workManager.enqueue(request).result.get()
+        // Real edits set aside while demo mode was on: they must not come back when it is turned off after the reset.
+        val demoBackup = File(context.filesDir, DemoEditBackupFile.FILE_NAME)
+        DemoEditBackupFile(demoBackup).write(DemoEditBackup())
 
         DataResetterImpl(context, db, store, planner, notifier, sync, StandardTestDispatcher(testScheduler)).resetAll()
 
+        assertThat(demoBackup.exists()).isFalse()
         assertThat(db.nightOverrideDao().getAll()).isEmpty()
         assertThat(db.morningReviewDao().getAll()).isEmpty()
         assertThat(settings.current()).isEqualTo(AppSettings())

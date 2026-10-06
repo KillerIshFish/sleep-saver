@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.sleepsaver.core.data.db.SessionWithStages
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.demo.DemoDataWriter
+import com.sleepsaver.core.data.demo.DemoEditBackupFile
 import com.sleepsaver.core.data.demo.DemoModeControllerImpl
 import com.sleepsaver.core.data.demo.FakeSleepDataSource
 import com.sleepsaver.core.data.repository.SettingsRepository
@@ -49,11 +50,9 @@ class SyncFixture(dataStoreDir: File) {
     val demoMode = DemoModeControllerImpl(
         settingsRepository = settings,
         writer = demoWriter,
-        overrideDao = db.nightOverrideDao(),
-        addedAwakeDao = db.addedAwakeDao(),
-        manualNapDao = db.manualNapDao(),
-        reviewDao = db.morningReviewDao(),
+        database = db,
         timeProvider = time,
+        backup = DemoEditBackupFile(File(dataStoreDir, DemoEditBackupFile.FILE_NAME)),
     )
 
     fun manager(scope: CoroutineScope, settingsRepository: SettingsRepository = settings) = SyncManager(

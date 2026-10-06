@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.shareIn
 import java.time.Instant
 import java.time.LocalDate
@@ -56,14 +55,20 @@ class SleepRepositoryImpl @Inject constructor(
     private val assembler = NightAssembler(SleepConfig.DEFAULT)
 
     private val activeSource: Flow<ActiveSource> = settingsRepository.settings
+        .orFallback(TAG, "Settings") { AppSettings() }
         .map { ActiveSource.of(it) }
         .distinctUntilChanged()
 
+    /**
+     * Never fails and always emits: a failed query reads as empty (see [orFallback]), and a failed assembly keeps
+     * the previous nights, or gives none at all when the very first one fails, so whatever waits for nights
+     * (insights, export, the debt breakdown) gets an answer.
+     */
     override val nights: Flow<List<Night>> = combine(
-        sessionDao.observeAllWithStages(),
-        overrideDao.observeAll(),
-        manualNapDao.observeAll(),
-        addedAwakeDao.observeAll(),
+        sessionDao.observeAllWithStages().orFallback(TAG, "Sessions query") { emptyList() },
+        overrideDao.observeAll().orFallback(TAG, "Overrides query") { emptyList() },
+        manualNapDao.observeAll().orFallback(TAG, "Manual naps query") { emptyList() },
+        addedAwakeDao.observeAll().orFallback(TAG, "Added awake query") { emptyList() },
         activeSource,
     ) { sessions, overrides, naps, awake, source ->
         guarded(TAG, "Night assembly") {
@@ -76,9 +81,10 @@ class SleepRepositoryImpl @Inject constructor(
             )
         }
     }
-        .mapNotNull { it }
+        .orLastGood(emptyList())
         .flowOn(defaultDispatcher)
         .distinctUntilChanged()
+        .orFallback(TAG, "Nights") { emptyList() }
         .shareIn(scope, SharingStarted.WhileSubscribed(SHARE_STOP_TIMEOUT_MS, replayExpirationMillis = 0), replay = 1)
 
     override fun night(wakeDate: LocalDate): Flow<Night?> =
@@ -88,7 +94,10 @@ class SleepRepositoryImpl @Inject constructor(
         // A session that can belong to wakeDate ends less than two days from it in UTC, whatever its offset.
         val windowStart = wakeDate.minusDays(RAW_WINDOW_DAYS).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
         val windowEnd = wakeDate.plusDays(RAW_WINDOW_DAYS).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
-        return combine(sessionDao.observeAllWithStages(), activeSource) { sessions, source ->
+        return combine(
+            sessionDao.observeAllWithStages().orFallback(TAG, "Sessions query") { emptyList() },
+            activeSource,
+        ) { sessions, source ->
             guarded(TAG, "Raw night assembly") {
                 assembler.assemble(
                     sessions = sessions
@@ -98,16 +107,17 @@ class SleepRepositoryImpl @Inject constructor(
                 )
             }
         }
-            .mapNotNull { it }
+            .orLastGood(emptyList())
             .map { all -> all.firstOrNull { it.wakeDate == wakeDate } }
             .flowOn(defaultDispatcher)
             .distinctUntilChanged()
     }
 
     override val origins: Flow<List<String>> = sessionDao.observeOrigins(SourceKind.HEALTH_CONNECT.name)
+        .orFallback(TAG, "Origins query") { emptyList() }
 
     override fun vitals(from: Instant, to: Instant): Flow<List<VitalSample>> = combine(
-        vitalDao.observeRange(from.toEpochMilli(), to.toEpochMilli()),
+        vitalDao.observeRange(from.toEpochMilli(), to.toEpochMilli()).orFallback(TAG, "Vitals query") { emptyList() },
         activeSource,
     ) { rows, source -> rows.filter(source::includes).mapNotNull { it.toDomainOrNull() } }
         .distinctUntilChanged()

@@ -14,6 +14,7 @@ import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.source.ChangeBatch
+import com.sleepsaver.core.data.source.RecordedVital
 import com.sleepsaver.core.data.source.SleepDataSource
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -38,6 +39,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 
 // Small hand-written fakes for the sync tests. The real repositories live in other packages and are
 // developed separately, so nothing here depends on them.
@@ -69,7 +71,7 @@ class FakeHealthConnectSource : SleepDataSource {
     private var tokens = 0
     private val pendingUpserts = LinkedHashMap<String, RawSleepSession>()
     private val pendingDeletes = LinkedHashSet<String>()
-    private val pendingVitals = mutableListOf<VitalSample>()
+    private val pendingVitals = mutableListOf<RecordedVital>()
 
     /** Puts [session] into "Health Connect" without a change entry (history that existed before the token). */
     fun seed(vararg sessions: RawSleepSession) = sessions.forEach { records[it.id] = it }
@@ -86,8 +88,8 @@ class FakeHealthConnectSource : SleepDataSource {
         pendingDeletes += id
     }
 
-    fun addVital(vital: VitalSample) {
-        pendingVitals += vital
+    fun addVital(vital: VitalSample, offset: ZoneOffset) {
+        pendingVitals += RecordedVital(vital, offset)
     }
 
     override suspend fun isReadable(): Boolean = true
@@ -99,9 +101,12 @@ class FakeHealthConnectSource : SleepDataSource {
         return records.values.filter { it.end.isAfter(from) && it.start.isBefore(to) }
     }
 
-    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<VitalSample> {
+    /** Sleeping heart rate for each session, stamped with the session's end offset. */
+    override suspend fun readVitals(from: Instant, to: Instant, sessions: List<RawSleepSession>): List<RecordedVital> {
         calls += "vitals"
-        return sessions.map { VitalSample(VitalIds.sleepingHeartRate(it.id), VitalType.SLEEP_HR_AVG, it.end, 52.0, it.origin) }
+        return sessions.map {
+            RecordedVital(VitalSample(VitalIds.sleepingHeartRate(it.id), VitalType.SLEEP_HR_AVG, it.end, 52.0, it.origin), it.endOffset)
+        }
     }
 
     override suspend fun newChangesToken(): String {

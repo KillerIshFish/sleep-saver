@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.work.WorkManager
 import androidx.work.await
 import com.sleepsaver.core.data.db.SleepSaverDatabase
+import com.sleepsaver.core.data.demo.DemoEditBackupFile
 import com.sleepsaver.core.data.di.IoDispatcher
 import com.sleepsaver.core.data.di.SettingsDataStore
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
@@ -37,7 +38,11 @@ class DataResetterImpl @Inject constructor(
         reminderPlanner.cancelAll()
         morningReviewNotifier.cancel()
         syncRepository.resetSyncState()
-        withContext(ioDispatcher) { database.clearAllTables() }
+        withContext(ioDispatcher) {
+            database.clearAllTables()
+            // Real edits set aside by demo mode: they would come back the next time demo mode is turned off.
+            DemoEditBackupFile.inFilesDir(context).delete()
+        }
         settingsStore.edit { it.clear() }
     }
 }

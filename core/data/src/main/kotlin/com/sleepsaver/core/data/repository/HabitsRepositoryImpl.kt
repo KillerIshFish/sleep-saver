@@ -39,15 +39,18 @@ class HabitsRepositoryImpl @Inject constructor(
     private val catalog = HabitCatalog()
     private val seedLock = Mutex()
 
+    /** Falls back to the catalog defaults if the table can't be read or seeded (it feeds the insights state). */
     override val habitSettings: Flow<List<HabitSettings>> = habitDao.observeAll()
         .transform { rows ->
             // Seeding writes the table, and Room then emits again with the full list.
             if (missingTypes(rows).isEmpty()) emit(rows.mapNotNull { it.toDomainOrNull() }) else seedHabits()
         }
+        .orFallback(TAG, "Habit settings") { catalog.defaultSettings() }
         .distinctUntilChanged()
 
     override val routineActivities: Flow<List<RoutineActivity>> = activityDao.observeAll()
         .transform { rows -> if (rows.isNotEmpty()) emit(rows.map { it.toDomain() }) else seedActivities() }
+        .orFallback(TAG, "Routine activities") { emptyList() }
         .distinctUntilChanged()
 
     override suspend fun setEnabled(type: HabitType, enabled: Boolean) = updateHabit(type) { it.copy(enabled = enabled) }
@@ -124,6 +127,8 @@ class HabitsRepositoryImpl @Inject constructor(
     private class DefaultActivity(@param:StringRes val label: Int, val emoji: String)
 
     private companion object {
+        const val TAG = "HabitsRepository"
+
         private val DEFAULT_ACTIVITIES = listOf(
             DefaultActivity(R.string.routine_reading, "📖"),
             DefaultActivity(R.string.routine_stretching, "🧘"),

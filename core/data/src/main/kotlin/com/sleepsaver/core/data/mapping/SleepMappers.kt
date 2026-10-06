@@ -51,7 +51,11 @@ fun SleepStageEntity.toDomain(): SleepStage = SleepStage(
     type = SleepStageType.fromHealthConnect(stage),
 )
 
-/** Stores the session's offsets as recorded; [ingestZone] is kept for reference. */
+/**
+ * The write path for sync and demo data. Offsets are resolved by the source (recorded, or filled from the device
+ * zone), so they are stored as they come; [ingestZone] records the device zone used for any filling.
+ * Stages are keyed by (session, start): of two stages starting at the same instant only the first is kept.
+ */
 fun RawSleepSession.toEntity(sourceKind: SourceKind, ingestZone: ZoneId): SessionWithStages = SessionWithStages(
     session = SleepSessionEntity(
         id = id,
@@ -65,7 +69,7 @@ fun RawSleepSession.toEntity(sourceKind: SourceKind, ingestZone: ZoneId): Sessio
         lastModifiedEpochMs = lastModified.toEpochMilli(),
         sourceKind = sourceKind.name,
     ),
-    stages = stages.map {
+    stages = stages.distinctBy { it.start.toEpochMilli() }.map {
         SleepStageEntity(
             sessionId = id,
             startEpochMs = it.start.toEpochMilli(),
@@ -149,6 +153,7 @@ fun VitalEntity.toDomainOrNull(): VitalSample? {
     )
 }
 
+/** [offset]: the one the vital was recorded at (see RecordedVital), or null when unknown. */
 fun VitalSample.toEntity(sourceKind: SourceKind, offset: ZoneOffset?): VitalEntity = VitalEntity(
     id = id,
     type = type.name,

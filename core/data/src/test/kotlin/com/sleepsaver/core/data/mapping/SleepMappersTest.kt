@@ -137,6 +137,34 @@ class SleepMappersTest {
     }
 
     @Test
+    fun `the write path keeps one stage per start instant (their primary key)`() {
+        // Some sources repeat a stage; Room would otherwise replace one row with the other in arbitrary order.
+        val start = instant("2026-10-05T23:00:00Z")
+        val session = RawSleepSession(
+            id = "hc-dup",
+            origin = GARMIN,
+            start = start,
+            end = start.plusSeconds(3 * 3600),
+            startOffset = ZoneOffset.UTC,
+            endOffset = ZoneOffset.UTC,
+            stages = listOf(
+                SleepStage(start, start.plusSeconds(1800), SleepStageType.LIGHT),
+                SleepStage(start, start.plusSeconds(600), SleepStageType.AWAKE),
+                SleepStage(start.plusSeconds(1800), start.plusSeconds(3 * 3600), SleepStageType.DEEP),
+            ),
+            lastModified = start,
+            title = null,
+        )
+
+        val stages = session.toEntity(SourceKind.DEMO, ZoneOffset.UTC).stages
+
+        assertThat(stages.map { it.startEpochMs to it.stage }).containsExactly(
+            start.toEpochMilli() to SleepStageType.LIGHT.healthConnectValue,
+            start.plusSeconds(1800).toEpochMilli() to SleepStageType.DEEP.healthConnectValue,
+        ).inOrder()
+    }
+
+    @Test
     fun `override round-trips, including null fields`() {
         val full = NightOverride(
             wakeDate = LocalDate.of(2026, 10, 6),

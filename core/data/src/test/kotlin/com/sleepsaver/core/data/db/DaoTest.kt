@@ -86,10 +86,34 @@ class DaoTest {
         assertThat(dao.get("2026-10-06")?.wokeUpEpochMs).isEqualTo(3)
         assertThat(dao.observeAll().first().map { it.wakeDate }).containsExactly("2026-10-05", "2026-10-06").inOrder()
 
-        dao.deleteUpdatedSince(20)
+        dao.delete("2026-10-06")
         assertThat(dao.getAll().map { it.wakeDate }).containsExactly("2026-10-05")
-        dao.delete("2026-10-05")
+        dao.deleteAll()
         assertThat(dao.getAll()).isEmpty()
+    }
+
+    @Test
+    fun `bulk writes for restoring saved edits keep every column, ids included`() = runTest {
+        val overrides = listOf(
+            NightOverrideEntity("2026-10-05", 1, 2, 10, null, false, -14_400, 30),
+            NightOverrideEntity("2026-10-06", null, null, null, 25, true, 3_600, 40),
+        )
+        val awake = listOf(AddedAwakeEntity(17, "2026-10-06", 3, 4, 50), AddedAwakeEntity(4, "2026-10-05", 1, 2, 60))
+        val naps = listOf(ManualNapEntity(9, 100, 200, 7_200, 70))
+        val reviews = listOf(MorningReviewEntity("2026-10-06", "ADJUSTED", 80, 120, 90))
+
+        db.nightOverrideDao().upsertAll(overrides)
+        db.addedAwakeDao().insertAll(awake)
+        db.manualNapDao().insertAll(naps)
+        db.morningReviewDao().upsertAll(reviews)
+
+        assertThat(db.nightOverrideDao().getAll()).containsExactlyElementsIn(overrides)
+        assertThat(db.addedAwakeDao().getAll()).containsExactlyElementsIn(awake)
+        assertThat(db.manualNapDao().getAll()).containsExactlyElementsIn(naps)
+        assertThat(db.morningReviewDao().getAll()).containsExactlyElementsIn(reviews)
+        // New rows still get fresh ids after the restored ones.
+        val next = db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-07", startEpochMs = 5, endEpochMs = 6, createdAtEpochMs = 0))
+        assertThat(next).isGreaterThan(17)
     }
 
     @Test

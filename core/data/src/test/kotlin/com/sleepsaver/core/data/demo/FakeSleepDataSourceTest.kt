@@ -178,11 +178,14 @@ class FakeSleepDataSourceTest {
         assertThat(sessions.all { it.end.isAfter(from) && it.start.isBefore(to) }).isTrue()
         assertThat(sessions).containsExactlyElementsIn(data.sessions.filter { it.end.isAfter(from) && it.start.isBefore(to) })
 
-        val vitals = source.readVitals(from, to, sessions.take(2))
+        val recorded = source.readVitals(from, to, sessions.take(2))
+        val vitals = recorded.map { it.sample }
         assertThat(vitals.filter { it.type == VitalType.SLEEP_HR_AVG }.map { it.id })
             .containsExactlyElementsIn(sessions.take(2).map { "sleephr:${it.id}" })
         // One per wake date from a week ago through this morning.
         assertThat(vitals.filter { it.type == VitalType.RESTING_HR }).hasSize(8)
+        // Generated in the device zone: each vital carries that zone's offset at its time.
+        assertThat(recorded.all { it.offset == zone.rules.getOffset(it.sample.time) }).isTrue()
 
         assertThat(source.isReadable()).isTrue()
         assertThat(source.newChangesToken()).isEqualTo("demo")

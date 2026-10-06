@@ -76,7 +76,10 @@ interface InsightsRepository {
     /** debt(d) for each d in [from, to]. */
     fun debtSeries(from: LocalDate, to: LocalDate): Flow<List<SleepDebt>>
 
-    /** The energy schedule for [date] (today, or a past day for the timeline). */
+    /**
+     * The energy schedule for [date]: today, a past day (the timeline), or tomorrow (the reminder planner), which is
+     * planned from what is known today.
+     */
     fun schedule(date: LocalDate): Flow<EnergySchedule?>
 
     suspend fun breakdown(wakeDate: LocalDate): DebtChangeBreakdown
@@ -155,7 +158,10 @@ interface SyncRepository {
     /** Incremental sync (Changes API). No-op in demo mode. Never throws. */
     suspend fun sync(trigger: SyncTrigger): SyncResult
 
-    /** Full history import (onboarding step 3, or after the changes token expired). */
+    /**
+     * Full history import (onboarding step 3, or a re-import from settings). Runs the same follow-up as [sync]
+     * (morning notification, fallback reminder, waiting retries). Never throws.
+     */
     suspend fun importHistory(): SyncResult
 
     /** Enqueue/refresh the periodic WorkManager job (it no-ops without background permission). */

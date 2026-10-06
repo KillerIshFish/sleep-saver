@@ -3,11 +3,13 @@ package com.sleepsaver.core.data.demo
 import com.sleepsaver.core.data.db.SleepSessionDao
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalDao
+import com.sleepsaver.core.data.db.VitalEntity
 import com.sleepsaver.core.data.hooks.TimeProvider
-import com.sleepsaver.core.data.sync.toSessionWithStages
-import com.sleepsaver.core.data.sync.toVitalEntity
+import com.sleepsaver.core.data.mapping.toEntity
+import com.sleepsaver.core.domain.model.VitalSample
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,10 +23,10 @@ class DemoDataWriter @Inject constructor(
 ) {
     /** Writes the full dataset (idempotent: ids are per date). Returns the number of sessions written. */
     suspend fun writeAll(): Int {
-        val data = demoSource.generate()
         val zone = timeProvider.zone()
-        sessionDao.replace(data.sessions.map { it.toSessionWithStages(SourceKind.DEMO, zone) })
-        vitalDao.upsert(data.vitals.map { it.toVitalEntity(SourceKind.DEMO, zone) })
+        val data = demoSource.generate(zone = zone)
+        sessionDao.replace(data.sessions.map { it.toEntity(SourceKind.DEMO, zone) })
+        vitalDao.upsert(data.vitals.map { it.toDemoEntity(zone) })
         return data.sessions.size
     }
 
@@ -34,13 +36,13 @@ class DemoDataWriter @Inject constructor(
      */
     suspend fun extendToNow(): Int {
         val latestEnd = sessionDao.latestEnd(SourceKind.DEMO.name) ?: return writeAll()
-        val data = demoSource.generate()
         val zone = timeProvider.zone()
+        val data = demoSource.generate(zone = zone)
         val newSessions = data.sessions.filter { it.end.toEpochMilli() > latestEnd }
         if (newSessions.isEmpty()) return 0
         val vitalsSince = Instant.ofEpochMilli(latestEnd).minus(VITALS_OVERLAP)
-        sessionDao.replace(newSessions.map { it.toSessionWithStages(SourceKind.DEMO, zone) })
-        vitalDao.upsert(data.vitals.filter { !it.time.isBefore(vitalsSince) }.map { it.toVitalEntity(SourceKind.DEMO, zone) })
+        sessionDao.replace(newSessions.map { it.toEntity(SourceKind.DEMO, zone) })
+        vitalDao.upsert(data.vitals.filter { !it.time.isBefore(vitalsSince) }.map { it.toDemoEntity(zone) })
         return newSessions.size
     }
 
@@ -48,6 +50,9 @@ class DemoDataWriter @Inject constructor(
         sessionDao.deleteBySourceKind(SourceKind.DEMO.name)
         vitalDao.deleteBySourceKind(SourceKind.DEMO.name)
     }
+
+    /** Demo vitals are generated in the device zone, so that is the offset they were "recorded" at. */
+    private fun VitalSample.toDemoEntity(zone: ZoneId): VitalEntity = toEntity(SourceKind.DEMO, zone.rules.getOffset(time))
 
     private companion object {
         /** Daily steps are stamped at the start of their day, before the night that follows them. */
