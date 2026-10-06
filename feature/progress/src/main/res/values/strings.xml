@@ -17,8 +17,8 @@
     <string name="progress_empty_body">Once a few nights come in from your watch, this page shows when you slept, how your sleep debt moved and how restful each night was. You can also add a night yourself.</string>
     <string name="progress_add_night">Add a night</string>
     <string name="progress_open_settings">Open settings</string>
-    <string name="progress_empty_hc_title">Health Connect isn't ready</string>
-    <string name="progress_empty_hc_body">Sleep Saver reads your watch's sleep through Health Connect. Set it up from Settings and your nights will fill this page. You can also add a night yourself.</string>
+    <string name="progress_empty_hc_title">Health Connect isn\'t ready</string>
+    <string name="progress_empty_hc_body">Sleep Saver reads your watch\'s sleep through Health Connect. Set it up from Settings and your nights will fill this page. You can also add a night yourself.</string>
     <string name="progress_empty_permission_title">Sleep access is off</string>
     <string name="progress_empty_permission_body">Sleep Saver needs permission to read sleep in Health Connect before it can chart your nights. Turn it on from Settings, or add a night yourself.</string>
     <string name="progress_window_empty_title">Nothing recorded these two weeks</string>
