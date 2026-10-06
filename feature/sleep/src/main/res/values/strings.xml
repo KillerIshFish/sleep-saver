@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Header -->
+    <string name="sleep_title">Sleep</string>
+    <string name="sleep_settings">Settings</string>
+    <string name="sleep_loading">Reading your nights…</string>
+
+    <!-- Last-night banners -->
+    <string name="sleep_waiting_title_garmin">Waiting for last night from Garmin&#160;Connect</string>
+    <string name="sleep_waiting_title_app">Waiting for last night from %1$s</string>
+    <string name="sleep_waiting_title_generic">Waiting for last night\'s sleep</string>
+    <string name="sleep_waiting_body_garmin">It travels from your watch to Garmin Connect, then Health Connect. Opening Garmin Connect usually nudges it along.</string>
+    <string name="sleep_waiting_body_generic">Sleep Saver keeps checking Health Connect. Opening the app that tracks your sleep usually nudges it along.</string>
+    <string name="sleep_missing_title">Last night is missing</string>
+    <string name="sleep_missing_body">Nothing came through for last night. Add it by hand so your debt stays accurate.</string>
+    <string name="sleep_missing_action">Add it</string>
+    <string name="sleep_review_title">Last night is in</string>
+    <string name="sleep_review_body">See how it moved your sleep debt</string>
+    <string name="sleep_sync_now">Sync now</string>
+    <string name="sleep_syncing">Syncing…</string>
+
+    <!-- Gauge and chips -->
+    <string name="sleep_debt_label_yesterday">hrs debt as of yesterday</string>
+    <string name="sleep_change_since_day_before">since the day before</string>
+    <string name="sleep_last_night_chip">%1$s last night</string>
+    <string name="sleep_nap_chip">Nap</string>
+    <string name="sleep_source_garmin">Garmin</string>
+    <string name="sleep_source_all">All sources</string>
+    <string name="sleep_source_demo">Demo data</string>
+    <string name="sleep_source_chip_description">Data source: %1$s</string>
+
+    <!-- Data source sheet -->
+    <string name="sleep_source_sheet_title">Data source</string>
+    <string name="sleep_source_garmin_long">Garmin Connect</string>
+    <string name="sleep_source_all_long">All apps that share sleep</string>
+    <string name="sleep_source_demo_long">Demo data</string>
+    <string name="sleep_source_demo_body">Sample nights so you can look around. Nothing from your watch is used.</string>
+    <string name="sleep_source_via">Read through Health Connect</string>
+    <string name="sleep_source_never_synced">Not synced yet</string>
+    <string name="sleep_source_synced_now">Synced just now</string>
+    <plurals name="sleep_source_synced_minutes">
+        <item quantity="one">Synced %1$d minute ago</item>
+        <item quantity="other">Synced %1$d minutes ago</item>
+    </plurals>
+    <string name="sleep_source_synced_today">Synced today at %1$s</string>
+    <string name="sleep_source_synced_on">Synced %1$s at %2$s</string>
+    <string name="sleep_source_change">Change in Settings</string>
+    <string name="sleep_sync_error_not_installed">Last sync failed: Health Connect isn\'t installed.</string>
+    <string name="sleep_sync_error_update">Last sync failed: Health Connect needs an update.</string>
+    <string name="sleep_sync_error_permission">Last sync failed: sleep access is turned off.</string>
+    <string name="sleep_sync_error_rate_limited">Health Connect asked us to slow down. Try again in a few minutes.</string>
+    <string name="sleep_sync_error_generic">The last sync didn\'t finish. Pull down to try again.</string>
+
+    <!-- Sleep need suggestion -->
+    <string name="sleep_need_overline">Sleep need</string>
+    <string name="sleep_need_title">Your free nights suggest you need about %1$s</string>
+    <plurals name="sleep_need_basis">
+        <item quantity="one">Based on %1$d night you woke without an alarm.</item>
+        <item quantity="other">Based on %1$d nights you woke without an alarm.</item>
+    </plurals>
+    <string name="sleep_need_confidence_high">They line up closely, so this is a solid estimate.</string>
+    <string name="sleep_need_confidence_medium">A fair estimate that firms up with more free nights.</string>
+    <string name="sleep_need_confidence_low">An early guess: those nights still vary a lot.</string>
+    <string name="sleep_need_use">Use %1$s</string>
+    <string name="sleep_need_not_now">Not now</string>
+
+    <!-- Missing nights -->
+    <plurals name="sleep_missing_nights_title">
+        <item quantity="one">%1$d night missing from the last 14 days</item>
+        <item quantity="other">%1$d nights missing from the last 14 days</item>
+    </plurals>
+    <string name="sleep_missing_nights_body">Add them so your debt stays accurate.</string>
+    <string name="sleep_add_night_description">Add %1$s</string>
+    <plurals name="sleep_missing_nights_more">
+        <item quantity="one">%1$d more</item>
+        <item quantity="other">%1$d more</item>
+    </plurals>
+
+    <!-- Energy -->
+    <string name="sleep_energy_potential">Energy potential</string>
+    <string name="sleep_energy_potential_value">%1$d%%</string>
+    <string name="sleep_energy_caption">Today\'s rhythm</string>
+    <string name="sleep_energy_caption_tonight">Winding down for tonight</string>
+    <string name="sleep_phase_until">until %1$s</string>
+
+    <!-- Next up -->
+    <string name="sleep_next_up">Next up</string>
+    <string name="sleep_next_up_all">All habits</string>
+    <string name="sleep_next_up_at_in">%1$s · in&#160;%2$s</string>
+    <string name="sleep_next_up_now_until">Now, until %1$s</string>
+    <string name="sleep_reminder">Reminder</string>
+
+    <!-- Empty states -->
+    <string name="sleep_empty_install_title">Install Health Connect</string>
+    <string name="sleep_empty_install_body">Sleep Saver reads your Garmin sleep through Health Connect, Android\'s private on-device health store. It\'s free on the Play Store.</string>
+    <string name="sleep_empty_install_action">Install Health Connect</string>
+    <string name="sleep_empty_update_title">Update Health Connect</string>
+    <string name="sleep_empty_update_body">Your copy of Health Connect is too old for Sleep Saver to read sleep from it. A quick update from the Play Store fixes that.</string>
+    <string name="sleep_empty_update_action">Update Health Connect</string>
+    <string name="sleep_empty_unsupported_title">Health Connect isn\'t available here</string>
+    <string name="sleep_empty_unsupported_body">This device can\'t run Health Connect, so Sleep Saver can\'t read your watch\'s sleep on it. You can still explore everything with demo data.</string>
+    <string name="sleep_empty_permission_title">Allow sleep access</string>
+    <string name="sleep_empty_permission_body">Sleep Saver needs permission to read sleep from Health Connect. It only reads, and nothing ever leaves your phone.</string>
+    <string name="sleep_empty_permission_action">Allow sleep access</string>
+    <string name="sleep_empty_no_data_title">No sleep data yet</string>
+    <string name="sleep_empty_no_data_body">As soon as a night reaches Health Connect, your sleep debt and energy schedule appear here.</string>
+    <string name="sleep_empty_steps_title">How a night gets here</string>
+    <string name="sleep_empty_step_1">Wear your Garmin watch to bed.</string>
+    <string name="sleep_empty_step_2">In the morning, open Garmin Connect so the watch syncs.</string>
+    <string name="sleep_empty_step_3">In Garmin Connect\'s settings, let it share sleep with Health Connect.</string>
+    <string name="sleep_empty_add_night">Add a night</string>
+    <string name="sleep_try_demo">Try demo data</string>
+</resources>
