@@ -44,20 +44,22 @@ minSdk 28, compile/target 37. JVM target 17.
 |---|---|---|
 | `sleep_sessions` | `id` (HC record id / `demo:n`) | originPackage, startEpochMs, endEpochMs, startOffsetSec?, endOffsetSec?, ingestZoneId, title?, lastModifiedEpochMs, sourceKind (`HEALTH_CONNECT`/`DEMO`) |
 | `sleep_stages` | (sessionId, startEpochMs) FK→sessions cascade | endEpochMs, stage (HC stage int) |
-| `night_overrides` | `wakeDate` (ISO date) | fellAsleepEpochMs?, wokeUpEpochMs?, awakeMinutes?, napMinutes?, isManualNight, zoneId, updatedAtEpochMs |
-| `added_awake` | id auto | wakeDate, startEpochMs, endEpochMs (long-press "add awake time") |
-| `manual_naps` | id auto | startEpochMs, endEpochMs, zoneId |
-| `vitals` | `id` | type (`RESTING_HR`/`HRV_RMSSD`/`SLEEP_HR_AVG`/`STEPS_DAY`), timeEpochMs, offsetSec?, value, originPackage |
+| `night_overrides` | `wakeDate` (ISO date) | fellAsleepEpochMs?, wokeUpEpochMs?, awakeMinutes?, napMinutes?, isManualNight, offsetSec, updatedAtEpochMs |
+| `added_awake` | id auto | wakeDate, startEpochMs, endEpochMs, createdAtEpochMs (long-press "add awake time") |
+| `manual_naps` | id auto | startEpochMs, endEpochMs, offsetSec, createdAtEpochMs |
+| `vitals` | `id` | type (`RESTING_HR`/`HRV_RMSSD`/`SLEEP_HR_AVG`/`STEPS_DAY`), timeEpochMs, offsetSec?, value, originPackage, sourceKind |
 | `morning_reviews` | `wakeDate` | status (`CONFIRMED`/`ADJUSTED`/`DISMISSED`), atEpochMs, debtBeforeMin, debtAfterMin |
 | `habits` | `type` | enabled, reminderEnabled, offsetMinutes, sortOrder |
 | `routine_activities` | id auto | label, emoji, isCustom, selected, sortOrder |
 
-Raw Health Connect rows are never modified by edits; overrides live in their own tables, so **Revert** = delete override rows.
-Nothing is ever written to Health Connect.
+Raw Health Connect rows are never modified by edits; overrides live in their own tables, so **Revert** = delete the
+override and added-awake rows. Nothing is ever written to Health Connect. Demo mode snapshots the four edit tables when it
+turns on and restores them exactly when it turns off, so demo edits never touch real ones.
 
 DataStore (`settings`): sleepNeedMin (480), typicalWakeMinOfDay (420), streakThresholdMin (300), lowDebtMaxMin (120),
 highDebtMinMin (300), selectedSource (`com.garmin.android.apps.connectmobile` | `*all*`), demoMode, clockFormat (SYSTEM/H12/H24),
-morningReviewEnabled (true), onboardingDone, needSuggestionDismissedValueMin/At, changesToken, lastSyncEpochMs, lastSyncError.
+morningReviewEnabled (true), onboardingDone, needSuggestionDismissedValueMin/At. A separate private store (`sync_state`)
+holds the Changes token, last sync time/error and the history-import flag.
 
 ## 3. Formulas and default constants (all in `SleepConfig`)
 
@@ -67,8 +69,9 @@ so DST nights are 7 h or 9 h in elapsed time, which is correct.
 
 ### 3.1 Night assembly
 - Sessions shorter than **5 min** are ignored.
-- **Source filter**: keep sessions from the selected origin. "All sources": cluster sessions from different origins that
-  overlap ≥ **50 %** of the shorter one and keep one by priority: Garmin > has stages > longer > newest lastModified.
+- **Source filter**: keep sessions from the selected origin. "All sources": when sessions from different origins
+  overlap ≥ **50 %** of the shorter one, keep one: if one is less than half as long as the other, the longer wins;
+  otherwise Garmin > has stages > longer > newest lastModified. Fragments from the same app are never de-duplicated.
 - **Nap**: duration < **3 h** and local start in **[09:00, 20:00)**. Belongs to the sleep day of its local start date.
 - Everything else is **night sleep**. Wake date of a session (local end time `e`, local start `s`):
   - `e.time < 14:00` → `e.date` (spec rule)
@@ -84,6 +87,8 @@ so DST nights are 7 h or 9 h in elapsed time, which is correct.
 - **Overrides** (precedence over HC): window = [fellAsleep ?: main.start, wokeUp ?: main.end];
   awake = awakeMinutes ?: (awake stages + gaps clipped to window + added awake intervals);
   naps = napMinutes ?: (detected + manual naps). Main sleep = window − awake. Manual night = override with no raw data.
+  Moving a time over an extra segment merges it into main sleep (the stretch between them counts as awake). Nap time
+  that overlaps night sleep is counted once. Added awake time counts as an edit (`Night.isEdited`).
 
 ### 3.2 Sleep need
 - Default **8 h 00 m**, editable.
@@ -104,6 +109,7 @@ debt(D)  = max(0, Σ_{present nights} w_i · delta_i)        missing nights skip
 change   = debt(D) − debt(D−1)
 ```
 Displayed debt: if last night isn't in yet, show debt(D−1) with a "waiting for last night" state.
+Nights before your very first recorded night are not flagged as missing.
 
 ### 3.4 Status, streak, energy potential
 - Status: **Low** < 2 h ≤ **Moderate** < 5 h ≤ **High**.
@@ -120,6 +126,8 @@ Displayed debt: if last night isn't in yet, show debt(D−1) with a "waiting for
 ### 3.6 Energy curve (two-process model), t in hours
 - S awake: `S = 1 − (1 − S0)·e^(−t/18.2)`; asleep: `S = S0·e^(−t/4.2)`. Seeded at 0.5 72 h back, integrated
   over real sleep (main, extra segments, naps; awake gaps count as awake), then projected awake until bedtime.
+  A night missing from that history (including last night before Garmin syncs) is assumed to be a nominal
+  [W − need, W] night, so the schedule doesn't jump when the data arrives.
 - C (phase-locked to W): `C = 0.35·cos(2π(h − (W+9.5))/24) + 0.15·cos(2π(h − (W+2.0))/12)`
 - Inertia after actual wake Wa: `I = −k·e^(−(t−Wa)/0.5)`, `k = min(0.15·(1 + debtHours/4), 0.45)`
 - `E = C − S + I`, min-max normalised to 0..1 over [Wa, bedtime] at 5-min steps.
@@ -137,8 +145,14 @@ Displayed debt: if last night isn't in yet, show debt(D−1) with a "waiting for
 | Wind-down | [B − 90 m, B − 30 m] |
 | Wake zone | [W − 30 m, W + 30 m] (today's and tomorrow's) |
 
+Every phase lasts at least 30 min; the peaks and the dip never start before grogginess ends. Phases may overlap
+(long sleep need, 23-hour DST days); the later one is "current".
+
 Shift vs yesterday = start minute-of-day today − yesterday's (each schedule computed with the data available that day);
 shown as "↑13m earlier" / "↓8m later" when |shift| ≥ 1 min.
+
+**Schedule day.** Until yesterday's melatonin window has ended, the home screen, widget and reminders keep using
+yesterday's schedule, so a night owl at 00:30 still sees tonight's wind-down and bedtime, not tomorrow's morning.
 
 ### 3.8 Habits (all offsets configurable)
 | Habit | Default time | Default |
@@ -170,6 +184,10 @@ weigh less each day). Shown as "8h need − 6h 53m slept = +1.1 h", "older night
 - Triggers: app start/resume, periodic WorkManager (1 h, needs READ_HEALTH_DATA_IN_BACKGROUND), and a retry chain
   (15/30/60 min… until 14:00) while last night is missing. Without background permission, the morning review falls
   back to a time-based reminder at W + 45 m.
+- Demo mode writes 60 synthetic nights (origin `com.sleepsaver.demo`) into Room and rolls them forward daily; turning it
+  off deletes them and restores your real edits.
+- Testing without a watch: `tools/hcseeder` is a debug-only app that writes sample sleep into Health Connect on an
+  emulator (usage in its `SeedActivity` KDoc); pick it as the data source in Settings.
 
 ## 4. Things in the spec I think are wrong or unclear (and what I did)
 
@@ -194,3 +212,9 @@ weigh less each day). Shown as "8h need − 6h 53m slept = +1.1 h", "older night
 12. **Garmin may not write stages** to Health Connect for every night; totals then fall back to session length minus nothing,
     i.e. time in bed. The Quality tab shows "no stage data" for those nights.
 13. **Inexact reminders**: `setAndAllowWhileIdle` is usually within a few minutes but Doze can push it ~10 min.
+14. **Missing history looked like an all-nighter** to the energy model (spec: "awake otherwise"), so every morning before
+    Garmin synced the phases slid ~50 min and snapped back. Missing nights are now assumed to be a nominal night.
+15. **Night owls after midnight**: "today" flips at midnight, but a 2 a.m. bedtime belongs to the previous evening. The
+    schedule day now rolls over when yesterday's melatonin window ends.
+16. **All-sources de-duplication** could let a short Garmin fragment knock out another app's whole night. The longer
+    session now wins when one is less than half as long as the other.
