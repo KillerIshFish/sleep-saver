@@ -383,12 +383,13 @@ private fun SyncRow(sync: SyncUi, state: SettingsUiState, onSyncNow: () -> Unit)
         sync.lastError != null -> stringResource(sync.lastError.textRes)
         else -> null
     }
+    val syncTrailing: @Composable () -> Unit = { SyncTrailing(sync.inProgress, onSyncNow) }
     SettingsRow(
         icon = Icons.Rounded.Sync,
         title = lastSyncedText(sync, state),
         supporting = feedback,
         // Nothing syncs while demo nights stand in for the real ones.
-        trailing = if (state.demoMode) null else @Composable { SyncTrailing(sync.inProgress, onSyncNow) },
+        trailing = syncTrailing.takeUnless { state.demoMode },
     )
 }
 
