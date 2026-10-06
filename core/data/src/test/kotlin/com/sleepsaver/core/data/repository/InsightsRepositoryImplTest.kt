@@ -9,13 +9,18 @@ import com.sleepsaver.core.data.testing.assumeInsightsEngineImplemented
 import com.sleepsaver.core.data.testing.instant
 import com.sleepsaver.core.data.testing.napOnlyDay
 import com.sleepsaver.core.data.testing.testNight
+import com.sleepsaver.core.domain.model.EnergySchedule
+import com.sleepsaver.core.domain.model.LastNightState
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 class InsightsRepositoryImplTest {
 
@@ -77,5 +82,51 @@ class InsightsRepositoryImplTest {
         assertThat(series.map { it.asOf }).containsExactly(today.minusDays(2), today.minusDays(1), today).inOrder()
         assertThat(breakdown.wakeDate).isEqualTo(today)
         assertThat(breakdown.need).isEqualTo(settings.state.value.sleep.sleepNeed)
+    }
+
+    @Test
+    fun `today's schedule matches the home screen while last night is still missing`() = runTest {
+        assumeInsightsEngineImplemented()
+        // 7 h nights against an 8 h need: enough debt for it to shape grogginess, but below the inertia cap.
+        sleep.state.value = (1L..10L).map { testNight(today.minusDays(it), fellAsleep = "23:30", wokeUp = "06:30") }.reversed()
+        val repository = repository()
+        runCurrent()
+        val home = (repository.state.value as InsightsState.Ready).insights
+        assertThat(home.lastNightState).isEqualTo(LastNightState.WAITING)
+
+        assertThat(repository.schedule(today).first()).isEqualTo(home.schedule)
+    }
+
+    @Test
+    fun `schedule follows a time zone change`() = runTest {
+        assumeInsightsEngineImplemented()
+        sleep.state.value = (0L..6L).map { testNight(today.minusDays(it)) }.reversed()
+        val repository = repository()
+        val schedules = mutableListOf<EnergySchedule?>()
+        backgroundScope.launch { repository.schedule(today).collect { schedules += it } }
+        runCurrent()
+        assertThat(schedules.last()?.zone).isEqualTo(ZoneOffset.UTC)
+
+        time.zone = ZoneId.of("Asia/Tokyo")
+        time.ticks.value = time.now.plusSeconds(1)
+        runCurrent()
+
+        assertThat(schedules.last()?.zone).isEqualTo(ZoneId.of("Asia/Tokyo"))
+    }
+
+    @Test
+    fun `a new day starts with the first minute tick after midnight`() = runTest {
+        assumeInsightsEngineImplemented()
+        sleep.state.value = (0L..6L).map { testNight(today.minusDays(it)) }.reversed()
+        val repository = repository()
+        runCurrent()
+
+        time.now = instant("2026-10-07T00:00:30Z")
+        time.ticks.value = time.now
+        runCurrent()
+
+        val insights = (repository.state.value as InsightsState.Ready).insights
+        assertThat(insights.today).isEqualTo(today.plusDays(1))
+        assertThat(insights.lastNightState).isNotEqualTo(LastNightState.AVAILABLE)
     }
 }

@@ -11,12 +11,15 @@ import com.sleepsaver.core.data.testing.preferencesStore
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.IOException
 import java.time.Duration
 import java.time.LocalTime
 
@@ -119,6 +122,17 @@ class SettingsRepositoryImplTest {
 
         assertThat(settings.clockFormat).isEqualTo(ClockFormat.SYSTEM)
         assertThat(settings.sleep.typicalWake).isEqualTo(LocalTime.of(1, 0))
+    }
+
+    @Test
+    fun `a store that can't be read yields the defaults instead of crashing`() = runTest {
+        val unreadable = object : DataStore<Preferences> {
+            override val data: Flow<Preferences> = flow { throw IOException("disk unavailable") }
+            override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+                throw IOException("disk unavailable")
+        }
+
+        assertThat(SettingsRepositoryImpl(unreadable).current()).isEqualTo(AppSettings())
     }
 
     @Test

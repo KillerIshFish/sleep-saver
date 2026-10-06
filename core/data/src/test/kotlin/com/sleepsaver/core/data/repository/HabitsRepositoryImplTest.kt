@@ -100,6 +100,18 @@ class HabitsRepositoryImplTest {
     }
 
     @Test
+    fun `a custom activity added before the grid was ever read keeps the defaults`() = runTest {
+        val id = repository.addCustomActivity("Puzzles", "🧩")
+
+        val activities = repository.routineActivities.first()
+
+        assertThat(activities).hasSize(8)
+        assertThat(activities.first().label).isEqualTo("Reading")
+        assertThat(activities.last().id).isEqualTo(id)
+        assertThat(activities.last().isCustom).isTrue()
+    }
+
+    @Test
     fun `blank custom label is rejected`() = runTest {
         val error = runCatching { repository.addCustomActivity("   ", "x") }.exceptionOrNull()
 

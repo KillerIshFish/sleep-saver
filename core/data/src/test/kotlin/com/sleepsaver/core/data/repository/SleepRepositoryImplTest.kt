@@ -224,6 +224,37 @@ class SleepRepositoryImplTest {
     }
 
     @Test
+    fun `leftover demo rows never mix into real nights, even with all sources`() = runTest {
+        assumeNightAssemblyImplemented()
+        settings.state.update { it.copy(sleep = it.sleep.copy(source = SourceSelection.All)) }
+        insertSession("g", instant("2026-10-05T23:00:00Z"), instant("2026-10-06T07:00:00Z"))
+        insertSession("demo:1", instant("2026-10-04T23:00:00Z"), instant("2026-10-05T07:00:00Z"), SleepConfig.DEMO_ORIGIN, SourceKind.DEMO)
+
+        val nights = repository().nights.first { it.isNotEmpty() }
+
+        assertThat(nights.map { it.wakeDate }).containsExactly(date)
+    }
+
+    @Test
+    fun `revert brings back exactly the raw night`() = runTest {
+        assumeNightAssemblyImplemented()
+        insertSession("g", instant("2026-10-05T23:00:00Z"), instant("2026-10-06T07:00:00Z"))
+        val repository = repository()
+        val raw = repository.rawNight(date).first()!!
+
+        repository.saveOverride(
+            NightOverride(wakeDate = date, wokeUp = instant("2026-10-06T06:00:00Z"), offset = ZoneOffset.UTC, updatedAt = Instant.EPOCH),
+        )
+        repository.addAwake(date, instant("2026-10-06T02:00:00Z"), instant("2026-10-06T02:30:00Z"))
+        val edited = repository.night(date).first { it?.isEdited == true && it.interruptions.isNotEmpty() }!!
+        assertThat(edited.mainSleep).isEqualTo(Duration.ofMinutes(6 * 60 + 30))
+
+        repository.revert(date)
+
+        assertThat(repository.night(date).first { it?.isEdited == false && it.interruptions.isEmpty() }).isEqualTo(raw)
+    }
+
+    @Test
     fun `manual night shows up as a present night`() = runTest {
         assumeNightAssemblyImplemented()
         val repository = repository()

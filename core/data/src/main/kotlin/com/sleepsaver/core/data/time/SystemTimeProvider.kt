@@ -23,7 +23,9 @@ import javax.inject.Singleton
 
 /**
  * The device clock and zone. [minuteTicks] also restarts (and emits at once) when the user changes the
- * time or the time zone, so "today" and the schedule follow travel without waiting for the next minute.
+ * time or the time zone, so "today" and the schedule follow travel without waiting for the next minute,
+ * and when the screen turns on: `delay` runs on the monotonic clock, which stops while the device sleeps,
+ * so after standby the pending tick (and with it "now" and "today") would otherwise lag behind.
  */
 @Singleton
 class SystemTimeProvider @Inject constructor(
@@ -48,6 +50,7 @@ class SystemTimeProvider @Inject constructor(
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_TIME_CHANGED)
             addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_SCREEN_ON)
         }
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         awaitClose { context.unregisterReceiver(receiver) }

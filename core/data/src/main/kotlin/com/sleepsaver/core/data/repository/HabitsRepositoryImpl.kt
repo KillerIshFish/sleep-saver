@@ -63,10 +63,14 @@ class HabitsRepositoryImpl @Inject constructor(
 
     override suspend fun setActivitySelected(id: Long, selected: Boolean) = activityDao.setSelected(id, selected)
 
-    /** Custom activities go to the end of the grid, already selected. */
+    /**
+     * Custom activities go to the end of the grid, already selected. Seeds the defaults first, since a table
+     * holding only this row would never get them.
+     */
     override suspend fun addCustomActivity(label: String, emoji: String): Long {
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label must not be blank" }
+        seedActivities()
         return seedLock.withLock {
             val nextOrder = (activityDao.getAll().maxOfOrNull { it.sortOrder } ?: -1) + 1
             activityDao.insert(

@@ -73,10 +73,16 @@ class InsightsRepositoryImpl @Inject constructor(
             .flowOn(defaultDispatcher)
             .distinctUntilChanged()
 
-    /** null when there is no night with data on or before [date], or when the computation fails. */
+    /** The device zone, re-read on every tick (ticks restart at once when the zone changes). */
+    private val deviceZone: Flow<ZoneId> = timeProvider.minuteTicks.map { timeProvider.zone() }.distinctUntilChanged()
+
+    /**
+     * Built like the home screen's schedule (same debt, same shifts, current zone), so today's matches [state].
+     * null when there is no night with data on or before [date], or when the computation fails.
+     */
     override fun schedule(date: LocalDate): Flow<EnergySchedule?> =
-        combine(sleepRepository.nights, sleepSettings) { nights, settings ->
-            guarded(TAG, "Schedule for $date") { computeSchedule(date, nights, settings, timeProvider.zone()) }
+        combine(sleepRepository.nights, sleepSettings, deviceZone) { nights, settings, zone ->
+            guarded(TAG, "Schedule for $date") { computeSchedule(date, nights, settings, zone) }
         }
             .flowOn(defaultDispatcher)
             .distinctUntilChanged()
@@ -111,8 +117,11 @@ class InsightsRepositoryImpl @Inject constructor(
         return scheduleCalculator.withShifts(today, scheduleFor(yesterday, upToYesterday, settings, zone))
     }
 
+    /** Uses the debt displayed on [date] (PLAN §3.3): debt(date) once its night is in, otherwise debt(date − 1). */
     private fun scheduleFor(date: LocalDate, nights: List<Night>, settings: UserSleepSettings, zone: ZoneId): EnergySchedule {
-        val debt = debtCalculator.debtAsOf(date, nights.associateBy { it.wakeDate }, settings.sleepNeed).debt
+        val nightsByDate = nights.associateBy { it.wakeDate }
+        val debtDate = if (nightsByDate[date]?.isPresent == true) date else date.minusDays(1)
+        val debt = debtCalculator.debtAsOf(debtDate, nightsByDate, settings.sleepNeed).debt
         return scheduleCalculator.schedule(date, zone, nights, settings.sleepNeed, debt, settings.typicalWake)
     }
 
