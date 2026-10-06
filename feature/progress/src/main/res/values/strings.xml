@@ -90,6 +90,6 @@
     <string name="progress_vital_average">%1$s avg</string>
     <!-- "50–58" -->
     <string name="progress_vital_range">Range %1$s–%2$s</string>
-    <string name="progress_vitals_hint">Allow heart-rate data in Health Connect to see trends</string>
-    <string name="progress_vitals_hint_body">Resting heart rate and HRV from your watch appear here once Sleep Saver may read them.</string>
+    <string name="progress_vitals_hint">No heart-rate trends yet</string>
+    <string name="progress_vitals_hint_body">Resting heart rate and HRV appear here once your watch records them and Sleep Saver is allowed to read them in Health Connect.</string>
 </resources>

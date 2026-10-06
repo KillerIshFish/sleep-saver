@@ -122,7 +122,7 @@ class ProgressContentTest {
         val list = compose.onNode(hasScrollAction())
 
         compose.onNodeWithText("Sleep quality").performClick()
-        list.performScrollToNode(hasText("Allow heart-rate data in Health Connect to see trends"))
+        list.performScrollToNode(hasText("No heart-rate trends yet"))
         compose.onNodeWithText("Open settings").performClick()
 
         assertThat(settingsOpened).isEqualTo(1)

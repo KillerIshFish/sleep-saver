@@ -2,7 +2,8 @@ package com.sleepsaver.feature.review.common
 
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Night
@@ -64,11 +65,22 @@ internal fun originLabelRes(origin: String?): Int? = when (origin) {
     else -> null
 }
 
-/** "Garmin Connect"; an unknown package shows as itself, a missing one as "your data source". */
+/**
+ * "Garmin Connect"; any other installed app by its launcher label; an app we can't see by its package name;
+ * a missing origin as "your data source".
+ */
 @Composable
-@ReadOnlyComposable
-internal fun originLabel(origin: String?): String =
-    originLabelRes(origin)?.let { stringResource(it) } ?: origin ?: stringResource(R.string.review_origin_unknown)
+internal fun originLabel(origin: String?): String {
+    originLabelRes(origin)?.let { return stringResource(it) }
+    if (origin == null) return stringResource(R.string.review_origin_unknown)
+    val packageManager = LocalContext.current.packageManager
+    return remember(origin) {
+        runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(origin, 0)).toString() }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: origin
+    }
+}
 
 /** "GMT−4", "GMT+5:30", "GMT". */
 internal fun formatGmtOffset(offset: ZoneOffset): String {
