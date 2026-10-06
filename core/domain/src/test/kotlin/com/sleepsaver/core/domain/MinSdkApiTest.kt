@@ -15,6 +15,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.util.OptionalInt
+import java.util.stream.IntStream
 import java.util.zip.ZipFile
 import org.junit.jupiter.api.Test
 
@@ -26,7 +28,8 @@ import org.junit.jupiter.api.Test
  * This test reads the constant pool of every main class of the module and fails on references to the APIs in
  * [NEWER_THAN_MIN_SDK], matched by owner, name and (where it matters) descriptor, so Java 8 overloads such as
  * Duration.dividedBy(long) or Instant.truncatedTo stay allowed. The list covers the usual traps: Java 9+ java.time
- * additions, Java 9+ collection factories / Optional / String / Math overloads, Stream.toList(), and the Java 21
+ * additions, Java 9+ collection factories, stream and Optional additions (the Int/Long/Double ones too), String /
+ * Math overloads, Stream.toList(), and the Java 21
  * SequencedCollection members, which Kotlin picks over its own removeFirst()/removeLast()/reversed() extensions
  * when the compile JDK has them. The API level shown is when Android added the method; anything above 28 fails.
  */
@@ -72,6 +75,8 @@ class MinSdkApiTest {
             "java/time/LocalDate.datesUntil",
             "java/util/stream/Stream.toList",
             "java/lang/Math.floorMod",
+            "java/util/stream/IntStream.takeWhile",
+            "java/util/OptionalInt.orElseThrow",
         )
     }
 
@@ -210,6 +215,8 @@ class MinSdkApiTest {
         val SORTED_MAPS = setOf("java/util/SortedMap", "java/util/NavigableMap", "java/util/TreeMap")
         val DEQUES = setOf("java/util/Deque", "java/util/ArrayDeque", "java/util/LinkedList")
         val MATH = setOf("java/lang/Math", "java/lang/StrictMath")
+        val PRIMITIVE_STREAMS = setOf("java/util/stream/IntStream", "java/util/stream/LongStream", "java/util/stream/DoubleStream")
+        val PRIMITIVE_OPTIONALS = setOf("java/util/OptionalInt", "java/util/OptionalLong", "java/util/OptionalDouble")
 
         val NEWER_THAN_MIN_SDK: List<NewerApi> = listOf(
             // java.time (Java 9+)
@@ -240,11 +247,23 @@ class MinSdkApiTest {
                 "java/util/stream/Stream", "iterate", 33,
                 "(Ljava/lang/Object;Ljava/util/function/Predicate;Ljava/util/function/UnaryOperator;)Ljava/util/stream/Stream;",
             ),
+            api(
+                "java/util/stream/IntStream", "iterate", 33,
+                "(ILjava/util/function/IntPredicate;Ljava/util/function/IntUnaryOperator;)Ljava/util/stream/IntStream;",
+            ),
+            api(
+                "java/util/stream/LongStream", "iterate", 33,
+                "(JLjava/util/function/LongPredicate;Ljava/util/function/LongUnaryOperator;)Ljava/util/stream/LongStream;",
+            ),
+            api(
+                "java/util/stream/DoubleStream", "iterate", 33,
+                "(DLjava/util/function/DoublePredicate;Ljava/util/function/DoubleUnaryOperator;)Ljava/util/stream/DoubleStream;",
+            ),
             api("java/util/stream/Collectors", "teeing", 34),
         ) + apis(
             setOf("java/util/stream/Collectors"), 33,
             "toUnmodifiableList", "toUnmodifiableSet", "toUnmodifiableMap", "filtering", "flatMapping",
-        ) + apis(
+        ) + apis(PRIMITIVE_STREAMS, 33, "takeWhile", "dropWhile") + apis(PRIMITIVE_STREAMS, 34, "mapMulti") + apis(
             // Immutable collection factories (Java 9/10)
             setOf("java/util/List", "java/util/Set", "java/util/Map"), 30, "of", "copyOf",
         ) + apis(setOf("java/util/Map"), 30, "ofEntries", "entry") + apis(
@@ -264,7 +283,12 @@ class MinSdkApiTest {
             newClass("java/lang/Record", 34),
             api("java/util/Collection", "toArray", 33, "(Ljava/util/function/IntFunction;)[Ljava/lang/Object;"),
             api("java/util/Optional", "orElseThrow", 33, "()Ljava/lang/Object;"),
+            api("java/util/OptionalInt", "orElseThrow", 33, "()I"),
+            api("java/util/OptionalLong", "orElseThrow", 33, "()J"),
+            api("java/util/OptionalDouble", "orElseThrow", 33, "()D"),
         ) + apis(setOf("java/util/Optional"), 33, "isEmpty", "stream", "or", "ifPresentOrElse") + apis(
+            PRIMITIVE_OPTIONALS, 33, "isEmpty", "stream", "ifPresentOrElse",
+        ) + apis(
             setOf("java/util/Objects"), 30,
             "requireNonNullElse", "requireNonNullElseGet", "checkIndex", "checkFromToIndex", "checkFromIndexSize",
         ) + listOf(
@@ -300,6 +324,8 @@ private class NewerApiCanary {
     fun wholeMinutes(d: Duration): Duration = d.truncatedTo(ChronoUnit.MINUTES)
     fun daysBetween(a: LocalDate, b: LocalDate): List<LocalDate> = a.datesUntil(b).toList()
     fun wrap(x: Long, m: Int): Int = Math.floorMod(x, m)
+    fun smallOnes(s: IntStream): IntStream = s.takeWhile { it < 3 }
+    fun orFail(o: OptionalInt): Int = o.orElseThrow()
 }
 
 /** The Java 8 neighbours of the APIs above: none of these may be flagged. */
@@ -314,4 +340,6 @@ private class AllowedApiCanary {
     fun descending(c: Comparator<Int>): Comparator<Int> = c.reversed()
     fun first(deque: ArrayDeque<Int>): Int = deque.removeFirst()
     fun reversedList(list: List<Int>): List<Int> = list.asReversed()
+    fun orFail(o: OptionalInt): Int = o.orElseThrow { IllegalStateException() }
+    fun counting(): IntStream = IntStream.iterate(0) { it + 1 }
 }
