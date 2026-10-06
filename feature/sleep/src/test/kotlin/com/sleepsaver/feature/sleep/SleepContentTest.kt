@@ -148,8 +148,9 @@ class SleepContentTest {
 
     @Test
     fun `a long list of missing nights folds into a more chip`() {
-        // Only the last 5 nights exist: 9 nights in the window are missing.
-        val nights = SampleData.nights().filter { it.wakeDate > today.minusDays(5) }
+        // History before the window, then only the last 5 nights: the other 9 nights in the window are missing.
+        // (Gaps before someone's first-ever night don't count as missing, hence the older nights.)
+        val nights = SampleData.nights().filter { it.wakeDate > today.minusDays(5) || it.wakeDate < today.minusDays(13) }
         show(ready(SampleData.insights(nights = nights)), SleepActions())
 
         compose.onNodeWithText("9 nights missing from the last 14 days").performScrollTo().assertIsDisplayed()

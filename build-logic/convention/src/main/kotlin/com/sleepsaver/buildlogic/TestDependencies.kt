@@ -24,6 +24,8 @@ internal fun Project.addAndroidUnitTestDependencies() {
             "--add-opens=java.base/java.io=ALL-UNNAMED",
             "--enable-native-access=ALL-UNNAMED",
         )
+        // Robolectric + native-graphics screenshots outgrow Gradle's default 512 MB test heap.
+        maxHeapSize = "1536m"
         // Modules may exist before their first test does.
         failOnNoDiscoveredTests.set(false)
     }

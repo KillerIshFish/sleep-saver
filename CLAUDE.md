@@ -53,7 +53,9 @@ class HomeScreenshotTest : ScreenshotTest() {   // Robolectric SDK 36, native gr
   unit-test run records, so there is no separate record task and nothing to verify against.
 - PNGs land in `<module>/build/outputs/roborazzi/<name>.png` (a screen is 1078 × 2399 px). Open them with the Read tool
   and check spacing, alignment, contrast and clipping. Use unique snake_case names per module.
-- Infinite animations render their first frame. For 24-hour variants wrap content in
+- `ScreenshotTest` hosts content in a Compose test rule (`composeRule`): infinite animations (spinners, the orb) render
+  their first frame instead of hanging the capture, `captureScreen` includes dialogs/sheets, and a test may capture
+  several times. The top-level `captureScreen`/`captureComponent` are only for classes that can't extend it. For 24-hour variants wrap content in
   `CompositionLocalProvider(LocalUse24HourClock provides true)`; for large system fonts provide
   `LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)` (see `LargeFontScreenshotTest`). Reference images of the whole kit come from
   `./gradlew :core:ui:testDebugUnitTest` (`core/ui/build/outputs/roborazzi/`, e.g. `kit_home.png`).

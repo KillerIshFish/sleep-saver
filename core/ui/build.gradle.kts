@@ -15,6 +15,8 @@ dependencies {
     testFixturesImplementation(platform(libs.androidx.compose.bom))
     testFixturesImplementation(libs.androidx.compose.foundation)
     testFixturesImplementation(libs.androidx.compose.material3)
+    testFixturesApi(platform(libs.androidx.compose.bom))
+    testFixturesApi(libs.androidx.compose.ui.test.junit4)
     testFixturesApi(libs.junit4)
     testFixturesApi(libs.robolectric)
     testFixturesApi(libs.roborazzi)
