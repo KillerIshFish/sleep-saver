@@ -70,6 +70,8 @@ class HabitsNavigationTest {
             }
         }
         compose.onNodeWithText("open habits").performClick()
+        // A click returns before its frame; let the list settle so the tests can stop the clock.
+        compose.waitForIdle()
     }
 
     private fun currentIs(check: (NavHostController) -> Boolean) = compose.runOnIdle { assertThat(check(navController)).isTrue() }
@@ -101,6 +103,7 @@ class HabitsNavigationTest {
     fun `a double tap on back pops only one screen`() {
         setUpNavHost()
         compose.onNodeWithText("open caffeine").performClick()
+        compose.waitForIdle()
 
         compose.mainClock.autoAdvance = false
         compose.onNodeWithText("back from CAFFEINE_CUTOFF").performClick()
