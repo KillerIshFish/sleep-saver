@@ -42,6 +42,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -427,11 +431,14 @@ private fun MissingNightsCard(state: SleepUiState.Ready, actions: SleepActions, 
         actionSpacing = Spacing.m,
         actionBottomPadding = 20.dp,
     ) {
+        // A new watch can leave most of the window empty: show the newest few and keep the rest one tap away.
+        var expanded by rememberSaveable { mutableStateOf(false) }
+        val shown = if (expanded || count <= MaxMissingChips) state.missingNights else state.missingNights.take(MaxMissingChips - 1)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
             verticalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {
-            state.missingNights.forEach { date ->
+            shown.forEach { date ->
                 val label = formatNightLabel(date, state.today)
                 val description = stringResource(R.string.sleep_add_night_description, label)
                 InfoChip(
@@ -442,9 +449,19 @@ private fun MissingNightsCard(state: SleepUiState.Ready, actions: SleepActions, 
                     modifier = Modifier.semantics { contentDescription = description },
                 )
             }
+            val hidden = count - shown.size
+            if (hidden > 0) {
+                InfoChip(
+                    text = pluralStringResource(R.plurals.sleep_missing_nights_more, hidden, hidden),
+                    onClick = { expanded = true },
+                )
+            }
         }
     }
 }
+
+/** Chips shown before the rest fold into "N more" (three rows at most on a phone). */
+private const val MaxMissingChips = 6
 
 // ---------------------------------------------------------------- Energy
 

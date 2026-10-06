@@ -115,8 +115,10 @@ private fun NoDataBody(state: SleepUiState.Empty, actions: SleepActions, modifie
             onClick = { actions.onAddMissingNight(state.today) },
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(Spacing.xs))
-        TextLinkButton(text = stringResource(R.string.sleep_try_demo), onClick = actions.onTryDemo)
+        if (state.canTryDemo) {
+            Spacer(Modifier.height(Spacing.xs))
+            TextLinkButton(text = stringResource(R.string.sleep_try_demo), onClick = actions.onTryDemo)
+        }
     }
 }
 

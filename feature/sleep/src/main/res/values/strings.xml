@@ -71,6 +71,10 @@
     </plurals>
     <string name="sleep_missing_nights_body">Add them so your debt stays accurate.</string>
     <string name="sleep_add_night_description">Add %1$s</string>
+    <plurals name="sleep_missing_nights_more">
+        <item quantity="one">%1$d more</item>
+        <item quantity="other">%1$d more</item>
+    </plurals>
 
     <!-- Energy -->
     <string name="sleep_energy_potential">Energy potential</string>

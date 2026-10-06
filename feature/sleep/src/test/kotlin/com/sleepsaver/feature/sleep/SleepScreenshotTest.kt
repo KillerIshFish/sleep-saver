@@ -106,6 +106,13 @@ class SleepScreenshotTest : ScreenshotTest() {
         SleepContent(suggestionAndMissingNights(), SleepActions(), scrollState = rememberScrollState(560))
     }
 
+    /** A new watch: only the last 5 nights exist, so 9 nights in the window are missing. */
+    @Test
+    fun manyMissingNights() = captureScreen("sleep_home_many_missing") {
+        val nights = SampleData.nights().filter { it.wakeDate > today.minusDays(5) }
+        SleepContent(ready(SampleData.insights(nights = nights)), SleepActions(), scrollState = rememberScrollState(420))
+    }
+
     @Test
     fun lateEvening() = captureScreen("sleep_home_tonight_scrolled") {
         Scrolled(ready(SampleData.insights(now = at(23, 55))))

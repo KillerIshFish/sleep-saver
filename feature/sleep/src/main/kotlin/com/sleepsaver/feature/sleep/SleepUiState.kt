@@ -35,6 +35,8 @@ sealed interface SleepUiState {
         val isRefreshing: Boolean = false,
         /** Garmin is the source: show the watch → Garmin Connect → Health Connect steps, and open it on "Sync now". */
         val syncOpensGarmin: Boolean = true,
+        /** False in demo mode (the demo nights are what's missing, so offering them again makes no sense). */
+        val canTryDemo: Boolean = true,
     ) : SleepUiState
 
     @Immutable
@@ -120,15 +122,6 @@ internal fun AppSettings.syncOpensGarmin(): Boolean =
         SourceSelection.All -> true
         is SourceSelection.Single -> source.packageName == SleepConfig.GARMIN_CONNECT_PACKAGE
     }
-
-internal fun sourceLabel(settings: AppSettings, appLabel: (String) -> String): SourceLabel = when {
-    settings.demoMode -> SourceLabel.Demo
-    else -> when (val source = settings.sleep.source) {
-        SourceSelection.All -> SourceLabel.AllSources
-        is SourceSelection.Single ->
-            if (source.packageName == SleepConfig.GARMIN_CONNECT_PACKAGE) SourceLabel.Garmin else SourceLabel.App(appLabel(source.packageName))
-    }
-}
 
 internal fun emptyReason(demoMode: Boolean, check: HealthConnectCheck): EmptyReason = when {
     demoMode -> EmptyReason.NO_DATA

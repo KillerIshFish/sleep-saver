@@ -147,6 +147,20 @@ class SleepContentTest {
     }
 
     @Test
+    fun `a long list of missing nights folds into a more chip`() {
+        // Only the last 5 nights exist: 9 nights in the window are missing.
+        val nights = SampleData.nights().filter { it.wakeDate > today.minusDays(5) }
+        show(ready(SampleData.insights(nights = nights)), SleepActions())
+
+        compose.onNodeWithText("9 nights missing from the last 14 days").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Add Fri, Sep 25").assertDoesNotExist()
+        compose.onNodeWithText("4 more").performScrollTo().performClick()
+
+        compose.onNodeWithContentDescription("Add Fri, Sep 25").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("4 more").assertDoesNotExist()
+    }
+
+    @Test
     fun `next up opens habits and its bell toggles the reminder`() {
         val changes = mutableListOf<Pair<HabitType, Boolean>>()
         var habitsOpened = 0

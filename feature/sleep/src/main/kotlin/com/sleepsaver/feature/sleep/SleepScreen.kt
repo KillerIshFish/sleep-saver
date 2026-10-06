@@ -33,6 +33,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.ui.components.LoadingOrb
@@ -89,29 +91,48 @@ internal fun SleepScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Health Connect may have been installed or permissions granted while we were away; a pending
     // "Sync now" (sent to Garmin Connect) syncs here too.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
 
-    val actions = remember(viewModel, context) {
+    // The navigation callbacks are already guarded against double taps (see sleepScreen); always call the latest.
+    val openSettings by rememberUpdatedState(onOpenSettings)
+    val openNight by rememberUpdatedState(onOpenNight)
+    val openReview by rememberUpdatedState(onOpenReview)
+    val addNap by rememberUpdatedState(onAddNap)
+    val addMissingNight by rememberUpdatedState(onAddMissingNight)
+    val openHabits by rememberUpdatedState(onOpenHabits)
+    val openEnergy by rememberUpdatedState(onOpenEnergy)
+    val openHealthConnectSetup by rememberUpdatedState(onOpenHealthConnectSetup)
+
+    val actions = remember(viewModel, context, lifecycle) {
+        /** Leaving the app: a second tap while the first launch is under way would open it twice. */
+        fun ifResumed(block: () -> Unit) {
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) block()
+        }
         SleepActions(
-            onOpenSettings = onOpenSettings,
-            onOpenNight = onOpenNight,
-            onOpenReview = onOpenReview,
-            onAddNap = onAddNap,
-            onAddMissingNight = onAddMissingNight,
-            onOpenHabits = onOpenHabits,
-            onOpenEnergy = onOpenEnergy,
-            onOpenHealthConnectSetup = onOpenHealthConnectSetup,
+            onOpenSettings = { openSettings() },
+            onOpenNight = { openNight(it) },
+            onOpenReview = { openReview(it) },
+            onAddNap = { addNap() },
+            onAddMissingNight = { addMissingNight(it) },
+            onOpenHabits = { openHabits() },
+            onOpenEnergy = { openEnergy() },
+            onOpenHealthConnectSetup = { openHealthConnectSetup() },
             onRefresh = viewModel::onRefresh,
             onSyncNowViaGarmin = {
-                val intent = viewModel.syncNowIntent()
-                if (intent != null && !context.tryStartActivity(intent)) viewModel.onExternalLaunchFailed()
+                ifResumed {
+                    val intent = viewModel.syncNowIntent()
+                    if (intent != null && !context.tryStartActivity(intent)) viewModel.onExternalLaunchFailed()
+                }
             },
             onSyncNow = viewModel::syncNow,
             onInstallHealthConnect = {
-                // No Play Store: the setup screen explains the other ways to get it.
-                if (!context.tryStartActivity(viewModel.installHealthConnectIntent())) onOpenHealthConnectSetup()
+                ifResumed {
+                    // No Play Store: the setup screen explains the other ways to get it.
+                    if (!context.tryStartActivity(viewModel.installHealthConnectIntent())) openHealthConnectSetup()
+                }
             },
             onTryDemo = viewModel::onTryDemo,
             onUseSuggestedNeed = viewModel::onUseSuggestedNeed,

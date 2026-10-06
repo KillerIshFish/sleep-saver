@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.sleep
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -22,6 +23,8 @@ import com.sleepsaver.core.testing.FakeReviewRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.core.data.repository.DemoModeController
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -58,20 +61,28 @@ class SleepViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = SleepViewModel(
+    private fun viewModel(
+        savedState: SavedStateHandle = SavedStateHandle(),
+        demoController: DemoModeController = demo,
+    ) = SleepViewModel(
         context = ApplicationProvider.getApplicationContext(),
+        savedStateHandle = savedState,
         insightsRepository = insights,
         syncRepository = sync,
         settingsRepository = settings,
         habitsRepository = habits,
         reviewRepository = reviews,
-        demoModeController = demo,
+        demoModeController = demoController,
         healthConnect = gateway,
         timeProvider = FixedTime(),
+        ioDispatcher = UnconfinedTestDispatcher(),
     )
 
     /** uiState is WhileSubscribed: keep a collector running for the test's duration. */
-    private fun TestScope.started(): SleepViewModel = viewModel().also { vm ->
+    private fun TestScope.started(
+        savedState: SavedStateHandle = SavedStateHandle(),
+        demoController: DemoModeController = demo,
+    ): SleepViewModel = viewModel(savedState, demoController).also { vm ->
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
     }
 
@@ -239,6 +250,7 @@ class SleepViewModelTest {
 
         assertThat(state.reason).isEqualTo(EmptyReason.NO_DATA)
         assertThat(state.syncOpensGarmin).isFalse()
+        assertThat(state.canTryDemo).isFalse()
     }
 
     @Test
@@ -262,11 +274,32 @@ class SleepViewModelTest {
     fun `try demo data switches demo mode on`() = runTest {
         insights.mutableState.value = InsightsState.NoNights
         val vm = started()
+        assertThat((vm.uiState.value as SleepUiState.Empty).canTryDemo).isTrue()
 
         vm.onTryDemo()
 
         assertThat(demo.calls).containsExactly(true)
         assertThat(settings.state.value.demoMode).isTrue()
+    }
+
+    @Test
+    fun `the screen shows loading while the demo nights are written`() = runTest {
+        val written = CompletableDeferred<Unit>()
+        val slowDemo = object : DemoModeController {
+            override suspend fun setDemoMode(enabled: Boolean) {
+                settings.setDemoModeFlag(enabled, Instant.EPOCH)
+                written.await()
+            }
+        }
+        insights.mutableState.value = InsightsState.NoNights
+        val vm = started(demoController = slowDemo)
+
+        vm.onTryDemo()
+        assertThat(vm.uiState.value).isEqualTo(SleepUiState.Loading)
+
+        insights.mutableState.value = SampleData.readyState()
+        written.complete(Unit)
+        assertThat(vm.ready().source).isEqualTo(SourceLabel.Demo)
     }
 
     // ---------------------------------------------------------------- Sleep need suggestion
@@ -357,6 +390,19 @@ class SleepViewModelTest {
 
         // Only once.
         vm.onResume()
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+    }
+
+    @Test
+    fun `a pending sync survives the process being killed while Garmin Connect is open`() = runTest {
+        insights.mutableState.value = ready(SampleData.insights(nights = SampleData.nights(includeLastNight = false)))
+        val savedState = SavedStateHandle()
+        started(savedState).syncNowIntent()
+
+        // A new ViewModel restored from the same saved state.
+        val restored = started(savedState)
+        restored.onResume()
+
         assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
     }
 
