@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="learn_title">Learn</string>
+    <string name="learn_subtitle">Short reads on how sleep and energy work</string>
+    <plurals name="learn_minutes_read">
+        <item quantity="one">%d min read</item>
+        <item quantity="other">%d min read</item>
+    </plurals>
+    <string name="learn_back">Back</string>
+    <string name="learn_article_missing">This article isn\'t available.</string>
+    <string name="learn_wellness_disclaimer">Sleep Saver is a wellness tool, not medical advice.</string>
+</resources>
