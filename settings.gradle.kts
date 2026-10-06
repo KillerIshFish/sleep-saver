@@ -34,3 +34,6 @@ include(":feature:onboarding")
 include(":feature:settings")
 include(":feature:learn")
 include(":feature:widget")
+
+// Debug-only tool (not shipped): seeds Health Connect on an emulator.
+include(":tools:hcseeder")
