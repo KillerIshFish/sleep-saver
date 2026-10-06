@@ -6,6 +6,7 @@ import com.sleepsaver.core.domain.model.HabitAnchor
 import com.sleepsaver.core.domain.model.HabitDefinition
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
+import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.ReminderCategory
 import com.sleepsaver.core.domain.model.ScheduledHabit
 import java.time.Duration
@@ -41,11 +42,31 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
      * WIND_DOWN_START / MELATONIN_START / AFTERNOON_DIP_START = that phase's start.
      */
     fun schedule(schedule: EnergySchedule, settings: List<HabitSettings>): List<ScheduledHabit> {
-        TODO("M2: habit times")
+        val byType = settings.associateBy { it.type }
+        return catalog.all.mapNotNull { definition ->
+            val setting = byType[definition.type]
+                ?: HabitSettings(definition.type, definition.defaultEnabled, definition.defaultReminder, definition.defaultOffset)
+            val time = anchorTime(schedule, definition.anchor)?.plus(setting.offset) ?: return@mapNotNull null
+            ScheduledHabit(
+                type = definition.type,
+                time = time,
+                windowEnd = definition.window?.let { time + it },
+                enabled = setting.enabled,
+                reminderEnabled = setting.reminderEnabled,
+                category = definition.category,
+            )
+        }.sortedBy { it.time }
     }
 
     /** First enabled habit whose time (or window end, if it has a window) is after [now]. */
-    fun nextUp(habits: List<ScheduledHabit>, now: Instant): ScheduledHabit? {
-        TODO("M2: next habit")
+    fun nextUp(habits: List<ScheduledHabit>, now: Instant): ScheduledHabit? =
+        habits.filter { it.enabled }.sortedBy { it.time }.firstOrNull { (it.windowEnd ?: it.time).isAfter(now) }
+
+    private fun anchorTime(schedule: EnergySchedule, anchor: HabitAnchor): Instant? = when (anchor) {
+        HabitAnchor.TYPICAL_WAKE -> schedule.typicalWake.toInstant()
+        HabitAnchor.TARGET_BEDTIME -> schedule.targetBedtime
+        HabitAnchor.WIND_DOWN_START -> schedule.phase(PhaseType.WIND_DOWN)?.start
+        HabitAnchor.MELATONIN_START -> schedule.phase(PhaseType.MELATONIN_WINDOW)?.start
+        HabitAnchor.AFTERNOON_DIP_START -> schedule.phase(PhaseType.AFTERNOON_DIP)?.start
     }
 }
