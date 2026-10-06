@@ -30,8 +30,9 @@ import kotlin.math.roundToLong
  *  - Wa = effective wokeUp of the night with wakeDate == date, if present; else W.
  *  - Process S: seeded `sSeed` at Wa − sHistoryHours, integrated over every asleep interval (main/extra blocks minus their
  *    awake periods, naps) that overlaps the history, awake otherwise; then awake from Wa to B.
- *  - Curve: [TwoProcessModel] from Wa to B at curveStep, min-max normalised to 0..1.
+ *  - Curve: [TwoProcessModel] from Wa to B at curveStep (B is always the last point), min-max normalised to 0..1.
  *  - Phases per the table in §3.7. B uses *tomorrow's* W: (date + 1) at typicalWake in [zone], minus need, minus latency.
+ *    Morning peak, afternoon dip and evening peak never start before grogginess ends (matters after a very late wake).
  *  - Phases list order: GROGGINESS, MORNING_PEAK, AFTERNOON_DIP, EVENING_PEAK, WIND_DOWN, MELATONIN_WINDOW.
  *  - shiftVsYesterday is left null here; see [withShifts].
  */
@@ -64,10 +65,10 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         val curve = curve(wa, w, bedtime, debtHours, asleepIntervals(history))
 
         val grogginess = Phase(PhaseType.GROGGINESS, wa, wa + grogginessLength(debtHours))
-        val morningPeak = guardedPhase(PhaseType.MORNING_PEAK, config.morningPeak, w, curve, peak = true)
-            .let { it.copy(start = maxOf(it.start, grogginess.end)) }
-        val afternoonDip = guardedPhase(PhaseType.AFTERNOON_DIP, config.afternoonDip, w, curve, peak = false)
-        val eveningPeak = guardedPhase(PhaseType.EVENING_PEAK, config.eveningPeak, w, curve, peak = true)
+        fun Phase.afterGrogginess() = copy(start = maxOf(start, grogginess.end))
+        val morningPeak = guardedPhase(PhaseType.MORNING_PEAK, config.morningPeak, w, curve, peak = true).afterGrogginess()
+        val afternoonDip = guardedPhase(PhaseType.AFTERNOON_DIP, config.afternoonDip, w, curve, peak = false).afterGrogginess()
+        val eveningPeak = guardedPhase(PhaseType.EVENING_PEAK, config.eveningPeak, w, curve, peak = true).afterGrogginess()
         val melatoninStart = bedtime - config.melatoninHalfWidth
         val windDown = Phase(PhaseType.WIND_DOWN, melatoninStart - config.windDownLength, melatoninStart)
         val melatonin = Phase(PhaseType.MELATONIN_WINDOW, melatoninStart, bedtime + config.melatoninHalfWidth)
@@ -105,8 +106,11 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
 
     private fun curve(wa: Instant, w: Instant, bedtime: Instant, debtHours: Double, asleep: List<TimeSpan>): EnergyCurve {
         val sAtWake = model.homeostaticPressure(wa - Duration.ofHours(config.sHistoryHours), wa, asleep)
-        val times = generateSequence(wa) { it + config.curveStep }.takeWhile { !it.isAfter(bedtime) }.toList()
-            .ifEmpty { listOf(wa) }
+        val times = if (bedtime.isAfter(wa)) {
+            generateSequence(wa) { it + config.curveStep }.takeWhile { it.isBefore(bedtime) }.toList() + bedtime
+        } else {
+            listOf(wa)
+        }
         val raw = times.map { t ->
             model.circadian(t, w) - model.riseWhileAwake(sAtWake, hoursBetween(wa, t)) + model.inertia(t, wa, debtHours)
         }
@@ -117,10 +121,9 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         )
     }
 
-    /** Main/extra blocks minus their awake periods, plus nap blocks. */
+    /** Main, extra and nap blocks minus their awake periods. */
     private fun asleepIntervals(nights: List<Night>): List<TimeSpan> = nights.flatMap { night ->
-        (listOfNotNull(night.main) + night.extraSegments).flatMap { it.asleepSpans() } +
-            night.naps.map { TimeSpan(it.start, it.end) }
+        (listOfNotNull(night.main) + night.extraSegments + night.naps).flatMap { it.asleepSpans() }
     }
 
     private fun SleepBlock.asleepSpans(): List<TimeSpan> {

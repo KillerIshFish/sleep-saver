@@ -97,6 +97,49 @@ class EnergyScheduleCalculatorTest {
     }
 
     @Test
+    fun `curve ends exactly at bedtime when the actual wake is off the 5-minute grid`() {
+        val history = nights(1L..6L, "23:00", "07:00") + Fx.night(date, "23:00", "06:47:23")
+
+        val s = calculator.schedule(date, Fx.UTC, history, need, Duration.ZERO, fallback)
+
+        assertThat(s.curve.points.first().time).isEqualTo(s.actualWake)
+        assertThat(s.curve.points.last().time).isEqualTo(s.targetBedtime)
+        assertThat(s.curve.valueAt(s.targetBedtime)).isNotNull()
+        s.curve.points.zipWithNext().forEach { (a, b) ->
+            assertThat(Duration.between(a.time, b.time)).isGreaterThan(Duration.ZERO)
+            assertThat(Duration.between(a.time, b.time)).isAtMost(Duration.ofMinutes(5))
+        }
+    }
+
+    @Test
+    fun `waking after the target bedtime gives a one-point flat curve`() {
+        // Slept through the day: 13:00 → 23:30 on the schedule date.
+        val history = nights(1L..6L, "23:00", "07:00") + Fx.night(date, "13:00", "23:30")
+
+        val s = calculator.schedule(date, Fx.UTC, history, need, Duration.ZERO, fallback)
+
+        assertThat(s.actualWake).isEqualTo(at(date, "23:30"))
+        assertThat(s.actualWake).isGreaterThan(s.targetBedtime)
+        assertThat(s.curve.points.map { it.time }).containsExactly(at(date, "23:30"))
+        assertThat(s.curve.points.single().value).isEqualTo(0.5f)
+        assertThat(s.phases.map { it.type }).containsExactlyElementsIn(PhaseType.entries).inOrder()
+    }
+
+    @Test
+    fun `after a very late wake no energy phase starts inside grogginess`() {
+        val history = nights(1L..6L, "23:00", "07:00") + nights(0L..0L, "04:00", "13:00")
+
+        val s = calculator.schedule(date, Fx.UTC, history, need, Duration.ZERO, fallback)
+
+        val grogginessEnd = s.get(PhaseType.GROGGINESS).end
+        assertThat(s.actualWake).isEqualTo(at(date, "13:00"))
+        listOf(PhaseType.MORNING_PEAK, PhaseType.AFTERNOON_DIP, PhaseType.EVENING_PEAK).forEach {
+            assertThat(s.get(it).start).isAtLeast(grogginessEnd)
+        }
+        assertOrderedWithoutGaps(s)
+    }
+
+    @Test
     fun `night owl schedule is shifted late and bedtime crosses midnight`() {
         val s = calculator.schedule(date, Fx.UTC, nights(0L..6L, "02:30", "10:30"), need, Duration.ZERO, fallback)
         val tomorrow = date.plusDays(1)
@@ -195,6 +238,29 @@ class EnergyScheduleCalculatorTest {
         assertThat(withAwake.curve).isNotEqualTo(base.curve)
         assertThat(withNap.curve).isNotEqualTo(base.curve)
         assertThat(withAwake.typicalWake).isEqualTo(base.typicalWake)
+    }
+
+    @Test
+    fun `awake time inside a nap counts as awake`() {
+        val plain = nights(0L..6L, "23:00", "07:00")
+        val napDay = date.minusDays(1)
+        val restlessNap = nap(at(napDay, "14:00"), at(napDay, "16:00")).copy(
+            awakePeriods = listOf(AwakePeriod(at(napDay, "14:10"), at(napDay, "15:50"), AwakeKind.STAGE)),
+        )
+        fun withNaps(vararg naps: SleepBlock) = plain.map { if (it.wakeDate == napDay) it.copy(naps = naps.toList()) else it }
+
+        val restless = calculator.schedule(date, Fx.UTC, withNaps(restlessNap), need, Duration.ZERO, fallback)
+        val twoShortNaps = calculator.schedule(
+            date, Fx.UTC,
+            withNaps(nap(at(napDay, "14:00"), at(napDay, "14:10")), nap(at(napDay, "15:50"), at(napDay, "16:00"))),
+            need, Duration.ZERO, fallback,
+        )
+        val solidNap = calculator.schedule(
+            date, Fx.UTC, withNaps(nap(at(napDay, "14:00"), at(napDay, "16:00"))), need, Duration.ZERO, fallback,
+        )
+
+        assertThat(restless.curve).isEqualTo(twoShortNaps.curve)
+        assertThat(restless.curve).isNotEqualTo(solidNap.curve)
     }
 
     @Test

@@ -173,6 +173,21 @@ class InsightsEngineTest {
     }
 
     @Test
+    fun `a new user without any nights gets the onboarding schedule`() {
+        val insights = compute(emptyList(), at("08:00"))
+
+        assertThat(insights.lastNight).isNull()
+        assertThat(insights.lastNightState).isEqualTo(LastNightState.WAITING)
+        assertThat(insights.debt.debt).isEqualTo(Duration.ZERO)
+        assertThat(insights.debtChange).isNull()
+        assertThat(insights.streak.days).isEqualTo(0)
+        assertThat(insights.schedule.anchor.isFallback).isTrue()
+        assertThat(insights.schedule.typicalWake.toLocalTime()).isEqualTo(settings.typicalWake)
+        assertThat(insights.schedule.phases.map { it.shiftVsYesterday }).containsExactlyElementsIn(List(6) { Duration.ZERO })
+        assertThat(insights.nextHabit?.type).isEqualTo(HabitType.CAFFEINE_CUTOFF)
+    }
+
+    @Test
     fun `status thresholds come from the user's settings`() {
         val relaxed = settings.copy(lowDebtMax = Duration.ofHours(3), highDebtMin = Duration.ofHours(7))
 
