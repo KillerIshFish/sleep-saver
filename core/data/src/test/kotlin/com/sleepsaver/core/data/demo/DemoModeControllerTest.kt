@@ -11,12 +11,14 @@ import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalEntity
+import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.data.sync.FakeSettingsRepository
 import com.sleepsaver.core.data.sync.FakeTimeProvider
 import com.sleepsaver.core.data.sync.ROBOLECTRIC_SDK
 import com.sleepsaver.core.data.sync.hcSession
 import com.sleepsaver.core.data.sync.toSessionWithStages
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.VitalType
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Test
@@ -118,6 +120,26 @@ class DemoModeControllerTest {
     }
 
     @Test
+    fun demoRoundTrip_keepsRealVitalsOfTheSameDays() = runTest {
+        val yesterday = today.minusDays(1)
+        val realSteps = VitalEntity(
+            id = VitalIds.steps(yesterday),
+            type = VitalType.STEPS_DAY.name,
+            timeEpochMs = yesterday.atStartOfDay(zone).toInstant().toEpochMilli(),
+            offsetSec = -14_400,
+            value = 8_765.0,
+            originPackage = SleepConfig.GARMIN_CONNECT_PACKAGE,
+            sourceKind = SourceKind.HEALTH_CONNECT.name,
+        )
+        db.vitalDao().upsert(listOf(realSteps))
+
+        controller.setDemoMode(true)
+        controller.setDemoMode(false)
+
+        assertThat(db.vitalDao().getAll()).containsExactly(realSteps)
+    }
+
+    @Test
     fun extendToNow_rollsDemoDataForward() = runTest {
         controller.setDemoMode(true)
         assertThat(writer.extendToNow()).isEqualTo(0)
@@ -127,8 +149,23 @@ class DemoModeControllerTest {
 
         val latestEnd = db.sleepSessionDao().latestEnd(SourceKind.DEMO.name)!!
         assertThat(java.time.Instant.ofEpochMilli(latestEnd).atZone(zone).toLocalDate()).isEqualTo(today.plusDays(1))
-        assertThat(db.vitalDao().getAll().map { it.id }).contains("steps:$today")
+        assertThat(db.vitalDao().getAll().map { it.id }).contains("demo:steps:$today")
         assertThat(writer.extendToNow()).isEqualTo(0)
+    }
+
+    @Test
+    fun controllerExtendToNow_onlyWhileDemoModeIsOn() = runTest {
+        assertThat(controller.extendToNow()).isEqualTo(0)
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+
+        controller.setDemoMode(true)
+        time.now = time.now.plus(Duration.ofDays(1))
+        assertThat(controller.extendToNow()).isAtLeast(1)
+
+        controller.setDemoMode(false)
+        time.now = time.now.plus(Duration.ofDays(1))
+        assertThat(controller.extendToNow()).isEqualTo(0)
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
     }
 
     private fun override(wakeDate: String, updatedAt: Long) = NightOverrideEntity(

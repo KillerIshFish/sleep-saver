@@ -150,7 +150,8 @@ class FakeSleepDataSource internal constructor(
                 VitalSample("demo:rhr:$date", VitalType.RESTING_HR, wake, restingHr.toDouble(), ORIGIN),
                 VitalSample("demo:hrv:$date", VitalType.HRV_RMSSD, wake, hrv, ORIGIN),
             ),
-            steps = VitalSample(VitalIds.steps(date), VitalType.STEPS_DAY, date.atStartOfDay(zone).toInstant(), steps.toDouble(), ORIGIN),
+            // Own id: VitalIds.steps(date) is the real Health Connect row for that day, which demo rows must not replace.
+            steps = VitalSample("demo:steps:$date", VitalType.STEPS_DAY, date.atStartOfDay(zone).toInstant(), steps.toDouble(), ORIGIN),
             restingHr = restingHr,
             seed = seed,
         )

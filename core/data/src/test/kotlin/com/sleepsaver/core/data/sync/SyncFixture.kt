@@ -6,7 +6,9 @@ import androidx.test.core.app.ApplicationProvider
 import com.sleepsaver.core.data.db.SessionWithStages
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.demo.DemoDataWriter
+import com.sleepsaver.core.data.demo.DemoModeControllerImpl
 import com.sleepsaver.core.data.demo.FakeSleepDataSource
+import com.sleepsaver.core.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import java.time.LocalDateTime
@@ -44,17 +46,26 @@ class SyncFixture(dataStoreDir: File) {
     )
     val demoSource = FakeSleepDataSource(time)
     val demoWriter = DemoDataWriter(demoSource, db.sleepSessionDao(), db.vitalDao(), time)
+    val demoMode = DemoModeControllerImpl(
+        settingsRepository = settings,
+        writer = demoWriter,
+        overrideDao = db.nightOverrideDao(),
+        addedAwakeDao = db.addedAwakeDao(),
+        manualNapDao = db.manualNapDao(),
+        reviewDao = db.morningReviewDao(),
+        timeProvider = time,
+    )
 
-    fun manager(scope: CoroutineScope) = SyncManager(
+    fun manager(scope: CoroutineScope, settingsRepository: SettingsRepository = settings) = SyncManager(
         gateway = gateway,
         source = source,
-        settingsRepository = settings,
+        settingsRepository = settingsRepository,
         insightsRepository = Provider { insights },
         notifier = Provider { notifier },
         sessionDao = db.sleepSessionDao(),
         vitalDao = db.vitalDao(),
         store = store,
-        demoData = demoWriter,
+        demoMode = demoMode,
         timeProvider = time,
         scheduler = scheduler,
         appVisibility = { foreground },

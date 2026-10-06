@@ -4,7 +4,7 @@ import com.sleepsaver.core.data.db.SleepSessionDao
 import com.sleepsaver.core.data.db.SleepSessionEntity
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalDao
-import com.sleepsaver.core.data.demo.DemoDataWriter
+import com.sleepsaver.core.data.demo.DemoModeControllerImpl
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.di.HealthConnectSource
 import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
@@ -55,8 +55,8 @@ import kotlin.coroutines.cancellation.CancellationException
  * Keeps Room in step with Health Connect (docs/PLAN.md §3.10). Syncs never overlap and never throw:
  * every failure comes back as a [SyncResult] error and is remembered in [state].
  *
- * Incremental syncs use the Changes API. Without a usable token (first run, expired, or the granted record
- * types changed since it was issued) the history is re-imported: token first, then 365 days (30 without the
+ * Incremental syncs use the Changes API. Without a usable token (first run, expired or rejected, or the granted
+ * record types changed since it was issued) the history is re-imported: token first, then 365 days (30 without the
  * history permission) in 30-day chunks, deleting stored sessions in that window that Health Connect no
  * longer has.
  */
@@ -71,7 +71,7 @@ class SyncManager @Inject constructor(
     private val sessionDao: SleepSessionDao,
     private val vitalDao: VitalDao,
     private val store: SyncStateStore,
-    private val demoData: DemoDataWriter,
+    private val demoMode: DemoModeControllerImpl,
     private val timeProvider: TimeProvider,
     private val scheduler: SyncWorkScheduler,
     private val appVisibility: AppVisibility,
@@ -148,7 +148,7 @@ class SyncManager @Inject constructor(
         val settings = settingsRepository.current()
         if (settings.demoMode) {
             // Health Connect is left alone; the demo nights just keep rolling forward.
-            demoData.extendToNow()
+            demoMode.extendToNow()
             return SyncResult(success = true)
         }
         when (gateway.status()) {
@@ -173,7 +173,7 @@ class SyncManager @Inject constructor(
         val changed = if (forceImport || token == null) {
             importLocked(permissions, scope)
         } else {
-            when (val batch = source.changesSince(token)) {
+            when (val batch = changesOrExpired(token)) {
                 ChangeBatch.TokenExpired -> importLocked(permissions, scope)
                 is ChangeBatch.Changes -> applyChanges(batch, scope)
             }
@@ -247,6 +247,17 @@ class SyncManager @Inject constructor(
 
     // ------------------------------------------------------------ incremental
 
+    /**
+     * Health Connect rejects a token it no longer knows (its data was cleared, or it moved from the Android 9–13 app
+     * to the Android 14 framework) with IllegalArgumentException. Like an expired token, that means a re-import;
+     * otherwise every later sync would fail on the same token.
+     */
+    private suspend fun changesOrExpired(token: String): ChangeBatch = try {
+        source.changesSince(token)
+    } catch (e: IllegalArgumentException) {
+        ChangeBatch.TokenExpired
+    }
+
     /** Returns sessions upserted + ids deleted (a deleted id may have been a vital: the feed doesn't say). */
     private suspend fun applyChanges(batch: ChangeBatch.Changes, scope: Set<String>): Int {
         val zone = timeProvider.zone()
@@ -291,7 +302,11 @@ class SyncManager @Inject constructor(
 
     // ------------------------------------------------------------ last night
 
-    /** Whether a night session of the active source ends on [today] before the night cutoff (14:00). */
+    /**
+     * Whether a night session of the active source ending on [today] has [today] as its wake date (PLAN §3.1): it ends
+     * before the 14:00 cutoff, or later after sleep that didn't start this evening (a late wake). Sleep that ended
+     * yesterday evening is ignored although it also belongs to [today]: the main night can still be on its way.
+     */
     private suspend fun hasLastNight(today: LocalDate, settings: AppSettings): Boolean {
         val zone = timeProvider.zone()
         val from = today.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -312,7 +327,9 @@ class SyncManager @Inject constructor(
         val startTime = localStart.toLocalTime()
         val isNap = duration < config.napMaxDuration &&
             !startTime.isBefore(config.napWindowStart) && startTime.isBefore(config.napWindowEnd)
-        return !isNap && localEnd.toLocalDate() == today && localEnd.toLocalTime().isBefore(config.nightEndCutoff)
+        // Evening sleep that hasn't crossed midnight belongs to tonight, not last night.
+        val startedThisEvening = localStart.toLocalDate() == today && !startTime.isBefore(config.nightEndCutoff)
+        return !isNap && localEnd.toLocalDate() == today && !startedThisEvening
     }
 
     private fun Int?.toOffset(zone: ZoneId, at: Instant): ZoneOffset =

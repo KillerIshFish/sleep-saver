@@ -48,4 +48,12 @@ class DemoModeControllerImpl @Inject constructor(
         }
         Unit
     }
+
+    /**
+     * Adds the demo nights that ended since the last call (see [DemoDataWriter.extendToNow]). Checks the flag under
+     * the same lock as [setDemoMode], so a sync racing with "turn demo mode off" can't write the demo rows back.
+     */
+    suspend fun extendToNow(): Int = mutex.withLock {
+        if (settingsRepository.current().demoMode) writer.extendToNow() else 0
+    }
 }

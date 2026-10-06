@@ -161,7 +161,7 @@ class FakeSleepDataSourceTest {
         val steps = byType.getValue(VitalType.STEPS_DAY)
         assertThat(steps).hasSize(59) // finished days only
         assertThat(steps.all { it.value in 4_000.0..14_000.0 }).isTrue()
-        assertThat(steps.map { it.id }).doesNotContain("steps:$today")
+        assertThat(steps.map { it.id }).doesNotContain("demo:steps:$today")
         val sleepingHr = byType.getValue(VitalType.SLEEP_HR_AVG)
         assertThat(sleepingHr.map { it.id }).containsExactlyElementsIn(data.sessions.map { "sleephr:${it.id}" })
         assertThat(data.vitals.map { it.id }.toSet()).hasSize(data.vitals.size)

@@ -61,6 +61,9 @@ class FakeHealthConnectSource : SleepDataSource {
     var failWith: Exception? = null
     var expireNextToken = false
 
+    /** Thrown by the next changesSince only. */
+    var failNextChanges: Exception? = null
+
     /** When set, reads suspend until it completes (to observe overlapping syncs). */
     var readGate: CompletableDeferred<Unit>? = null
     private var tokens = 0
@@ -113,6 +116,7 @@ class FakeHealthConnectSource : SleepDataSource {
     override suspend fun changesSince(token: String): ChangeBatch {
         calls += "changes:$token"
         failWith?.let { throw it }
+        failNextChanges?.let { failNextChanges = null; throw it }
         if (expireNextToken) {
             expireNextToken = false
             return ChangeBatch.TokenExpired

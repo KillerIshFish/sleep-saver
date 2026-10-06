@@ -1,11 +1,14 @@
 package com.sleepsaver.core.data.sync
 
+import android.health.connect.HealthConnectException
 import android.os.RemoteException
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.healthconnect.HealthConnectPermissions
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
+import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
@@ -138,6 +141,69 @@ class SyncManagerTest {
         assertThat(fx.source.calls.take(3)).containsExactly("changes:token-1", "token", "read").inOrder()
         assertThat(storedIds()).containsExactly(a.id)
         assertThat(fx.store.current().changesToken).isEqualTo("token-2")
+    }
+
+    @Test
+    fun rejectedToken_fallsBackToFullImport() = runTest {
+        val a = night(today.minusDays(2))
+        fx.source.seed(a)
+        val manager = fx.manager(backgroundScope)
+        manager.sync(SyncTrigger.APP_OPEN)
+        fx.source.calls.clear()
+
+        // What the client library throws on Android 14+ for a token Health Connect doesn't know (data cleared/migrated).
+        fx.source.failNextChanges = IllegalArgumentException(frameworkException(HealthConnectException.ERROR_INVALID_ARGUMENT))
+        val result = manager.sync(SyncTrigger.APP_OPEN)
+
+        assertThat(result.success).isTrue()
+        assertThat(fx.source.calls.take(3)).containsExactly("changes:token-1", "token", "read").inOrder()
+        assertThat(storedIds()).containsExactly(a.id)
+        assertThat(fx.store.current().changesToken).isEqualTo("token-2")
+        assertThat(manager.state.value.lastError).isNull()
+    }
+
+    @Test
+    fun frameworkRateLimit_isRateLimited() = runTest {
+        val manager = fx.manager(backgroundScope)
+
+        // Android 14+: the client library wraps the framework's HealthConnectException in an IllegalStateException.
+        fx.source.failWith = IllegalStateException(frameworkException(HealthConnectException.ERROR_RATE_LIMIT_EXCEEDED))
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).error).isEqualTo(SyncError.RATE_LIMITED)
+
+        fx.source.failWith = IllegalStateException(frameworkException(HealthConnectException.ERROR_INTERNAL))
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).error).isEqualTo(SyncError.UNKNOWN)
+    }
+
+    @Test
+    fun lastNight_lateWakeCountsButSleepStartingThisEveningDoesNot() = runTest {
+        fx.time.setLocal(today.atTime(23, 0))
+        val manager = fx.manager(backgroundScope)
+        manager.sync(SyncTrigger.APP_OPEN)
+
+        // Dozing off on the sofa this evening belongs to tonight (tomorrow's wake date).
+        fx.source.upsert(hcSession("doze", fx.zone, today.atTime(20, 30), today.atTime(21, 40)))
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).lastNightArrived).isFalse()
+
+        // A long sleep that ends after 14:00 is still last night (PLAN §3.1: "very late wake").
+        fx.source.upsert(hcSession("late", fx.zone, today.atTime(4, 0), today.atTime(14, 30)))
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).lastNightArrived).isTrue()
+        assertThat(fx.notifier.arrived).containsExactly(today)
+    }
+
+    @Test
+    fun demoModeTurnedOffDuringASync_doesNotBringDemoRowsBack() = runTest {
+        fx.demoMode.setDemoMode(true)
+        // The sync reads "demo on", then the user turns demo mode off before the sync extends the demo nights.
+        val racing = object : SettingsRepository by fx.settings {
+            override suspend fun current(): AppSettings = fx.settings.current().also { fx.demoMode.setDemoMode(false) }
+        }
+
+        val result = fx.manager(backgroundScope, settingsRepository = racing).sync(SyncTrigger.APP_OPEN)
+
+        assertThat(result.success).isTrue()
+        assertThat(fx.settings.current().demoMode).isFalse()
+        assertThat(fx.db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+        assertThat(fx.db.vitalDao().getAll()).isEmpty()
     }
 
     @Test
@@ -381,5 +447,10 @@ class SyncManagerTest {
     private companion object {
         const val GARMIN = "com.garmin.android.apps.connectmobile"
         const val OTHER = "com.example.othertracker"
+
+        /** The framework exception's constructors are hidden from the SDK stubs but public at runtime. */
+        fun frameworkException(errorCode: Int): Exception = HealthConnectException::class.java
+            .getConstructor(Int::class.javaPrimitiveType, String::class.java)
+            .newInstance(errorCode, "error $errorCode")
     }
 }

@@ -2,6 +2,7 @@ package com.sleepsaver.core.data.sync
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -39,7 +40,11 @@ data class SyncStateSnapshot(
 class SyncStateStore internal constructor(private val dataStore: DataStore<Preferences>) {
 
     @Inject constructor(@ApplicationContext context: Context) : this(
-        PreferenceDataStoreFactory.create(produceFile = { context.preferencesDataStoreFile(FILE_NAME) }),
+        PreferenceDataStoreFactory.create(
+            // Only bookkeeping lives here: a damaged file means one re-import, not a sync that fails on every write.
+            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            produceFile = { context.preferencesDataStoreFile(FILE_NAME) },
+        ),
     )
 
     val data: Flow<SyncStateSnapshot> = dataStore.data
