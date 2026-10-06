@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors core:ui's dark palette; RemoteViews layouts need resource colours. -->
+    <color name="widget_background">#FF12151B</color>
+    <color name="widget_text_primary">#FFF1F3F6</color>
+    <color name="widget_text_secondary">#FF9AA4B2</color>
+    <color name="widget_tide">#FF3DD6C3</color>
+</resources>

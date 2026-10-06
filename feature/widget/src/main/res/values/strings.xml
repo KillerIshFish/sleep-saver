@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="debt_widget_label">Sleep debt</string>
+    <string name="debt_widget_description">Your sleep debt at a glance, plus where you are in today\'s energy rhythm.</string>
+
+    <string name="widget_debt_unit">hrs sleep debt</string>
+    <string name="widget_status_low">Low</string>
+    <string name="widget_status_moderate">Moderate</string>
+    <string name="widget_status_high">High</string>
+    <string name="widget_connect">Open Sleep Saver to connect</string>
+
+    <!-- %1$s = phase name, %2$s = a clock time -->
+    <string name="widget_phase_until">%1$s · until %2$s</string>
+    <string name="widget_phase_from">%1$s · from %2$s</string>
+
+    <string name="widget_phase_grogginess">Grogginess</string>
+    <string name="widget_phase_morning_peak">Morning peak</string>
+    <string name="widget_phase_afternoon_dip">Afternoon dip</string>
+    <string name="widget_phase_evening_peak">Evening peak</string>
+    <string name="widget_phase_wind_down">Wind-down</string>
+    <string name="widget_phase_melatonin_window">Melatonin window</string>
+
+    <!-- Static sample shown in the widget picker. -->
+    <string name="widget_preview_debt" translatable="false">1.4</string>
+    <string name="widget_preview_phase">Morning peak · until 11:20 AM</string>
+</resources>
