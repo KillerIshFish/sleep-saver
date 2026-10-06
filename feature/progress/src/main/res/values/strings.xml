@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Header -->
+    <string name="progress_title">Progress</string>
+    <string name="progress_previous_window">Previous two weeks</string>
+    <string name="progress_next_window">Next two weeks</string>
+    <string name="progress_settings">Settings</string>
+    <string name="progress_loading">Gathering your nights…</string>
+
+    <!-- Tabs -->
+    <string name="progress_tab_sleep_times">Sleep times</string>
+    <string name="progress_tab_sleep_debt">Sleep debt</string>
+    <string name="progress_tab_sleep_quality">Sleep quality</string>
+
+    <!-- Empty states -->
+    <string name="progress_empty_title">Your trends start here</string>
+    <string name="progress_empty_body">Once a few nights come in from your watch, this page shows when you slept, how your sleep debt moved and how restful each night was. You can also add a night yourself.</string>
+    <string name="progress_add_night">Add a night</string>
+    <string name="progress_open_settings">Open settings</string>
+    <string name="progress_window_empty_title">Nothing recorded these two weeks</string>
+    <string name="progress_window_empty_body">No sleep came in between these dates. Add a night you remember, or jump back to the latest weeks.</string>
+    <string name="progress_go_latest">Jump to latest</string>
+
+    <!-- Sleep times -->
+    <string name="progress_all_sleep_times">All sleep times</string>
+    <string name="progress_no_data">No data</string>
+    <string name="progress_add">Add</string>
+    <string name="progress_missing_duration">--</string>
+    <string name="progress_legend_asleep">Asleep</string>
+    <string name="progress_legend_extra">Extra sleep</string>
+    <string name="progress_legend_nap">Nap</string>
+    <string name="progress_legend_edited">Edited</string>
+    <string name="progress_legend_missing">Add missing</string>
+    <!-- Screen readers: "Saturday night, Oct 3, 8h 30m asleep" -->
+    <string name="progress_night_description">%1$s, %2$s, %3$s asleep</string>
+    <!-- Screen readers: "Saturday night, no data" -->
+    <string name="progress_missing_night_description">%1$s, no data</string>
+    <string name="progress_open_night">Open night</string>
+    <string name="progress_add_this_night">Add this night</string>
+    <string name="progress_edited">Edited</string>
+
+    <!-- Sleep debt -->
+    <string name="progress_all_sleep_debt">All sleep debt</string>
+    <string name="progress_today">Today</string>
+    <string name="progress_yesterday">Yesterday</string>
+    <!-- "Today · Oct 6" -->
+    <string name="progress_day_and_date">%1$s · %2$s</string>
+    <!-- "3.7 hrs debt" -->
+    <string name="progress_debt_hours">%1$s hrs debt</string>
+    <string name="progress_debt_axis_hours">%1$dh</string>
+    <!-- Label on the dashed line: "Streak limit · 5h" -->
+    <string name="progress_streak_limit">Streak limit · %1$s</string>
+    <string name="progress_debt_last_night_pending">Last night isn\'t in yet</string>
+    <string name="progress_debt_night_missing">Night missing, skipped</string>
+    <string name="progress_debt_empty">No debt to chart for these dates yet.</string>
+    <string name="progress_debt_low_hint">Below the streak limit keeps your steady streak going.</string>
+
+    <!-- Sleep quality -->
+    <string name="progress_stages_title">Sleep stages</string>
+    <string name="progress_stage_deep">Deep</string>
+    <string name="progress_stage_light">Light</string>
+    <string name="progress_stage_rem">REM</string>
+    <string name="progress_stage_awake">Awake</string>
+    <string name="progress_stage_none">No stages</string>
+    <string name="progress_stages_missing_note">Some nights came in without stage data, so they show as plain bars.</string>
+    <string name="progress_efficiency">Efficiency</string>
+    <string name="progress_efficiency_caption">of time in bed asleep</string>
+    <!-- "92%" -->
+    <string name="progress_percent">%1$d%%</string>
+    <string name="progress_interruptions">Interruptions</string>
+    <string name="progress_interruptions_caption">per night on average</string>
+    <string name="progress_deep_sleep">Deep sleep</string>
+    <string name="progress_rem_sleep">REM sleep</string>
+    <string name="progress_average_caption">average per night</string>
+    <string name="progress_no_value">--</string>
+    <string name="progress_resting_hr">Resting heart rate</string>
+    <string name="progress_hrv">Heart rate variability</string>
+    <string name="progress_bpm">bpm</string>
+    <string name="progress_ms">ms</string>
+    <!-- Next to the big average: "bpm avg" -->
+    <string name="progress_vital_average">%1$s avg</string>
+    <!-- "50–58" -->
+    <string name="progress_vital_range">Range %1$s–%2$s</string>
+    <string name="progress_vitals_hint">Allow heart-rate data in Health Connect to see trends</string>
+    <string name="progress_vitals_hint_body">Resting heart rate and HRV from your watch appear here once Sleep Saver may read them.</string>
+</resources>
