@@ -30,7 +30,7 @@ Where you can, save tasks that need sharp focus for after this first stretch of 
 
 ## In Sleep Saver
 
-The first block of your energy schedule is grogginess. It begins when you actually woke up, or at your typical wake time until last night's data arrives, and lasts between one and two hours.
+The first block of your energy schedule is grogginess. It begins when you actually woke up, or at your typical wake time until last night's data arrives, and lasts from about an hour to an hour and a half.
 
 The more sleep debt you carry, the longer the block, because inertia tends to hit harder when you're behind on sleep. Your morning peak never starts before grogginess ends.
 

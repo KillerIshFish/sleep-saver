@@ -135,6 +135,7 @@ private val QUOTE = Regex("""^ {0,3}>[ \t]?(.*)$""")
  */
 private class InlineParser(private val text: String) {
     private val runs = mutableListOf<TextRun>()
+    private val closers = HashMap<Triple<Int, Int, Int>, Int>()
 
     fun parse(): List<TextRun> {
         parseRange(0, text.length, bold = false, italic = false)
@@ -173,8 +174,14 @@ private class InlineParser(private val text: String) {
         emit(buffer, bold, italic)
     }
 
-    /** Index of the closing delimiter of [width] stars for content starting at [from], or -1. */
-    private fun findClose(from: Int, to: Int, width: Int): Int {
+    /**
+     * Index of the closing delimiter of [width] stars for content starting at [from], or -1. Memoized: a line of
+     * unmatched openers would otherwise re-scan the same nested spans exponentially often.
+     */
+    private fun findClose(from: Int, to: Int, width: Int): Int =
+        closers.getOrPut(Triple(from, to, width)) { scanForClose(from, to, width) }
+
+    private fun scanForClose(from: Int, to: Int, width: Int): Int {
         var j = from
         while (j < to) {
             when (text[j]) {

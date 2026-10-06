@@ -9,7 +9,7 @@ Toward the end of the day there's a stretch when sleep comes more easily. Sleep 
 
 ## Why timing matters
 
-Get into bed well before you're sleepy and you may lie awake. Push much later and you can hit a second wind, when the clock's evening alertness keeps you going and sleep gets harder to catch. Then a fixed alarm cuts the night short.
+Get into bed well before you're sleepy and you may lie awake, because your body clock keeps you fairly alert through the early evening. Push much later and the night simply runs short, since a fixed alarm doesn't move with you.
 
 The name comes from melatonin, a hormone your body releases as evening turns to night. Its levels usually start rising a couple of hours before your habitual sleep time, and bright evening light can hold that rise back. In Sleep Saver the name is a nod to that shift toward night. The app doesn't measure hormones: think of this as your best window to fall asleep.
 

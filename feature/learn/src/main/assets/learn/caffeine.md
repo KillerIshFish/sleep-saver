@@ -5,7 +5,7 @@ minutes: 2
 order: 8
 ---
 
-Caffeine works by blocking adenosine, a chemical that builds up while you're awake and is a big part of what makes you feel sleepy. That's why a coffee perks you up: the sleep pressure is still there, it's just harder to feel.
+Caffeine works by blocking the effect of adenosine, a chemical that builds up while you're awake and is a big part of what makes you feel sleepy. That's why a coffee perks you up: the sleep pressure is still there, it's just harder to feel.
 
 ## Why it lingers
 
@@ -20,7 +20,7 @@ A late cup may not stop you from falling asleep, but it can make your sleep ligh
 ## Using it well
 
 - Enjoy it in the morning and early afternoon, when it helps most and costs least.
-- Notice how much you're having. Needing more and more to get through the day is often a sign of sleep debt.
+- Notice how much you're having. Needing more and more to get through the day can be a sign of sleep debt.
 - If you're cutting back, do it gradually over a week or two to keep it comfortable.
 
 ## In Sleep Saver

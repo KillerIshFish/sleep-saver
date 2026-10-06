@@ -32,4 +32,4 @@ Sleep Saver estimates your rhythm from when you actually sleep. It takes the mid
 
 Your whole daily schedule hangs off that anchor: the morning and evening peaks, the afternoon dip, your target bedtime and the timing of reminders. Until you have three nights of data, the app uses the wake time and sleep need you chose during setup.
 
-Because the estimate uses a rolling window, a single late night barely moves your schedule, while a steady shift over a week or two will.
+Because the estimate uses a rolling window, a single late night only nudges your schedule, while a steady shift over a week or two will.

@@ -200,6 +200,13 @@ class MarkdownParserTest {
         assertThat(inline("** not bold **")).containsExactly(TextRun("** not bold **"))
     }
 
+    @Test(timeout = 2_000)
+    fun `a long line of unmatched openers parses quickly`() {
+        val text = "**a ".repeat(60) + "*b ".repeat(60)
+
+        assertThat(inline(text)).containsExactly(TextRun(text))
+    }
+
     @Test
     fun `escaped stars are literal`() {
         assertThat(inline("\\*not italic\\*")).containsExactly(TextRun("*not italic*"))
