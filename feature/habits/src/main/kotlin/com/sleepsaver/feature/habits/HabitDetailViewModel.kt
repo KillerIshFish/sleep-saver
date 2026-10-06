@@ -73,11 +73,23 @@ internal class HabitDetailViewModel @Inject constructor(
         HabitType.valueOf(savedStateHandle.toRoute<HabitDetailRoute>().type)
     }.getOrNull()
 
+    /**
+     * The offset the user last picked, shown before the database has caught up, so quick taps on the
+     * stepper each move it one step instead of re-sending the same value. null = show what's stored.
+     */
+    private val pendingOffset = MutableStateFlow<Duration?>(null)
+
     val uiState: StateFlow<HabitDetailUiState> = if (type == null) {
         MutableStateFlow(HabitDetailUiState.NotFound)
     } else {
-        combine(habits.habitSettings, habits.routineActivities, insights.state) { settings, activities, state ->
-            habitDetailUiState(type, settings, activities, state)
+        combine(
+            habits.habitSettings,
+            habits.routineActivities,
+            insights.state,
+            pendingOffset,
+        ) { settings, activities, state, pending ->
+            val shown = if (pending == null) settings else withOffset(settings, type, pending)
+            habitDetailUiState(type, shown, activities, state)
         }
             .catch<HabitDetailUiState> {
                 Log.w(LOG_TAG, "Loading habit $type failed", it)
@@ -95,16 +107,32 @@ internal class HabitDetailViewModel @Inject constructor(
         val ready = uiState.value as? HabitDetailUiState.Ready ?: return
         val offset = ready.timing.offsetOf(value)
         if (offset == ready.offset) return
-        edit { writer.setOffset(it, offset) }
+        showThenSave(offset) { writer.setOffset(it, offset) }
     }
 
-    fun resetTiming() = edit { writer.resetOffset(it) }
+    fun resetTiming() {
+        val type = type ?: return
+        showThenSave(habitCatalog.definition(type).defaultOffset) { writer.resetOffset(it) }
+    }
+
+    /** Shows [offset] right away; if saving fails, falls back to whatever is stored. */
+    private fun showThenSave(offset: Duration, save: suspend (HabitType) -> Boolean) {
+        val type = type ?: return
+        pendingOffset.value = offset
+        viewModelScope.launch {
+            if (!save(type)) pendingOffset.compareAndSet(offset, null)
+        }
+    }
 
     private fun edit(block: suspend (HabitType) -> Unit) {
         val type = type ?: return
         viewModelScope.launch { block(type) }
     }
 }
+
+/** [settings] with [type]'s offset replaced (added with its other defaults if it has no row yet). */
+private fun withOffset(settings: List<HabitSettings>, type: HabitType, offset: Duration): List<HabitSettings> =
+    completeSettings(settings).map { if (it.type == type) it.copy(offset = offset) else it }
 
 internal fun habitDetailUiState(
     type: HabitType,

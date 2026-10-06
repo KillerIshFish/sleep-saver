@@ -1,8 +1,10 @@
 package com.sleepsaver.feature.habits
 
 import android.Manifest
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -78,6 +80,8 @@ private fun openNotificationSettings(context: Context) {
         .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
     for (intent in listOf(notificationSettings, appDetails)) {
+        // Outside an activity (e.g. a wrapped context) a new task is required to start one.
+        if (context.findActivity() == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             context.startActivity(intent)
             return
@@ -85,4 +89,13 @@ private fun openNotificationSettings(context: Context) {
             Log.w(LOG_TAG, "No activity for ${intent.action}", e)
         }
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current != null) {
+        if (current is Activity) return current
+        current = (current as? ContextWrapper)?.baseContext
+    }
+    return null
 }

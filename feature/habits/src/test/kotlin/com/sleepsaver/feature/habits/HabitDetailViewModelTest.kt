@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -203,6 +204,56 @@ class HabitDetailViewModelTest {
         assertThat(storedOffset(HabitType.EXERCISE_CUTOFF)).isEqualTo(Duration.ofHours(-2))
         assertThat(viewModel.ready().isDefaultTiming).isTrue()
         assertThat(planner.replans).isEqualTo(2)
+    }
+
+    @Test
+    fun `quick stepper taps each move one step before the database catches up`() = runTest {
+        val slow = SlowOffsetHabitsRepository(habits)
+        val viewModel = viewModel(HabitType.CAFFEINE_CUTOFF.name, repository = slow)
+        viewModel.ready()
+
+        viewModel.setTimingValue(viewModel.ready().value - 30)
+        viewModel.setTimingValue(viewModel.ready().value - 30)
+
+        assertThat(viewModel.ready().value).isEqualTo(540)
+        assertThat(viewModel.ready().time).isEqualTo(insights.schedule.targetBedtime.minus(Duration.ofMinutes(540)))
+        assertThat(storedOffset(HabitType.CAFFEINE_CUTOFF)).isEqualTo(Duration.ofHours(-10))
+
+        slow.gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(storedOffset(HabitType.CAFFEINE_CUTOFF)).isEqualTo(Duration.ofMinutes(-540))
+        assertThat(viewModel.ready().value).isEqualTo(540)
+        assertThat(planner.replans).isEqualTo(2)
+    }
+
+    @Test
+    fun `a failed timing change goes back to the stored value`() = runTest {
+        val viewModel = viewModel(HabitType.CAFFEINE_CUTOFF.name, repository = FailingHabitsRepository())
+
+        viewModel.setTimingValue(8 * 60)
+
+        assertThat(viewModel.ready().value).isEqualTo(600)
+    }
+
+    @Test
+    fun `reset shows the default right away`() = runTest {
+        val slow = SlowOffsetHabitsRepository(habits)
+        habits.setOffset(HabitType.EXERCISE_CUTOFF, Duration.ofHours(-4))
+        val viewModel = viewModel(HabitType.EXERCISE_CUTOFF.name, repository = slow)
+        assertThat(viewModel.ready().value).isEqualTo(240)
+
+        viewModel.resetTiming()
+
+        assertThat(viewModel.ready().isDefaultTiming).isTrue()
+        assertThat(storedOffset(HabitType.EXERCISE_CUTOFF)).isEqualTo(Duration.ofHours(-4))
+
+        slow.gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertThat(storedOffset(HabitType.EXERCISE_CUTOFF)).isEqualTo(Duration.ofHours(-2))
+        assertThat(viewModel.ready().isDefaultTiming).isTrue()
+        assertThat(planner.replans).isEqualTo(1)
     }
 
     @Test
