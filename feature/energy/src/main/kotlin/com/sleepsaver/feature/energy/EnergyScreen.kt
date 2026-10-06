@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -23,8 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.EditCalendar
+import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +93,7 @@ internal fun EnergyScreen(
         onOpenHabit = onOpenHabit,
         onToggleReminder = viewModel::setReminder,
         onOpenSettings = onOpenSettings,
+        onSync = viewModel::syncNow,
         modifier = modifier,
     )
 }
@@ -106,6 +112,7 @@ internal fun EnergyContent(
     onToggleReminder: (HabitType, Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onSync: () -> Unit = {},
     focusTime: Instant? = null,
     initialSheetValue: SheetValue = SheetValue.PartiallyExpanded,
 ) {
@@ -120,23 +127,9 @@ internal fun EnergyContent(
                 LoadingOrb(label = stringResource(R.string.energy_loading), modifier = Modifier.padding(bottom = 96.dp))
             }
         }
-        EnergyUiState.NoNights -> Column(insetsModifier) {
+        is EnergyUiState.NoNights -> Column(insetsModifier) {
             EnergyHeader(subtitle = null, onOpenSettings = onOpenSettings)
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.xl, vertical = Spacing.xxl),
-                contentAlignment = Alignment.Center,
-            ) {
-                EmptyState(
-                    icon = Icons.Rounded.Insights,
-                    title = stringResource(R.string.energy_empty_title),
-                    body = stringResource(R.string.energy_empty_body),
-                    primaryActionLabel = stringResource(R.string.energy_empty_action),
-                    onPrimaryAction = onOpenSettings,
-                )
-            }
+            NoNightsContent(reason = state.reason, onOpenSettings = onOpenSettings)
         }
         is EnergyUiState.Ready -> ReadyContent(
             state = state,
@@ -146,6 +139,7 @@ internal fun EnergyContent(
             onOpenHabit = onOpenHabit,
             onToggleReminder = onToggleReminder,
             onOpenSettings = onOpenSettings,
+            onSync = onSync,
             focusTime = focusTime,
             initialSheetValue = initialSheetValue,
             modifier = insetsModifier,
@@ -179,6 +173,7 @@ private fun ReadyContent(
     onOpenHabit: (HabitType) -> Unit,
     onToggleReminder: (HabitType, Boolean) -> Unit,
     onOpenSettings: () -> Unit,
+    onSync: () -> Unit,
     focusTime: Instant?,
     initialSheetValue: SheetValue,
     modifier: Modifier,
@@ -186,7 +181,8 @@ private fun ReadyContent(
     val scaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberStandardBottomSheetState(initialValue = initialSheetValue, skipHiddenState = true),
     )
-    var awakeDraft by remember { mutableStateOf<AwakeDraft?>(null) }
+    // Survives rotation, so a half-made entry isn't lost.
+    var awakeDraft by rememberSaveable(stateSaver = AwakeDraft.Saver) { mutableStateOf<AwakeDraft?>(null) }
 
     BottomSheetScaffold(
         sheetContent = {
@@ -216,7 +212,9 @@ private fun ReadyContent(
             if (state.lastNightState == LastNightState.WAITING || state.lastNightState == LastNightState.MISSING) {
                 LastNightBanner(
                     missing = state.lastNightState == LastNightState.MISSING,
+                    syncing = state.syncing,
                     onAdd = { onEditNight(state.today) },
+                    onSync = onSync,
                     modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xs),
                 )
             }
@@ -257,13 +255,20 @@ private fun ReadyContent(
 }
 
 @Composable
-private fun LastNightBanner(missing: Boolean, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+private fun LastNightBanner(
+    missing: Boolean,
+    syncing: Boolean,
+    onAdd: () -> Unit,
+    onSync: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .background(SleepSaverTheme.colors.card)
-            .padding(start = Spacing.l, end = if (missing) Spacing.xs else Spacing.l, top = Spacing.m, bottom = Spacing.m),
+            .padding(start = Spacing.l, end = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs)
+            .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -277,9 +282,53 @@ private fun LastNightBanner(missing: Boolean, onAdd: () -> Unit, modifier: Modif
             text = stringResource(if (missing) R.string.energy_missing_banner else R.string.energy_waiting_banner),
             style = MaterialTheme.typography.bodySmall,
             color = SleepSaverTheme.colors.textSecondary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .padding(vertical = Spacing.s),
         )
-        if (missing) TextLinkButton(stringResource(R.string.energy_missing_action), onClick = onAdd)
+        if (missing) {
+            TextLinkButton(stringResource(R.string.energy_missing_action), onClick = onAdd)
+        } else {
+            TextLinkButton(
+                text = stringResource(if (syncing) R.string.energy_syncing else R.string.energy_sync_now),
+                onClick = onSync,
+                enabled = !syncing,
+            )
+        }
+    }
+}
+
+/** Nothing to draw yet: say why and offer the fix (data source and Health Connect live in Settings). */
+@Composable
+private fun NoNightsContent(reason: EmptyReason, onOpenSettings: () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.xl, vertical = Spacing.xxl),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (reason == EmptyReason.IMPORTING) {
+            LoadingOrb(label = stringResource(R.string.energy_importing), modifier = Modifier.padding(bottom = 96.dp))
+        } else {
+            val (icon, title, body) = when (reason) {
+                EmptyReason.HEALTH_CONNECT_MISSING ->
+                    Triple(Icons.Rounded.HealthAndSafety, R.string.energy_hc_missing_title, R.string.energy_hc_missing_body)
+                EmptyReason.HEALTH_CONNECT_UPDATE ->
+                    Triple(Icons.Rounded.SystemUpdate, R.string.energy_hc_update_title, R.string.energy_hc_update_body)
+                EmptyReason.PERMISSION_DENIED ->
+                    Triple(Icons.Rounded.Lock, R.string.energy_permission_title, R.string.energy_permission_body)
+                EmptyReason.NO_DATA, EmptyReason.IMPORTING ->
+                    Triple(Icons.Rounded.Insights, R.string.energy_empty_title, R.string.energy_empty_body)
+            }
+            EmptyState(
+                icon = icon,
+                title = stringResource(title),
+                body = stringResource(body),
+                primaryActionLabel = stringResource(R.string.energy_empty_action),
+                onPrimaryAction = onOpenSettings,
+            )
+        }
     }
 }
 

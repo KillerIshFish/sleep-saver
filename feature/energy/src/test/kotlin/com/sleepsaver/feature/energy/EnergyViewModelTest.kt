@@ -3,12 +3,17 @@ package com.sleepsaver.feature.energy
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.data.repository.SyncState
+import com.sleepsaver.core.data.repository.SyncStatus
+import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
+import com.sleepsaver.core.testing.FakeSyncRepository
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +44,7 @@ class EnergyViewModelTest {
     private val sleep = FakeSleepRepository(SampleData.nights())
     private val settings = FakeSettingsRepository()
     private val habits = FakeHabitsRepository()
+    private val sync = FakeSyncRepository()
     private val time = FakeTimeProvider(SampleData.now)
 
     @Before
@@ -47,7 +53,7 @@ class EnergyViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = EnergyViewModel(insights, sleep, settings, habits, time)
+    private fun viewModel() = EnergyViewModel(insights, sleep, settings, habits, sync, time)
 
     @Test
     fun `starts loading`() = runTest {
@@ -58,7 +64,40 @@ class EnergyViewModelTest {
     fun `no nights shows the empty state`() = runTest {
         insights.mutableState.value = InsightsState.NoNights
 
-        assertThat(viewModel().uiState.first { it != EnergyUiState.Loading }).isEqualTo(EnergyUiState.NoNights)
+        assertThat(viewModel().uiState.first { it != EnergyUiState.Loading }).isEqualTo(EnergyUiState.NoNights(EmptyReason.NO_DATA))
+    }
+
+    @Test
+    fun `the empty state says what to fix`() = runTest {
+        insights.mutableState.value = InsightsState.NoNights
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+        sync.mutableState.value = SyncState(lastError = SyncError.HEALTH_CONNECT_NOT_INSTALLED)
+        assertThat(viewModel.uiState.value).isEqualTo(EnergyUiState.NoNights(EmptyReason.HEALTH_CONNECT_MISSING))
+
+        sync.mutableState.value = SyncState(lastError = SyncError.HEALTH_CONNECT_UPDATE_REQUIRED)
+        assertThat(viewModel.uiState.value).isEqualTo(EnergyUiState.NoNights(EmptyReason.HEALTH_CONNECT_UPDATE))
+
+        sync.mutableState.value = SyncState(lastError = SyncError.PERMISSION_DENIED)
+        assertThat(viewModel.uiState.value).isEqualTo(EnergyUiState.NoNights(EmptyReason.PERMISSION_DENIED))
+
+        sync.mutableState.value = SyncState(status = SyncStatus.Importing(0.4f), lastError = SyncError.PERMISSION_DENIED)
+        assertThat(viewModel.uiState.value).isEqualTo(EnergyUiState.NoNights(EmptyReason.IMPORTING))
+    }
+
+    @Test
+    fun `sync now runs a manual sync, once while one is running`() = runTest {
+        insights.mutableState.value = SampleData.readyState()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+        viewModel.syncNow()
+        sync.mutableState.value = SyncState(status = SyncStatus.Syncing)
+        viewModel.syncNow()
+
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+        assertThat((viewModel.uiState.value as EnergyUiState.Ready).syncing).isTrue()
     }
 
     @Test

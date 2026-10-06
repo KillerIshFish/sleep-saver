@@ -2,6 +2,7 @@ package com.sleepsaver.feature.energy
 
 import androidx.compose.material3.SheetValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -36,6 +37,7 @@ class EnergyContentTest {
     private val reminders = mutableListOf<Pair<HabitType, Boolean>>()
     private var addHabitTaps = 0
     private var settingsTaps = 0
+    private var syncTaps = 0
 
     private fun show(state: EnergyUiState, focusTime: Instant? = null, sheet: SheetValue = SheetValue.PartiallyExpanded) {
         compose.setContent {
@@ -48,6 +50,7 @@ class EnergyContentTest {
                     onOpenHabit = { openedHabits += it },
                     onToggleReminder = { type, on -> reminders += type to on },
                     onOpenSettings = { settingsTaps++ },
+                    onSync = { syncTaps++ },
                     focusTime = focusTime,
                     initialSheetValue = sheet,
                 )
@@ -138,14 +141,42 @@ class EnergyContentTest {
         show(state, focusTime = state.schedule.typicalWake.toInstant() - Duration.ofHours(3))
 
         compose.onNodeWithText("Last night hasn't synced yet", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Sync now").performClick()
         compose.onNodeWithContentDescription("Last night's sleep hasn't arrived yet").performClick()
+
+        assertThat(syncTaps).isEqualTo(1)
+        assertThat(editedNights).containsExactly(SampleData.today)
+    }
+
+    @Test
+    fun `while syncing the banner action is disabled`() {
+        show(EnergyTestData.waiting().copy(syncing = true))
+
+        compose.onNodeWithText("Syncing…").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a missing last night offers to add it`() {
+        show(EnergyTestData.waiting(now = EnergyTestData.at(15, 0)))
+
+        compose.onNodeWithText("Add it").performClick()
 
         assertThat(editedNights).containsExactly(SampleData.today)
     }
 
     @Test
+    fun `without Health Connect the empty state says so and links to set up`() {
+        show(EnergyUiState.NoNights(EmptyReason.HEALTH_CONNECT_MISSING))
+
+        compose.onNodeWithText("Health Connect is needed").assertIsDisplayed()
+        compose.onNodeWithText("Set up data").performClick()
+
+        assertThat(settingsTaps).isEqualTo(1)
+    }
+
+    @Test
     fun `no nights explains and links to set up`() {
-        show(EnergyUiState.NoNights)
+        show(EnergyUiState.NoNights())
 
         compose.onNodeWithText("Your energy schedule needs a few nights of sleep").assertIsDisplayed()
         compose.onNodeWithText("Set up data").performClick()

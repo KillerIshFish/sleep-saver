@@ -113,7 +113,20 @@ class EnergyScreenshotTest : ScreenshotTest() {
     }
 
     @Test
-    fun empty() = captureScreen("energy_empty") { Screen(EnergyUiState.NoNights) }
+    fun empty() = captureScreen("energy_empty") { Screen(EnergyUiState.NoNights()) }
+
+    @Test
+    fun emptyHealthConnectMissing() = captureScreen("energy_empty_hc_missing") {
+        Screen(EnergyUiState.NoNights(EmptyReason.HEALTH_CONNECT_MISSING))
+    }
+
+    @Test
+    fun emptyPermissionDenied() = captureScreen("energy_empty_permission") {
+        Screen(EnergyUiState.NoNights(EmptyReason.PERMISSION_DENIED))
+    }
+
+    @Test
+    fun importing() = captureScreen("energy_importing") { Screen(EnergyUiState.NoNights(EmptyReason.IMPORTING)) }
 
     @Test
     fun loading() = captureScreen("energy_loading") { Screen(EnergyUiState.Loading) }

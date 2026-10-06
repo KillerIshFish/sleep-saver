@@ -17,6 +17,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,7 +50,37 @@ data class AwakeDraft(
     val blockStart: Instant,
     val blockEnd: Instant,
     val start: Instant,
-)
+) {
+    companion object {
+        /** Saves an open dialog's draft (or none) across rotation and process death. */
+        val Saver: Saver<AwakeDraft?, Any> = listSaver(
+            save = { draft ->
+                if (draft == null) {
+                    emptyList()
+                } else {
+                    listOf(
+                        draft.wakeDate.toEpochDay(),
+                        draft.blockStart.toEpochMilli(),
+                        draft.blockEnd.toEpochMilli(),
+                        draft.start.toEpochMilli(),
+                    )
+                }
+            },
+            restore = { saved ->
+                if (saved.size != 4) {
+                    null
+                } else {
+                    AwakeDraft(
+                        wakeDate = LocalDate.ofEpochDay(saved[0]),
+                        blockStart = Instant.ofEpochMilli(saved[1]),
+                        blockEnd = Instant.ofEpochMilli(saved[2]),
+                        start = Instant.ofEpochMilli(saved[3]),
+                    )
+                }
+            },
+        )
+    }
+}
 
 internal const val DefaultAwakeMinutes = 15
 internal const val MinAwakeMinutes = 5

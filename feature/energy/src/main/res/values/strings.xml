@@ -10,11 +10,20 @@
     <string name="energy_empty_title">Your energy schedule needs a few nights of sleep</string>
     <string name="energy_empty_body">Once Sleep Saver can read your recent sleep, it maps when you\'re likely to feel sharp, when energy sags and when to start winding down.</string>
     <string name="energy_empty_action">Set up data</string>
+    <string name="energy_importing">Reading your sleep history…</string>
+    <string name="energy_hc_missing_title">Health Connect is needed</string>
+    <string name="energy_hc_missing_body">Sleep Saver reads your watch\'s sleep through Health Connect. Install it, connect your data, and your energy map appears here.</string>
+    <string name="energy_hc_update_title">Health Connect needs an update</string>
+    <string name="energy_hc_update_body">Update Health Connect so Sleep Saver can read your recent sleep and map your day.</string>
+    <string name="energy_permission_title">Sleep Saver can\'t read your sleep yet</string>
+    <string name="energy_permission_body">Allow access to sleep in Health Connect. Everything stays on this phone.</string>
 
     <!-- Last night not in yet -->
     <string name="energy_waiting_banner">Last night hasn\'t synced yet. Times follow your usual rhythm until it does.</string>
     <string name="energy_missing_banner">No sleep recorded for last night. Times follow your usual rhythm.</string>
     <string name="energy_missing_action">Add it</string>
+    <string name="energy_sync_now">Sync now</string>
+    <string name="energy_syncing">Syncing…</string>
 
     <!-- Timeline -->
     <string name="energy_now">Now %1$s</string>

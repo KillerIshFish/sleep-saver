@@ -8,6 +8,8 @@ import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
+import com.sleepsaver.core.data.repository.SyncRepository
+import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.HabitType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,7 +25,8 @@ import javax.inject.Inject
 
 /**
  * The Energy tab: today's schedule from [InsightsRepository], the freshest nights from [SleepRepository] (so a
- * night that just synced is drawn right away) and the minute clock for the now-line.
+ * night that just synced is drawn right away), the minute clock for the now-line and the sync state (for the
+ * empty state's reason and the "Sync now" action while last night is on its way).
  */
 @HiltViewModel
 class EnergyViewModel @Inject constructor(
@@ -31,19 +34,25 @@ class EnergyViewModel @Inject constructor(
     private val sleepRepository: SleepRepository,
     settingsRepository: SettingsRepository,
     private val habitsRepository: HabitsRepository,
+    private val syncRepository: SyncRepository,
     timeProvider: TimeProvider,
 ) : ViewModel() {
 
-    val uiState: StateFlow<EnergyUiState> = combine(
+    private val sources = combine(
         insightsRepository.state,
         sleepRepository.nights,
         settingsRepository.settings.map { it.sleep.sleepNeed }.distinctUntilChanged(),
+    ) { insights, nights, need -> Triple(insights, nights, need) }
+
+    val uiState: StateFlow<EnergyUiState> = combine(
+        sources,
         timeProvider.minuteTicks,
-    ) { insights, nights, need, now ->
+        syncRepository.state,
+    ) { (insights, nights, need), now, sync ->
         when (insights) {
             InsightsState.Loading -> EnergyUiState.Loading
-            InsightsState.NoNights -> EnergyUiState.NoNights
-            is InsightsState.Ready -> energyReadyState(insights.insights, nights, need, now)
+            InsightsState.NoNights -> EnergyUiState.NoNights(sync.emptyReason())
+            is InsightsState.Ready -> energyReadyState(insights.insights, nights, need, now, sync.isSyncing)
         }
     }
         .distinctUntilChanged()
@@ -57,5 +66,11 @@ class EnergyViewModel @Inject constructor(
 
     fun setReminder(type: HabitType, enabled: Boolean) {
         viewModelScope.launch { habitsRepository.setReminder(type, enabled) }
+    }
+
+    /** "Sync now" while last night hasn't arrived. Ignored while a sync is already running. */
+    fun syncNow() {
+        if (syncRepository.state.value.isSyncing) return
+        viewModelScope.launch { syncRepository.sync(SyncTrigger.MANUAL) }
     }
 }

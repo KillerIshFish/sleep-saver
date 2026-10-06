@@ -1,5 +1,8 @@
 package com.sleepsaver.feature.energy
 
+import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.data.repository.SyncState
+import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.domain.model.DailyInsights
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.EnergySchedule
@@ -14,8 +17,8 @@ import java.time.ZoneId
 sealed interface EnergyUiState {
     data object Loading : EnergyUiState
 
-    /** No sleep at all for the active source yet. */
-    data object NoNights : EnergyUiState
+    /** No sleep at all for the active source yet, and why (so the empty state can say what to fix). */
+    data class NoNights(val reason: EmptyReason = EmptyReason.NO_DATA) : EnergyUiState
 
     data class Ready(
         val today: LocalDate,
@@ -34,11 +37,36 @@ sealed interface EnergyUiState {
         val habits: List<ScheduledHabit>,
         /** The first enabled habit that hasn't passed yet. */
         val nextHabit: ScheduledHabit?,
+        /** A sync is running right now (the "Sync now" action shows progress instead). */
+        val syncing: Boolean = false,
     ) : EnergyUiState {
         /** Habits drawn on the timeline: only the ones in the user's plan. */
         val timelineHabits: List<ScheduledHabit> get() = habits.filter { it.enabled }
     }
 }
+
+/** Why there's nothing to draw yet. */
+enum class EmptyReason {
+    /** Connected, but no sleep has been recorded (or the selected source has none). */
+    NO_DATA,
+
+    /** The first history import is still running. */
+    IMPORTING,
+    HEALTH_CONNECT_MISSING,
+    HEALTH_CONNECT_UPDATE,
+    PERMISSION_DENIED,
+}
+
+/** The empty-state reason the last sync points at. */
+fun SyncState.emptyReason(): EmptyReason = when {
+    status is SyncStatus.Importing || status == SyncStatus.Syncing -> EmptyReason.IMPORTING
+    lastError == SyncError.HEALTH_CONNECT_NOT_INSTALLED -> EmptyReason.HEALTH_CONNECT_MISSING
+    lastError == SyncError.HEALTH_CONNECT_UPDATE_REQUIRED -> EmptyReason.HEALTH_CONNECT_UPDATE
+    lastError == SyncError.PERMISSION_DENIED -> EmptyReason.PERMISSION_DENIED
+    else -> EmptyReason.NO_DATA
+}
+
+val SyncState.isSyncing: Boolean get() = status != SyncStatus.Idle
 
 /**
  * Builds [EnergyUiState.Ready] from the day's insights, the freshest nights from the sleep repository and the
@@ -50,6 +78,7 @@ fun energyReadyState(
     nights: List<Night>,
     sleepNeed: Duration,
     now: Instant,
+    syncing: Boolean = false,
 ): EnergyUiState.Ready {
     val today = insights.today
     val lastNight = nights.firstOrNull { it.wakeDate == today && it.isPresent } ?: insights.lastNight
@@ -68,5 +97,6 @@ fun energyReadyState(
         nights = nearby,
         habits = habits,
         nextHabit = habits.firstOrNull { it.enabled && (it.windowEnd ?: it.time).isAfter(now) },
+        syncing = syncing,
     )
 }
