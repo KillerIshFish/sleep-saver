@@ -127,9 +127,9 @@ internal fun HabitSwitch(
     )
 }
 
-/** Explains that reminders are blocked and links to the system's notification settings. */
+/** Explains that reminders are blocked, with a button that asks for the permission or opens the settings. */
 @Composable
-internal fun NotificationsOffNotice(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+internal fun NotificationsOffNotice(onTurnOn: () -> Unit, modifier: Modifier = Modifier) {
     SleepSaverCard(modifier = modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Box(
@@ -160,8 +160,8 @@ internal fun NotificationsOffNotice(onOpenSettings: () -> Unit, modifier: Modifi
                 )
                 // Shifted by the button's inner padding so its text lines up with the body.
                 TextLinkButton(
-                    stringResource(R.string.habits_notifications_open_settings),
-                    onClick = onOpenSettings,
+                    stringResource(R.string.habits_notifications_turn_on),
+                    onClick = onTurnOn,
                     modifier = Modifier.padding(top = 4.dp).offsetStart().trimBottom(),
                 )
             }

@@ -18,7 +18,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -32,17 +34,21 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 @Stable
 internal class NotificationAccess(
     private val allowedState: MutableState<Boolean>,
-    private val requestPermission: () -> Unit,
-    private val openSettingsAction: () -> Unit,
+    private val request: (fromNotice: Boolean) -> Unit,
 ) {
     val allowed: Boolean get() = allowedState.value
 
     /** Call after a reminder was switched on: asks for POST_NOTIFICATIONS when it's missing (Android 13+). */
     fun onReminderTurnedOn() {
-        if (!allowed) requestPermission()
+        if (!allowed) request(false)
     }
 
-    fun openSettings() = openSettingsAction()
+    /**
+     * The "notifications are off" notice's button: asks for the permission while Android still shows the
+     * prompt, otherwise (Android 12 and lower, blocked in settings, or denied for good) opens the system's
+     * notification settings for the app.
+     */
+    fun turnOn() = request(true)
 }
 
 @Composable
@@ -50,22 +56,31 @@ internal fun rememberNotificationAccess(): NotificationAccess {
     val context = LocalContext.current
     val allowed = remember { mutableStateOf(notificationsAllowed(context)) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { allowed.value = notificationsAllowed(context) }
-    // Denied: `allowed` stays false and the screens show the "notifications are off" notice with a settings link.
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    // Asked from the notice: if Android no longer shows the prompt, the settings page is the only way left.
+    val settingsIfRefused = rememberSaveable { mutableStateOf(false) }
+    // Denied after a reminder toggle: `allowed` stays false and the screen shows the notice, which explains.
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         allowed.value = notificationsAllowed(context)
+        if (!granted && settingsIfRefused.value && !canAskAgain(context)) openNotificationSettings(context)
+        settingsIfRefused.value = false
     }
     return remember(context, launcher) {
         NotificationAccess(
             allowedState = allowed,
-            requestPermission = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                    PackageManager.PERMISSION_GRANTED
-                ) {
-                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            request = { fromNotice ->
+                when {
+                    needsPermission(context) -> {
+                        settingsIfRefused.value = fromNotice
+                        try {
+                            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } catch (e: ActivityNotFoundException) {
+                            Log.w(LOG_TAG, "No permission prompt available", e)
+                            if (fromNotice) openNotificationSettings(context)
+                        }
+                    }
+                    fromNotice -> openNotificationSettings(context)
                 }
             },
-            openSettingsAction = { openNotificationSettings(context) },
         )
     }
 }
@@ -73,6 +88,21 @@ internal fun rememberNotificationAccess(): NotificationAccess {
 /** False when the permission is missing (Android 13+) or the user blocked the app's notifications. */
 private fun notificationsAllowed(context: Context): Boolean =
     NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+/** Android 13+ without POST_NOTIFICATIONS granted. */
+private fun needsPermission(context: Context): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+/**
+ * Whether Android would still show the permission prompt after a refusal. After a first "Don't allow" it
+ * would (the rationale flag is set); after a second, or a block in settings, it silently refuses.
+ */
+private fun canAskAgain(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    val activity = context.findActivity() ?: return false
+    return ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
+}
 
 /** The app's notification settings page; the app-info page where that isn't available. */
 private fun openNotificationSettings(context: Context) {

@@ -99,7 +99,7 @@
     <!-- Notifications blocked -->
     <string name="habits_notifications_off_title">Notifications are off</string>
     <string name="habits_notifications_off_body">Reminders can\'t reach you until Sleep Saver is allowed to send notifications.</string>
-    <string name="habits_notifications_open_settings">Open notification settings</string>
+    <string name="habits_notifications_turn_on">Turn on notifications</string>
 
     <!-- Evening routine -->
     <string name="habits_routine_close">Close</string>

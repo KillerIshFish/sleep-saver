@@ -90,7 +90,7 @@ internal fun HabitDetailScreen(
         onResetTiming = viewModel::resetTiming,
         onChooseActivities = onChooseActivities,
         notificationsBlocked = !notifications.allowed,
-        onOpenNotificationSettings = notifications::openSettings,
+        onTurnOnNotifications = notifications::turnOn,
         modifier = modifier,
     )
 }
@@ -106,7 +106,7 @@ internal fun HabitDetailContent(
     onChooseActivities: () -> Unit,
     modifier: Modifier = Modifier,
     notificationsBlocked: Boolean = false,
-    onOpenNotificationSettings: () -> Unit = {},
+    onTurnOnNotifications: () -> Unit = {},
     scrollState: ScrollState = rememberScrollState(),
 ) {
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -146,7 +146,7 @@ internal fun HabitDetailContent(
                     onTimingChange = onTimingChange,
                     onResetTiming = onResetTiming,
                     onChooseActivities = onChooseActivities,
-                    onOpenNotificationSettings = onOpenNotificationSettings,
+                    onTurnOnNotifications = onTurnOnNotifications,
                 )
             }
         }
@@ -163,7 +163,7 @@ private fun HabitDetailBody(
     onTimingChange: (Int) -> Unit,
     onResetTiming: () -> Unit,
     onChooseActivities: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
+    onTurnOnNotifications: () -> Unit,
 ) {
     Column(
         Modifier
@@ -189,7 +189,7 @@ private fun HabitDetailBody(
         TodayCard(state, Modifier.padding(top = Spacing.xl))
         SettingsCard(state, onToggleHabit, onToggleReminder, Modifier.padding(top = Spacing.cardGap))
         if (notificationsBlocked && state.enabled && state.reminderEnabled) {
-            NotificationsOffNotice(onOpenNotificationSettings, Modifier.padding(top = Spacing.cardGap))
+            NotificationsOffNotice(onTurnOnNotifications, Modifier.padding(top = Spacing.cardGap))
         }
         if (state.type == HabitType.EVENING_ROUTINE) {
             ActivitiesCard(state.activities, onChooseActivities, Modifier.padding(top = Spacing.cardGap))

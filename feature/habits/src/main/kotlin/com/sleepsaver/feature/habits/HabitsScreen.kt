@@ -82,7 +82,7 @@ internal fun HabitsScreen(
             if (on) notifications.onReminderTurnedOn()
         },
         notificationsBlocked = !notifications.allowed,
-        onOpenNotificationSettings = notifications::openSettings,
+        onTurnOnNotifications = notifications::turnOn,
         modifier = modifier,
     )
 }
@@ -96,7 +96,7 @@ internal fun HabitsContent(
     onToggleReminder: (HabitType, Boolean) -> Unit,
     modifier: Modifier = Modifier,
     notificationsBlocked: Boolean = false,
-    onOpenNotificationSettings: () -> Unit = {},
+    onTurnOnNotifications: () -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
 ) {
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -126,7 +126,7 @@ internal fun HabitsContent(
                     onOpenHabit = onOpenHabit,
                     onToggleHabit = onToggleHabit,
                     onToggleReminder = onToggleReminder,
-                    onOpenNotificationSettings = onOpenNotificationSettings,
+                    onTurnOnNotifications = onTurnOnNotifications,
                 )
             }
         }
@@ -141,7 +141,7 @@ private fun HabitsList(
     onOpenHabit: (HabitType) -> Unit,
     onToggleHabit: (HabitType, Boolean) -> Unit,
     onToggleReminder: (HabitType, Boolean) -> Unit,
-    onOpenNotificationSettings: () -> Unit,
+    onTurnOnNotifications: () -> Unit,
 ) {
     LazyColumn(
         state = listState,
@@ -156,7 +156,7 @@ private fun HabitsList(
         }
         if (notificationsBlocked && state.anyReminderOn) {
             item(key = "notifications") {
-                NotificationsOffNotice(onOpenNotificationSettings, Modifier.padding(top = Spacing.xl))
+                NotificationsOffNotice(onTurnOnNotifications, Modifier.padding(top = Spacing.xl))
             }
         }
         if (state.times == TimesStatus.NO_NIGHTS) {
