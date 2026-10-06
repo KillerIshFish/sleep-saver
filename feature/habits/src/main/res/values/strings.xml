@@ -48,7 +48,6 @@
 
     <!-- Habit detail -->
     <string name="habits_detail_today">Today</string>
-    <string name="habits_detail_why">Why it helps</string>
     <string name="habits_detail_show">Show in my schedule</string>
     <string name="habits_detail_show_body">Appears on your energy timeline</string>
     <string name="habits_detail_remind">Remind me</string>
