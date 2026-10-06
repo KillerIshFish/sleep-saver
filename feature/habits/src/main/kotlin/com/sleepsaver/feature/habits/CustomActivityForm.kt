@@ -1,0 +1,160 @@
+package com.sleepsaver.feature.habits
+
+import android.icu.text.BreakIterator
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.sleepsaver.core.ui.components.TextLinkButton
+import com.sleepsaver.core.ui.theme.SleepSaverTheme
+import com.sleepsaver.core.ui.theme.Spacing
+
+/** Quick picks for a custom activity's emoji; any emoji can also be typed. */
+internal val SuggestedEmoji = listOf("✨", "🍵", "🛁", "🕯️", "🎵", "🧩", "🎨", "🧶", "🐈", "🌿", "🙏", "🌙")
+
+/**
+ * The "Add your own" dialog body: an emoji (typed or picked) and a label. [onAdd] gets the trimmed label;
+ * Add stays disabled until there is one.
+ */
+@Composable
+internal fun CustomActivityForm(
+    onCancel: () -> Unit,
+    onAdd: (label: String, emoji: String) -> Unit,
+    modifier: Modifier = Modifier,
+    initialLabel: String = "",
+    initialEmoji: String = SuggestedEmoji.first(),
+) {
+    var label by rememberSaveable { mutableStateOf(initialLabel) }
+    var emoji by rememberSaveable { mutableStateOf(initialEmoji) }
+    val canAdd = label.isNotBlank()
+    val submit = { if (canAdd) onAdd(label.trim(), emoji) }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = SleepSaverTheme.colors.card,
+    ) {
+        Column(Modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xl, bottom = Spacing.m)) {
+            Text(
+                stringResource(R.string.habits_routine_custom_title),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                stringResource(R.string.habits_routine_custom_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = SleepSaverTheme.colors.textSecondary,
+                modifier = Modifier.padding(top = Spacing.xs),
+            )
+            Row(
+                Modifier.padding(top = Spacing.l),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.m),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = emoji,
+                    onValueChange = { emoji = lastGrapheme(it) },
+                    label = { Text(stringResource(R.string.habits_routine_custom_emoji)) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center),
+                    modifier = Modifier.width(84.dp),
+                )
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it.take(EveningRoutineViewModel.MAX_LABEL_LENGTH) },
+                    label = { Text(stringResource(R.string.habits_routine_custom_label)) },
+                    placeholder = { Text(stringResource(R.string.habits_routine_custom_label_placeholder)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            FlowRow(
+                modifier = Modifier.padding(top = Spacing.l),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+                verticalArrangement = Arrangement.spacedBy(Spacing.s),
+            ) {
+                SuggestedEmoji.forEach { option ->
+                    EmojiOption(option, selected = option == emoji, onClick = { emoji = option })
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = Spacing.m),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextLinkButton(
+                    stringResource(R.string.habits_cancel),
+                    onClick = onCancel,
+                    color = SleepSaverTheme.colors.textSecondary,
+                )
+                TextLinkButton(stringResource(R.string.habits_routine_custom_add), onClick = submit, enabled = canAdd)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmojiOption(emoji: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else SleepSaverTheme.colors.cardRaised)
+            .border(2.dp, if (selected) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics { this.selected = selected },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(emoji, fontSize = 20.sp)
+    }
+}
+
+/**
+ * The last user-perceived character of [text] (a whole emoji, even a multi-code-point one), so typing
+ * into the emoji field replaces what was there instead of appending.
+ */
+internal fun lastGrapheme(text: String): String {
+    if (text.isEmpty()) return ""
+    val boundaries = BreakIterator.getCharacterInstance()
+    boundaries.setText(text)
+    val end = boundaries.last()
+    val start = boundaries.previous()
+    return if (start == BreakIterator.DONE) text else text.substring(start, end)
+}
