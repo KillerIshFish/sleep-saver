@@ -197,7 +197,7 @@ private fun ReadyContent(
         },
         modifier = modifier,
         scaffoldState = scaffoldState,
-        sheetPeekHeight = SheetPeekHeight,
+        sheetPeekHeight = sheetPeekHeight(),
         sheetContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         sheetContentColor = MaterialTheme.colorScheme.onSurface,
         sheetShadowElevation = 12.dp,
@@ -364,7 +364,7 @@ private fun TimelineScroller(
             )
             TomorrowWakeLine(state)
             WellnessDisclaimer(Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.l))
-            Spacer(Modifier.height(SheetPeekHeight + Spacing.l))
+            Spacer(Modifier.height(sheetPeekHeight() + Spacing.l))
         }
         // Content slides softly under the header instead of being cut off.
         val fade = with(LocalDensity.current) { 14.dp.toPx() }

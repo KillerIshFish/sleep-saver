@@ -130,16 +130,24 @@ class EnergyScreenshotTest : ScreenshotTest() {
         Screen(EnergyUiState.NoNights(EmptyReason.PERMISSION_DENIED))
     }
 
-    @Test
-    fun importing() = captureScreen("energy_importing") { Screen(EnergyUiState.NoNights(EmptyReason.IMPORTING)) }
-
-    @Test
-    fun loading() = captureScreen("energy_loading") { Screen(EnergyUiState.Loading) }
+    // Loading and importing show the LoadingOrb: see EnergyAnimatedScreenshotTest.
 
     @Test
     fun largeFont() = captureScreen("energy_large_font") {
         CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.6f)) {
             Screen(EnergyTestData.ready(now = at(13, 40)))
         }
+    }
+
+    @Test
+    fun largeFontEvening() = captureScreen("energy_large_font_evening") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.6f)) {
+            Screen(EnergyTestData.ready(now = at(21, 10)))
+        }
+    }
+
+    @Test
+    fun eveningWindDown24h() = captureScreen("energy_evening_24h") {
+        CompositionLocalProvider(LocalUse24HourClock provides true) { Screen(EnergyTestData.ready(now = at(21, 10))) }
     }
 }

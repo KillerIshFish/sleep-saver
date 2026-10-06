@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -85,7 +86,10 @@ class EnergyContentTest {
         val night = state.lastNight!!
         show(state, focusTime = night.fellAsleep!! + Duration.ofHours(4))
 
-        compose.onNodeWithText("Press and hold to add awake time").assertIsDisplayed()
+        val hint = compose.onNodeWithText("Press and hold to add awake time", useUnmergedTree = true).fetchSemanticsNode()
+        val root = compose.onRoot().fetchSemanticsNode()
+        println("ENERGY-DEBUG hint=${hint.boundsInWindow} placed=${hint.layoutInfo.isPlaced} root=${root.boundsInWindow}")
+        compose.onNodeWithText("Press and hold to add awake time", useUnmergedTree = true).assertIsDisplayed()
         compose.onNodeWithContentDescription("Last night:", substring = true).performTouchInput { longClick(center) }
         compose.onNodeWithText("Add awake time").assertIsDisplayed()
         compose.onNodeWithText("Add").performClick()

@@ -11,6 +11,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.math.ceil
 
 /** Pixel measurements of the timeline's columns and labels (left to right). */
 data class TimelineSpec(
@@ -36,6 +37,13 @@ data class TimelineSpec(
     val habitHeight: Float,
     val nowHeight: Float,
     val labelGap: Float,
+    /** Right edge of the hour labels (wide enough for the widest one at the current font size). */
+    val axisRight: Float = 0f,
+    /** Hour ticks end here; grid lines, bands and the now-line start at [gridLeft]. */
+    val tickRight: Float = 0f,
+    val gridLeft: Float = 0f,
+    /** Room to the right of the curve; the end of the grid lines. */
+    val contentRight: Float = width,
 )
 
 enum class TimelineBlockKind {
@@ -112,6 +120,8 @@ data class TimelineLayout(
     val now: NowMark?,
     val curve: List<Offset>,
     val labelLeft: Float,
+    /** Right edge of the phase lanes: where label connectors start. */
+    val lanesRight: Float,
 ) {
     val height: Float get() = geometry.height
     val mainBlock: TimelineBlock? get() = blocks.firstOrNull { it.kind == TimelineBlockKind.MAIN }
@@ -122,38 +132,70 @@ private val InterruptionMin: Duration = Duration.ofMinutes(5)
 /** A shift under a minute isn't worth a caption on the timeline. */
 fun Phase.hasShift(): Boolean = shiftVsYesterday?.let { it.abs() >= Duration.ofMinutes(1) } == true
 
+/** How far the range may grow past tonight's lead-out so the last labels fit below their times. */
+private val MaxLabelOverrun: Duration = Duration.ofHours(3)
+private val OverrunStep: Duration = Duration.ofMinutes(30)
+
 fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): TimelineLayout {
     val schedule = state.schedule
-    val range = TimelineRange.of(schedule, state.lastNight, state.sleepNeed, state.now)
-    val geometry = TimelineGeometry(range, spec.pxPerHour, spec.topInset, spec.bottomInset)
+    val baseRange = TimelineRange.of(schedule, state.lastNight, state.sleepNeed, state.now)
+    val habits = state.timelineHabits.filter { baseRange.contains(it.time) }
+    val nowInRange = baseRange.contains(state.now)
+
+    // Phases: slim bars in lanes beside the axis.
+    val phases = schedule.phases.filter { baseRange.overlaps(it.start, it.end) }
+    val lanes = assignLanes(phases.map { it.start to it.end })
+    val laneCount = (lanes.maxOrNull() ?: 0) + 1
+    val lanesRight = spec.barsLeft + laneCount * (spec.barWidth + spec.barGap) - spec.barGap
+    val labelLeft = lanesRight + spec.labelInset
+
+    // Labels: phase pills and habit markers share one column, around the fixed now pill and the night blocks.
+    // Phases come first, so a habit at the same minute as a phase start sits under its pill.
+    fun slotsFor(geometry: TimelineGeometry, blocks: List<TimelineBlock>) = buildList {
+        phases.forEach { phase ->
+            val anchor = geometry.yOfClamped(phase.start)
+            val height = spec.pillHeight + if (phase.hasShift()) spec.captionHeight else 0f
+            add(LabelSlot(anchor - spec.pillHeight / 2, height, anchor = anchor))
+        }
+        habits.forEach {
+            val anchor = geometry.yOf(it.time)
+            add(LabelSlot(anchor - spec.habitHeight / 2, spec.habitHeight, anchor = anchor))
+        }
+        if (nowInRange) {
+            val y = geometry.yOf(state.now)
+            add(LabelSlot(y - spec.nowHeight / 2, spec.nowHeight, fixed = true, anchor = y))
+        }
+        blocks.filter { it.kind != TimelineBlockKind.NAP }.forEach { add(LabelSlot(it.top, it.height, fixed = true, anchor = it.top)) }
+    }
+
+    // Labels never move above their time to fit, so when the evening is crowded the range runs a little longer
+    // (in half hours, up to MaxLabelOverrun) instead.
+    var range = baseRange
+    var geometry: TimelineGeometry
+    var blocks: List<TimelineBlock>
+    var slots: List<LabelSlot>
+    var fits: Boolean
+    do {
+        geometry = TimelineGeometry(range, spec.pxPerHour, spec.topInset, spec.bottomInset)
+        blocks = buildBlocks(state, range, geometry, spec)
+        slots = slotsFor(geometry, blocks)
+        val pushedDown = placeLabels(slots, minTop = 0f, maxBottom = Float.POSITIVE_INFINITY, gap = spec.labelGap)
+        val lowest = slots.indices.filter { !slots[it].fixed }.maxOfOrNull { pushedDown[it] + slots[it].height } ?: 0f
+        val overrun = lowest - geometry.height
+        fits = overrun <= 0f || Duration.between(baseRange.end, range.end) >= MaxLabelOverrun
+        if (!fits) {
+            val stepPx = spec.pxPerHour * OverrunStep.toMinutes() / 60f
+            val steps = ceil(overrun / stepPx).toLong().coerceAtLeast(1)
+            range = TimelineRange(range.start, minOf(range.end + OverrunStep.multipliedBy(steps), baseRange.end + MaxLabelOverrun))
+        }
+    } while (!fits)
+    val tops = placeLabels(slots, minTop = 0f, maxBottom = geometry.height, gap = spec.labelGap)
     val scale = EnergyScale(spec.curveLeft, spec.curveRight)
 
     fun span(start: Instant, end: Instant): TimelineSpan? {
         if (!range.overlaps(start, end)) return null
         return TimelineSpan(start, end, geometry.yOfClamped(start), geometry.yOfClamped(end))
     }
-
-    val blocks = buildBlocks(state, range, geometry, spec)
-
-    // Phases: slim bars in lanes beside the axis.
-    val phases = schedule.phases.filter { range.overlaps(it.start, it.end) }
-    val lanes = assignLanes(phases.map { it.start to it.end })
-    val laneCount = (lanes.maxOrNull() ?: 0) + 1
-    val labelLeft = spec.barsLeft + laneCount * (spec.barWidth + spec.barGap) - spec.barGap + spec.labelInset
-
-    // Labels: phase pills and habit markers share one column, around the fixed now pill and the night blocks.
-    val habits = state.timelineHabits.filter { range.contains(it.time) }
-    val nowInRange = range.contains(state.now)
-    val slots = buildList {
-        phases.forEach { phase ->
-            val height = spec.pillHeight + if (phase.hasShift()) spec.captionHeight else 0f
-            add(LabelSlot(geometry.yOfClamped(phase.start) - spec.pillHeight / 2, height))
-        }
-        habits.forEach { add(LabelSlot(geometry.yOf(it.time) - spec.habitHeight / 2, spec.habitHeight)) }
-        if (nowInRange) add(LabelSlot(geometry.yOf(state.now) - spec.nowHeight / 2, spec.nowHeight, fixed = true))
-        blocks.filter { it.kind != TimelineBlockKind.NAP }.forEach { add(LabelSlot(it.top, it.height, fixed = true)) }
-    }
-    val tops = placeLabels(slots, minTop = 0f, maxBottom = geometry.height, gap = spec.labelGap)
 
     val phaseMarks = phases.mapIndexed { i, phase ->
         PhaseMark(
@@ -204,6 +246,7 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
         now = now,
         curve = curve,
         labelLeft = labelLeft,
+        lanesRight = lanesRight,
     )
 }
 

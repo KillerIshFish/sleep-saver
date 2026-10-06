@@ -27,10 +27,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.ScheduledHabit
@@ -44,8 +46,19 @@ import com.sleepsaver.core.ui.theme.Spacing
 import java.time.ZoneId
 
 /** What the sheet shows while collapsed: the drag handle plus this header. */
-internal val SheetPeekHeight = 76.dp
 private val HandleArea = 20.dp
+private val MinPeekHeader = 56.dp
+
+/**
+ * What the sheet shows while collapsed: the handle plus the "Habits" header, which grows with the font size so
+ * the next-habit line is never cut off.
+ */
+@Composable
+internal fun sheetPeekHeight(): Dp {
+    val title = MaterialTheme.typography.titleMedium.lineHeight
+    val body = MaterialTheme.typography.bodySmall.lineHeight
+    return with(LocalDensity.current) { HandleArea + maxOf(MinPeekHeader, title.toDp() + body.toDp() + Spacing.l) }
+}
 
 /** A small handle; Material's default is taller than our peek allows. */
 @Composable
@@ -77,7 +90,7 @@ internal fun HabitsSheetContent(
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(SheetPeekHeight - HandleArea)
+                .height(sheetPeekHeight() - HandleArea)
                 .padding(start = Spacing.screenHorizontal, end = Spacing.s),
             verticalAlignment = Alignment.CenterVertically,
         ) {

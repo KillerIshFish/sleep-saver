@@ -10,6 +10,7 @@ import kotlin.math.roundToLong
 
 private const val MILLIS_PER_HOUR = 3_600_000.0
 private const val MILLIS_PER_MINUTE = 60_000L
+private const val SECONDS_PER_HOUR = 3_600.0
 
 /** The stretch of time the timeline shows, in elapsed (instant) time. */
 data class TimelineRange(val start: Instant, val end: Instant) {
@@ -87,8 +88,9 @@ class TimelineGeometry(
     /** [yOf] kept inside the range. */
     fun yOfClamped(t: Instant): Float = yOf(t).coerceIn(top, bottom)
 
+    /** The instant at [y], to the second (a pixel is ~20 s; finer would only be float noise). */
     fun timeAt(y: Float): Instant =
-        range.start.plusMillis(((y - topInset) / pxPerHour * MILLIS_PER_HOUR).roundToLong())
+        range.start.plusSeconds(((y.toDouble() - topInset) / pxPerHour * SECONDS_PER_HOUR).roundToLong())
 
     /** Every whole and half local hour inside the range, in [zone] (any real UTC offset is a multiple of 15 min). */
     fun ticks(zone: ZoneId): List<TimelineTick> {
@@ -139,43 +141,90 @@ fun assignLanes(spans: List<Pair<Instant, Instant>>): List<Int> {
     return lanes.toList()
 }
 
-/** A label that wants its top at [desiredTop]. [fixed] ones (the now pill, sleep blocks as obstacles) never move. */
-data class LabelSlot(val desiredTop: Float, val height: Float, val fixed: Boolean = false)
+/**
+ * A label that wants its top at [desiredTop] and points at [anchor] (the y of its time). [fixed] slots (the now
+ * pill, night blocks) never move; every other label stays on the same side of them as its anchor, so nothing that
+ * comes after "now" reads as before it.
+ */
+data class LabelSlot(
+    val desiredTop: Float,
+    val height: Float,
+    val fixed: Boolean = false,
+    val anchor: Float = desiredTop + height / 2,
+)
 
 /**
- * Places labels in one column without overlaps, keeping their order. Labels sit at their desired position when
- * there's room; otherwise they're pushed down (so a label never reads earlier than its time), and pushed up only
- * where a fixed slot or [maxBottom] leaves no room below. Returns each label's top, in input order.
- * When the labels can't all fit between [minTop] and [maxBottom], the lowest ones may overlap.
+ * Places labels in one column without overlaps. Fixed slots split the column into free intervals; each movable
+ * label goes into the interval its anchor falls in, in anchor order (ties keep input order). Inside an interval
+ * labels sit at their desired position when there's room, are pushed down otherwise (a label never reads earlier
+ * than its time), and pushed up only where the next fixed slot or [maxBottom] leaves no room below. An interval
+ * too small for its labels hands its last ones to the next interval (and, at the bottom, its first ones to the
+ * previous). Only when the whole column is too short may the lowest labels overlap.
+ * Returns each label's top, in input order.
  */
 fun placeLabels(slots: List<LabelSlot>, minTop: Float, maxBottom: Float, gap: Float): List<Float> {
     if (slots.isEmpty()) return emptyList()
-    val order = slots.indices.sortedWith(compareBy({ slots[it].desiredTop }, { if (slots[it].fixed) 0 else 1 }, { it }))
     val tops = FloatArray(slots.size) { slots[it].desiredTop }
 
-    // Push down.
-    var cursor = minTop
-    for (i in order) {
-        val slot = slots[i]
-        tops[i] = if (slot.fixed) slot.desiredTop else maxOf(slot.desiredTop, cursor)
-        cursor = maxOf(cursor, tops[i] + slot.height + gap)
+    // Fixed slots, merged where they touch, are obstacles; an obstacle counts from its earliest anchor.
+    val obstacles = mutableListOf<Obstacle>()
+    slots.filter { it.fixed }.sortedBy { it.desiredTop }.forEach { slot ->
+        val last = obstacles.lastOrNull()
+        if (last != null && slot.desiredTop < last.bottom + gap) {
+            obstacles[obstacles.lastIndex] = Obstacle(
+                top = last.top,
+                bottom = maxOf(last.bottom, slot.desiredTop + slot.height),
+                anchor = minOf(last.anchor, slot.anchor),
+            )
+        } else {
+            obstacles += Obstacle(slot.desiredTop, slot.desiredTop + slot.height, slot.anchor)
+        }
     }
-    // Push up from the bottom and from fixed slots.
-    var limit = maxBottom
-    for (i in order.asReversed()) {
-        val slot = slots[i]
-        if (!slot.fixed) tops[i] = minOf(tops[i], limit - slot.height)
-        limit = minOf(limit, tops[i] - gap)
+
+    // The free intervals around the obstacles, each with the labels anchored in it, in anchor order.
+    val starts = listOf(minTop) + obstacles.map { it.bottom + gap }
+    val ends = obstacles.map { it.top - gap } + maxBottom
+    val groups = List(starts.size) { ArrayDeque<Int>() }
+    slots.indices
+        .filter { !slots[it].fixed }
+        .sortedWith(compareBy({ slots[it].anchor }, { it }))
+        .forEach { i -> groups[obstacles.count { it.anchor <= slots[i].anchor }].addLast(i) }
+
+    fun needed(group: Collection<Int>): Float =
+        group.sumOf { slots[it].height.toDouble() }.toFloat() + gap * (group.size - 1).coerceAtLeast(0)
+
+    fun capacity(k: Int): Float = ends[k] - starts[k]
+
+    // Overfull intervals pass labels on: their latest ones down first, then (from the bottom) their earliest up.
+    for (k in 0 until groups.lastIndex) {
+        while (groups[k].isNotEmpty() && needed(groups[k]) > capacity(k)) groups[k + 1].addFirst(groups[k].removeLast())
     }
-    // Never above the top edge.
-    cursor = minTop
-    for (i in order) {
-        val slot = slots[i]
-        if (!slot.fixed) tops[i] = maxOf(tops[i], cursor)
-        cursor = maxOf(cursor, tops[i] + slot.height + gap)
+    for (k in groups.lastIndex downTo 1) {
+        while (groups[k].isNotEmpty() && needed(groups[k]) > capacity(k)) groups[k - 1].addLast(groups[k].removeFirst())
+    }
+
+    groups.forEachIndexed { k, group ->
+        // Down from the interval's top, up from its bottom, and down again if it still can't hold them all.
+        var cursor = starts[k]
+        group.forEach { i ->
+            tops[i] = maxOf(slots[i].desiredTop, cursor)
+            cursor = tops[i] + slots[i].height + gap
+        }
+        var limit = ends[k]
+        group.reversed().forEach { i ->
+            tops[i] = minOf(tops[i], limit - slots[i].height)
+            limit = tops[i] - gap
+        }
+        cursor = starts[k]
+        group.forEach { i ->
+            tops[i] = maxOf(tops[i], cursor)
+            cursor = tops[i] + slots[i].height + gap
+        }
     }
     return tops.toList()
 }
+
+private data class Obstacle(val top: Float, val bottom: Float, val anchor: Float)
 
 /**
  * Where a long press inside the sleep block starts the added awake time: [pressed] rounded to the nearest

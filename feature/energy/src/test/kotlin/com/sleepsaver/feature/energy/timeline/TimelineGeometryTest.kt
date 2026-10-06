@@ -192,7 +192,7 @@ class TimelineGeometryTest {
         val melatonin = state.schedule.phase(PhaseType.MELATONIN_WINDOW)!!
         assertThat(state.now).isLessThan(melatonin.end)
         assertThat(layout.geometry.range.contains(state.now)).isTrue()
-        assertThat(layout.geometry.range.end).isEqualTo(melatonin.end + Duration.ofHours(1))
+        assertThat(layout.geometry.range.end).isAtLeast(melatonin.end + Duration.ofHours(1))
         assertThat(layout.now!!.y).isGreaterThan(layout.geometry.ticks(zone).single { it.isMidnight }.y)
         assertNoLabelOverlap(layout)
     }
@@ -265,9 +265,76 @@ class TimelineGeometryTest {
             assertThat(tops.last()).isEqualTo(slots.last().desiredTop)
             val movable = slots.indices.filter { !slots[it].fixed }
             movable.zipWithNext().forEach { (a, b) ->
-                if (slots[a].desiredTop < slots[b].desiredTop) assertThat(tops[a]).isLessThan(tops[b])
+                if (slots[a].anchor < slots[b].anchor) assertThat(tops[a]).isLessThan(tops[b])
             }
         }
+    }
+
+    @Test
+    fun `labels stay on their side of a fixed slot`() {
+        // A fixed "now" pill at 100..126 (anchor 113); one label just before now, one just after.
+        val tops = placeLabels(
+            listOf(
+                LabelSlot(100f, 26f, fixed = true, anchor = 113f),
+                LabelSlot(95f, 30f, anchor = 110f),
+                LabelSlot(105f, 30f, anchor = 120f),
+            ),
+            minTop = 0f,
+            maxBottom = 1000f,
+            gap = 6f,
+        )
+        assertThat(tops[0]).isEqualTo(100f)
+        assertThat(tops[1] + 30f + 6f).isAtMost(100f)
+        assertThat(tops[2]).isAtLeast(126f + 6f)
+    }
+
+    @Test
+    fun `a label anchored inside a night block goes below it`() {
+        val tops = placeLabels(
+            listOf(LabelSlot(100f, 400f, fixed = true, anchor = 100f), LabelSlot(480f, 30f, anchor = 495f)),
+            minTop = 0f,
+            maxBottom = 2000f,
+            gap = 6f,
+        )
+        assertThat(tops[1]).isEqualTo(506f)
+    }
+
+    @Test
+    fun `a full interval hands its last labels on to the next one`() {
+        // Room for one 30 px label above the fixed slot at 40; the second goes below it.
+        val tops = placeLabels(
+            listOf(LabelSlot(0f, 30f), LabelSlot(5f, 30f), LabelSlot(40f, 20f, fixed = true, anchor = 50f)),
+            minTop = 0f,
+            maxBottom = 400f,
+            gap = 4f,
+        )
+        assertThat(tops[0]).isEqualTo(0f)
+        assertThat(tops[1]).isEqualTo(64f)
+    }
+
+    @Test
+    fun `a phase pill sits above a habit that starts at the same minute`() {
+        val layout = buildTimelineLayout(EnergyTestData.ready(), testSpec())
+
+        val windDown = layout.phases.single { it.phase.type == PhaseType.WIND_DOWN }
+        val dim = layout.habits.single { it.habit.type == com.sleepsaver.core.domain.model.HabitType.DIM_LIGHTS }
+        assertThat(dim.habit.time).isEqualTo(windDown.phase.start)
+        assertThat(windDown.labelTop + windDown.labelHeight).isAtMost(dim.labelTop)
+    }
+
+    @Test
+    fun `in a crowded evening nothing after now moves above it and the range runs on to fit`() {
+        val state = EnergyTestData.ready(now = at(21, 10))
+        val layout = buildTimelineLayout(state, testSpec())
+        val now = layout.now!!
+        val nowBottom = now.labelTop + testSpec().nowHeight
+
+        layout.phases.filter { it.anchorY > now.y }.forEach { assertThat(it.labelTop).isAtLeast(nowBottom) }
+        layout.habits.filter { it.anchorY > now.y }.forEach { assertThat(it.labelTop).isAtLeast(nowBottom) }
+        val melatoninEnd = state.schedule.phase(PhaseType.MELATONIN_WINDOW)!!.end
+        assertThat(layout.geometry.range.end).isAtLeast(melatoninEnd + Duration.ofHours(1))
+        assertThat(layout.geometry.range.end).isAtMost(melatoninEnd + Duration.ofHours(4))
+        assertNoLabelOverlap(layout)
     }
 
     @Test
@@ -278,6 +345,8 @@ class TimelineGeometryTest {
             EnergyTestData.waiting(),
             EnergyTestData.nightOwl(),
             EnergyTestData.nightOwlAfterMidnight(),
+            EnergyTestData.waiting(now = at(15, 0)),
+            EnergyTestData.ready(now = at(17, 30), settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)),
             EnergyTestData.ready(settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)),
         ).forEach { assertNoLabelOverlap(buildTimelineLayout(it, testSpec())) }
     }

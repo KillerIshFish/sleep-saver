@@ -93,6 +93,7 @@ import com.sleepsaver.feature.energy.EnergyUiState
 import com.sleepsaver.feature.energy.R
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.TextStyle as DayTextStyle
 import java.util.Locale
@@ -103,14 +104,12 @@ internal object TimelineDimens {
     val HourHeight = 76.dp
     val TopInset = 36.dp
     val BottomInset = 28.dp
-    val AxisRight = 42.dp
-    val TickRight = 50.dp
-    val GridLeft = 52.dp
-    val BarsLeft = 58.dp
+    val AxisStart = 8.dp
+    val MinAxisRight = 42.dp
+    val EndPadding = 16.dp
     val BarWidth = 5.dp
     val BarGap = 4.dp
     val LabelInset = 12.dp
-    val EndPadding = 16.dp
     val CurveStartFraction = 0.55f
     val BlockCorner = 20.dp
     val NapCorner = 12.dp
@@ -120,31 +119,47 @@ internal object TimelineDimens {
     val LabelGap = 6.dp
 }
 
+/**
+ * Pixel columns for a timeline [width] wide. The hour axis is as wide as its widest label at the current font
+ * size and clock format, and label heights follow the font scale, so large text never spills into the next label.
+ */
 @Composable
 internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
     val density = LocalDensity.current
-    return remember(width, density) {
+    val use24h = LocalUse24HourClock.current
+    val measurer = rememberTextMeasurer()
+    val axisStyle = MaterialTheme.typography.labelMedium
+    return remember(width, density, use24h, axisStyle) {
+        val widestAxisLabel = (0..23).maxOf { hour ->
+            measurer.measure(formatClockAxis(LocalTime.of(hour, 0), use24h), axisStyle).size.width
+        }
         with(density) {
             val widthPx = width.toPx()
+            val axisRight = maxOf(TimelineDimens.MinAxisRight.toPx(), TimelineDimens.AxisStart.toPx() + widestAxisLabel)
+            val barsLeft = axisRight + 16.dp.toPx()
+            val contentRight = widthPx - TimelineDimens.EndPadding.toPx()
             TimelineSpec(
                 width = widthPx,
                 pxPerHour = TimelineDimens.HourHeight.toPx(),
                 topInset = TimelineDimens.TopInset.toPx(),
                 bottomInset = TimelineDimens.BottomInset.toPx(),
-                barsLeft = TimelineDimens.BarsLeft.toPx(),
+                barsLeft = barsLeft,
                 barWidth = TimelineDimens.BarWidth.toPx(),
                 barGap = TimelineDimens.BarGap.toPx(),
                 labelInset = TimelineDimens.LabelInset.toPx(),
-                blockLeft = TimelineDimens.BarsLeft.toPx(),
-                blockRight = widthPx - TimelineDimens.EndPadding.toPx(),
-                curveLeft = widthPx * TimelineDimens.CurveStartFraction,
-                curveRight = widthPx - TimelineDimens.EndPadding.toPx() - 4.dp.toPx(),
-                // Label heights follow the font scale so large text never spills into the next label.
+                blockLeft = barsLeft,
+                blockRight = contentRight,
+                curveLeft = maxOf(widthPx * TimelineDimens.CurveStartFraction, barsLeft + 120.dp.toPx()),
+                curveRight = contentRight - 6.dp.toPx(),
                 pillHeight = maxOf(TimelineDimens.PillHeight.toPx(), 18.sp.toPx() + 10.dp.toPx()),
-                captionHeight = 16.sp.toPx() + 2.dp.toPx(),
+                captionHeight = 14.sp.toPx() + 4.dp.toPx(),
                 habitHeight = maxOf(TimelineDimens.HabitHeight.toPx(), 18.sp.toPx() + 14.sp.toPx() + 6.dp.toPx()),
                 nowHeight = maxOf(TimelineDimens.NowHeight.toPx(), 18.sp.toPx() + 8.dp.toPx()),
                 labelGap = TimelineDimens.LabelGap.toPx(),
+                axisRight = axisRight,
+                tickRight = axisRight + 8.dp.toPx(),
+                gridLeft = axisRight + 10.dp.toPx(),
+                contentRight = contentRight,
             )
         }
     }
@@ -165,8 +180,10 @@ private data class TimelinePalette(
     val curve: Color,
     val melatonin: Color,
     val wakeZone: Color,
+    val wakeZoneEdge: Color,
     val wakeZoneText: Color,
     val now: Color,
+    val connector: Color,
     val background: Color,
     val phaseTints: Map<PhaseType, Color>,
 )
@@ -184,12 +201,15 @@ private fun timelinePalette(): TimelinePalette {
         sleepStroke = colors.sleepBlockStroke,
         napBlock = colors.napBlock,
         awake = colors.awakeGap,
-        awakeText = colors.stageAwake,
+        awakeText = colors.textSecondary,
         curve = colors.energyCurve,
         melatonin = colors.melatonin,
         wakeZone = colors.wakeZone,
-        wakeZoneText = colors.debtModerate,
+        // The zone's own hue, a little stronger, so its edges read over the night block.
+        wakeZoneEdge = colors.wakeZone.copy(alpha = (colors.wakeZone.alpha * 2.5f).coerceAtMost(1f)),
+        wakeZoneText = colors.textSecondary,
         now = colors.nowLine,
+        connector = colors.textTertiary.copy(alpha = 0.55f),
         background = MaterialTheme.colorScheme.background,
         phaseTints = PhaseType.entries.associateWith { it.tint },
     )
@@ -218,7 +238,7 @@ internal fun EnergyTimeline(
                 BlockOverlay(block, layout, state, onBlockTap, onMainLongPress)
             }
         }
-        val labelMaxWidth = with(density) { (layout.spec.width - layout.labelLeft).toDp() - TimelineDimens.EndPadding }
+        val labelMaxWidth = with(density) { (layout.spec.contentRight - layout.labelLeft).toDp() }
         val pillHeight = with(density) { layout.spec.pillHeight.toDp() }
         layout.phases.forEach { mark ->
             PhaseLabel(
@@ -254,7 +274,7 @@ internal fun EnergyTimeline(
     }
 }
 
-// ---------------------------------------------------------------- Canvas
+/// ---------------------------------------------------------------- Canvas
 
 @Composable
 private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, palette: TimelinePalette, modifier: Modifier) {
@@ -273,15 +293,27 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
 
     Canvas(modifier) {
         val spec = layout.spec
-        val gridLeft = TimelineDimens.GridLeft.toPx()
-        val right = size.width - TimelineDimens.EndPadding.toPx()
+        val gridLeft = spec.gridLeft
+        val right = spec.contentRight
 
-        // Tonight's melatonin window: a soft band across the day column.
+        // Tonight's melatonin window and the wake zones: soft bands across the day column, under everything else.
         layout.melatonin?.let { band ->
             drawRect(
                 brush = Brush.horizontalGradient(
                     0f to palette.melatonin.copy(alpha = 0.05f),
                     1f to palette.melatonin.copy(alpha = 0.16f),
+                    startX = gridLeft,
+                    endX = right,
+                ),
+                topLeft = Offset(gridLeft, band.top),
+                size = Size(right - gridLeft, band.height),
+            )
+        }
+        layout.wakeZones.forEach { band ->
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to palette.wakeZone.copy(alpha = palette.wakeZone.alpha * 0.35f),
+                    1f to palette.wakeZone,
                     startX = gridLeft,
                     endX = right,
                 ),
@@ -299,16 +331,16 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
                     end = Offset(right, tick.y),
                     strokeWidth = 1.dp.toPx(),
                 )
-                drawLine(palette.tick, Offset(TimelineDimens.TickRight.toPx() - 6.dp.toPx(), tick.y), Offset(TimelineDimens.TickRight.toPx(), tick.y), 1.5.dp.toPx(), StrokeCap.Round)
+                drawLine(palette.tick, Offset(spec.tickRight - 6.dp.toPx(), tick.y), Offset(spec.tickRight, tick.y), 1.5.dp.toPx(), StrokeCap.Round)
                 val text = measurer.measure(formatClockAxis(tick.time, state.zone, use24h), axisStyle)
-                drawText(text, topLeft = Offset(TimelineDimens.AxisRight.toPx() - text.size.width, tick.y - text.size.height / 2f))
+                drawText(text, topLeft = Offset(spec.axisRight - text.size.width, tick.y - text.size.height / 2f))
                 if (tick.isMidnight) {
                     val day = tick.time.atZone(state.zone).dayOfWeek.getDisplayName(DayTextStyle.SHORT, Locale.US).uppercase(Locale.US)
                     val dayText = measurer.measure(day, dayStyle)
-                    drawText(dayText, topLeft = Offset(TimelineDimens.AxisRight.toPx() - dayText.size.width, tick.y + text.size.height / 2f))
+                    drawText(dayText, topLeft = Offset(spec.axisRight - dayText.size.width, tick.y + text.size.height / 2f))
                 }
             } else {
-                drawLine(palette.tick.copy(alpha = 0.6f), Offset(TimelineDimens.TickRight.toPx() - 3.dp.toPx(), tick.y), Offset(TimelineDimens.TickRight.toPx(), tick.y), 1.dp.toPx(), StrokeCap.Round)
+                drawLine(palette.tick.copy(alpha = 0.6f), Offset(spec.tickRight - 3.dp.toPx(), tick.y), Offset(spec.tickRight, tick.y), 1.dp.toPx(), StrokeCap.Round)
             }
         }
 
@@ -318,11 +350,14 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
         // Sleep blocks.
         layout.blocks.forEach { block -> drawBlock(block, palette, measurer, bandStyle, awakeFormat) }
 
-        // Wake zones: tint whatever lies under them, including the bottom of last night's block.
+        // Wake zone edges stay visible over the night block; the label sits inside the zone's lower right.
         layout.wakeZones.forEach { band ->
-            drawRect(palette.wakeZone, topLeft = Offset(gridLeft, band.top), size = Size(right - gridLeft, band.height))
+            val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
+            listOf(band.top, band.bottom).forEach { y ->
+                drawLine(palette.wakeZoneEdge, Offset(gridLeft, y), Offset(right, y), 1.dp.toPx(), pathEffect = dash)
+            }
             val label = measurer.measure(wakeZoneLabel, wakeStyle)
-            if (band.height > label.size.height + 4.dp.toPx()) {
+            if (band.height > label.size.height + 8.dp.toPx()) {
                 drawText(label, topLeft = Offset(right - label.size.width - 10.dp.toPx(), band.bottom - label.size.height - 4.dp.toPx()))
             }
         }
@@ -345,11 +380,16 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
 
         drawCurve(layout, state.now, palette)
 
-        // Habit anchors: a dotted guide at the habit's exact time, ending in a dot on the curve.
+        // Habits: a tick at the exact time beside the lanes with a connector to the label, and a dotted guide
+        // across the curve column to a dot on the curve.
         layout.habits.forEach { mark ->
+            val labelY = mark.labelTop + spec.habitHeight / 2
+            val start = Offset(layout.lanesRight + 3.dp.toPx(), mark.anchorY)
+            drawLine(palette.connector, start, Offset(layout.labelLeft - 6.dp.toPx(), labelY), 1.dp.toPx(), StrokeCap.Round)
+            drawCircle(palette.connector, radius = 2.dp.toPx(), center = start)
             drawLine(
                 color = palette.curve.copy(alpha = 0.35f),
-                start = Offset(layout.spec.curveLeft, mark.anchorY),
+                start = Offset(spec.curveLeft, mark.anchorY),
                 end = Offset(mark.anchorX, mark.anchorY),
                 strokeWidth = 1.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 3.dp.toPx())),
@@ -485,13 +525,30 @@ private fun DrawScope.drawAwakeBands(
             drawRect(palette.awake, topLeft = Offset(block.left, band.top), size = Size(size.width, band.height.coerceAtLeast(2.dp.toPx())))
         }
     }
+    // Labels on the right, centred on their band, clear of the block's centre text and of each other.
+    val centre = (block.top + block.bottom) / 2
+    val busy = if (block.kind == TimelineBlockKind.MAIN && block.height >= MainBlockDetailsMinHeight.toPx()) {
+        (centre - MainBlockDetailsHalfHeight.toPx())..(centre + MainBlockDetailsHalfHeight.toPx())
+    } else {
+        null
+    }
+    var lastBottom = Float.NEGATIVE_INFINITY
     block.awake.forEach { band ->
         val text = measurer.measure(format.format(formatDuration(band.duration)), style)
-        if (band.height >= text.size.height) {
-            drawText(text, topLeft = Offset(block.right - text.size.width - 14.dp.toPx(), band.top + (band.height - text.size.height) / 2))
+        val top = (band.top + band.bottom) / 2 - text.size.height / 2f
+        val bottom = top + text.size.height
+        val clear = top >= block.top + 4.dp.toPx() && bottom <= block.bottom - 4.dp.toPx() && top >= lastBottom &&
+            (busy == null || bottom < busy.start || top > busy.endInclusive)
+        if (clear) {
+            drawText(text, topLeft = Offset(block.right - text.size.width - 14.dp.toPx(), top))
+            lastBottom = bottom + 2.dp.toPx()
         }
     }
 }
+
+/** The main block shows its duration and the hold hint in the middle once it's at least this tall. */
+internal val MainBlockDetailsMinHeight = 180.dp
+private val MainBlockDetailsHalfHeight = 76.dp
 
 /** The energy curve: soft fill toward higher energy, a faded line for the past and a bright one ahead. */
 private fun DrawScope.drawCurve(layout: TimelineLayout, now: Instant, palette: TimelinePalette) {
@@ -508,7 +565,8 @@ private fun DrawScope.drawCurve(layout: TimelineLayout, now: Instant, palette: T
     drawPath(
         path = fill,
         brush = Brush.horizontalGradient(
-            0f to palette.curve.copy(alpha = 0.02f),
+            0f to palette.curve.copy(alpha = 0f),
+            0.35f to palette.curve.copy(alpha = 0.06f),
             1f to palette.curve.copy(alpha = 0.26f),
             startX = baseline,
             endX = layout.scale.right,
@@ -634,7 +692,7 @@ private fun MainBlockContent(block: TimelineBlock, state: EnergyUiState.Ready, h
             labelFirst = true,
             modifier = Modifier.align(Alignment.TopStart),
         )
-        if (height >= 180.dp) {
+        if (height >= MainBlockDetailsMinHeight) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Rounded.Bedtime, contentDescription = null, tint = tide.copy(alpha = 0.8f), modifier = Modifier.size(22.dp))
                 Spacer(Modifier.height(6.dp))
