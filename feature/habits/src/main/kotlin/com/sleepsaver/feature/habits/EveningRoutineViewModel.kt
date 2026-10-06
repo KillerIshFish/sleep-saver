@@ -54,7 +54,7 @@ internal class EveningRoutineViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), EveningRoutineUiState.Loading)
 
     fun setSelected(id: Long, selected: Boolean) {
-        viewModelScope.launch { safely("Selecting activity $id") { habits.setActivitySelected(id, selected) } }
+        viewModelScope.launch { writer.setActivitySelected(id, selected) }
     }
 
     /** Blank labels are ignored; a blank emoji gets a default sparkle. Labels are capped at [MAX_LABEL_LENGTH]. */
@@ -62,14 +62,14 @@ internal class EveningRoutineViewModel @Inject constructor(
         val cleanLabel = label.trim().take(MAX_LABEL_LENGTH).trimEnd()
         if (cleanLabel.isEmpty()) return
         val cleanEmoji = emoji.trim().ifEmpty { DEFAULT_CUSTOM_EMOJI }
-        viewModelScope.launch { safely("Adding activity") { habits.addCustomActivity(cleanLabel, cleanEmoji) } }
+        viewModelScope.launch { writer.addCustomActivity(cleanLabel, cleanEmoji) }
     }
 
     /** Only custom activities can be removed. */
     fun delete(id: Long) {
         val ready = uiState.value as? EveningRoutineUiState.Ready ?: return
         if (ready.activities.none { it.id == id && it.isCustom }) return
-        viewModelScope.launch { safely("Removing activity $id") { habits.deleteActivity(id) } }
+        viewModelScope.launch { writer.deleteActivity(id) }
     }
 
     /**

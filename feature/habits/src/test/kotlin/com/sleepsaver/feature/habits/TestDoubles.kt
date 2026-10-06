@@ -6,6 +6,9 @@ import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.plus
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import java.io.IOException
 import java.time.Duration
 
@@ -35,6 +38,15 @@ class FailingHabitsRepository(private val delegate: FakeHabitsRepository = FakeH
     override suspend fun setActivitySelected(id: Long, selected: Boolean) = throw IOException("disk full")
     override suspend fun addCustomActivity(label: String, emoji: String): Long = throw IOException("disk full")
     override suspend fun deleteActivity(id: Long) = throw IOException("disk full")
+}
+
+/**
+ * A writer whose "app scope" and IO dispatcher run eagerly on the test scheduler, so a write and its replan
+ * have finished by the time the ViewModel call returns.
+ */
+internal fun TestScope.writer(repository: HabitsRepository, planner: ReminderPlanner): HabitSettingsWriter {
+    val eager = UnconfinedTestDispatcher(testScheduler)
+    return HabitSettingsWriter(repository, planner, backgroundScope + eager, eager)
 }
 
 /** Offset writes wait for [gate], like a slow database; everything else goes straight to the fake. */

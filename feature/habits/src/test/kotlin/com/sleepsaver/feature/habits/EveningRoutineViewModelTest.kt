@@ -32,7 +32,7 @@ class EveningRoutineViewModelTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private fun TestScope.viewModel(repository: HabitsRepository = habits): EveningRoutineViewModel {
-        val viewModel = EveningRoutineViewModel(repository, HabitSettingsWriter(repository, planner))
+        val viewModel = EveningRoutineViewModel(repository, writer(repository, planner))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }

@@ -48,7 +48,7 @@ class HabitDetailViewModelTest {
             SavedStateHandle(mapOf("type" to type)),
             repository,
             FakeInsightsRepository(state),
-            HabitSettingsWriter(repository, planner),
+            writer(repository, planner),
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel

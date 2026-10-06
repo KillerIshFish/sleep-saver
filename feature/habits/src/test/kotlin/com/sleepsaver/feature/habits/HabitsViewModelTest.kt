@@ -38,7 +38,7 @@ class HabitsViewModelTest {
         insights: InsightsState = SampleData.readyState(),
         repository: HabitsRepository = habits,
     ): HabitsViewModel {
-        val viewModel = HabitsViewModel(repository, FakeInsightsRepository(insights), HabitSettingsWriter(repository, planner))
+        val viewModel = HabitsViewModel(repository, FakeInsightsRepository(insights), writer(repository, planner))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
