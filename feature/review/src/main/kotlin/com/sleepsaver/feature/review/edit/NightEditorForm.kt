@@ -74,7 +74,7 @@ internal fun NightEditorForm(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (state.error != null) ErrorNote(state.error)
+        state.error?.let { ErrorNote(it) }
         StepperCard(
             title = stringResource(R.string.review_row_awake),
             caption = stringResource(R.string.review_awake_caption),
