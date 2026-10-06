@@ -54,6 +54,7 @@ class HomeScreenshotTest : ScreenshotTest() {   // Robolectric SDK 36, native gr
 - PNGs land in `<module>/build/outputs/roborazzi/<name>.png` (a screen is 1078 × 2399 px). Open them with the Read tool
   and check spacing, alignment, contrast and clipping. Use unique snake_case names per module.
 - Infinite animations render their first frame. For 24-hour variants wrap content in
-  `CompositionLocalProvider(LocalUse24HourClock provides true)`. Reference images of the whole kit come from
+  `CompositionLocalProvider(LocalUse24HourClock provides true)`; for large system fonts provide
+  `LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)` (see `LargeFontScreenshotTest`). Reference images of the whole kit come from
   `./gradlew :core:ui:testDebugUnitTest` (`core/ui/build/outputs/roborazzi/`, e.g. `kit_home.png`).
 - Other Robolectric tests in these modules can reuse `@Config(sdk = [SCREENSHOT_SDK])`: Robolectric doesn't know SDK 37.

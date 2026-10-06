@@ -59,8 +59,14 @@
     <!-- Controls -->
     <string name="ss_decrease">Decrease</string>
     <string name="ss_increase">Increase</string>
-    <string name="ss_time_earlier">%1$d minutes earlier</string>
-    <string name="ss_time_later">%1$d minutes later</string>
+    <plurals name="ss_time_earlier">
+        <item quantity="one">%1$d minute earlier</item>
+        <item quantity="other">%1$d minutes earlier</item>
+    </plurals>
+    <plurals name="ss_time_later">
+        <item quantity="one">%1$d minute later</item>
+        <item quantity="other">%1$d minutes later</item>
+    </plurals>
     <string name="ss_loading">Loading</string>
 
     <string name="ss_wellness_disclaimer">Sleep Saver is a wellness tool, not medical advice.</string>

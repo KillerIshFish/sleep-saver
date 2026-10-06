@@ -46,7 +46,9 @@ object PhaseCardDefaults {
  * One energy phase: icon, title, time range and the shift vs yesterday ("↑13m earlier"; its line is kept empty
  * when [shift] is null so cards in a row stay the same height).
  * [highlighted] marks the current phase with an accent border, a soft glow and a "Now" tag.
- * The card sizes to its content; use `Modifier.width(PhaseCardDefaults.CompactWidth)` in a row.
+ * The card sizes to its content; use `Modifier.width(PhaseCardDefaults.CompactWidth)` in a row. Its text wraps at
+ * large font sizes; to keep a row's cards equally tall then, give the row `Modifier.height(IntrinsicSize.Max)`
+ * and each card `Modifier.fillMaxHeight()`.
  */
 @Composable
 fun PhaseCard(
@@ -109,11 +111,12 @@ fun PhaseCard(
             }
         }
         Spacer(Modifier.height(14.dp))
+        // Lines wrap rather than cut off: at large font sizes a compact card can't fit "9:30 AM – 12:30 PM".
         Text(
             text = type.title(),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(2.dp))
@@ -121,7 +124,6 @@ fun PhaseCard(
             text = timeRange,
             style = MaterialTheme.typography.bodyMedium,
             color = SleepSaverTheme.colors.textSecondary,
-            maxLines = 1,
         )
         Spacer(Modifier.height(6.dp))
         // Kept (empty) without a shift so cards in a row line up.
@@ -129,7 +131,6 @@ fun PhaseCard(
             text = shift.orEmpty(),
             style = MaterialTheme.typography.labelSmall,
             color = SleepSaverTheme.colors.textTertiary,
-            maxLines = 1,
         )
     }
 }
@@ -158,7 +159,7 @@ fun PhaseCard(
 private fun PhaseCardPreview() = SleepSaverTheme {
     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         PhaseCard(
-            PhaseType.MORNING_PEAK, "9:30 – 12:30 PM", Modifier.width(PhaseCardDefaults.CompactWidth),
+            PhaseType.MORNING_PEAK, "9:30 AM – 12:30 PM", Modifier.width(PhaseCardDefaults.CompactWidth),
             shift = "↑13m earlier", highlighted = true,
         )
         PhaseCard(PhaseType.AFTERNOON_DIP, "2:00 – 4:30 PM", Modifier.width(PhaseCardDefaults.CompactWidth), shift = "same as yesterday")

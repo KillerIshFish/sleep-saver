@@ -34,7 +34,7 @@ import java.time.Duration
 
 /**
  * "− 45m +": edits a number of minutes in [step]s within [min]..[max] (awake time, nap length, need).
- * [format] renders the value; the default is [formatDuration].
+ * When [max] is below [min], [min] wins. [format] renders the value; the default is [formatDuration].
  */
 @Composable
 fun MinuteStepper(
@@ -46,12 +46,14 @@ fun MinuteStepper(
     max: Int = 24 * 60,
     format: (Int) -> String = { formatDuration(Duration.ofMinutes(it.toLong())) },
 ) {
+    // coerceIn throws on an empty range (e.g. a max computed from a window that shrank to nothing).
+    val upper = max.coerceAtLeast(min)
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         StepButton(
             icon = Icons.Rounded.Remove,
             description = stringResource(R.string.ss_decrease),
             enabled = minutes > min,
-            onClick = { onMinutesChange((minutes - step).coerceIn(min, max)) },
+            onClick = { onMinutesChange((minutes - step).coerceIn(min, upper)) },
         )
         Text(
             text = format(minutes),
@@ -66,8 +68,8 @@ fun MinuteStepper(
         StepButton(
             icon = Icons.Rounded.Add,
             description = stringResource(R.string.ss_increase),
-            enabled = minutes < max,
-            onClick = { onMinutesChange((minutes + step).coerceIn(min, max)) },
+            enabled = minutes < upper,
+            onClick = { onMinutesChange((minutes + step).coerceIn(min, upper)) },
         )
     }
 }

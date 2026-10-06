@@ -37,7 +37,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -74,7 +74,8 @@ private val RulerHeight = 76.dp
  * a ruler with minute ticks; dragging (and flinging) moves the ruler under a fixed centre line, snapping to
  * [stepMinutes] on the local clock of [zone] and staying within [min]..[max]. Every snapped change is reported
  * through [onValueChange] (with a light haptic tick when [hapticTicks]); ticks outside the bounds are dimmed.
- * The whole control is draggable, not only the ruler. Screen readers get "earlier"/"later" actions.
+ * When [max] is before [min], [min] wins. The whole control is draggable, not only the ruler.
+ * Screen readers get "earlier"/"later" actions.
  */
 @Composable
 fun TimeScrubber(
@@ -97,7 +98,8 @@ fun TimeScrubber(
     val currentOnValueChange by rememberUpdatedState(onValueChange)
 
     val lower = min?.let { ceil(it.epochSecond / 60.0) } ?: Double.NEGATIVE_INFINITY
-    val upper = max?.let { floor(it.epochSecond / 60.0) } ?: Double.POSITIVE_INFINITY
+    // Never an empty range (coerceIn would throw), even for bounds within one minute.
+    val upper = max?.let { floor(it.epochSecond / 60.0).coerceAtLeast(lower) } ?: Double.POSITIVE_INFINITY
 
     // While the user drags or the ruler settles, it follows its own position; otherwise it shows [value].
     var dragging by remember { mutableStateOf(false) }
@@ -128,8 +130,8 @@ fun TimeScrubber(
 
     val shown: Instant = if (interacting) Instant.ofEpochSecond(snap(position) * 60) else value
     val timeText = formatClockTime(shown, zone, use24h)
-    val earlier = stringResource(R.string.ss_time_earlier, stepMinutes)
-    val later = stringResource(R.string.ss_time_later, stepMinutes)
+    val earlier = pluralStringResource(R.plurals.ss_time_earlier, stepMinutes, stepMinutes)
+    val later = pluralStringResource(R.plurals.ss_time_later, stepMinutes, stepMinutes)
 
     Column(
         modifier = modifier
@@ -160,7 +162,8 @@ fun TimeScrubber(
                     dragging = false
                     settling = true
                     settleJob = scope.launch {
-                        val fling = decay.calculateTargetValue(0f, -velocity / minutePx)
+                        // The spline decay is tuned in pixels (and isn't linear in velocity): coast in px, then convert.
+                        val fling = decay.calculateTargetValue(0f, -velocity) / minutePx
                         val start = position
                         val target = snap(start + fling)
                         try {

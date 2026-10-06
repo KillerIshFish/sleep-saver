@@ -33,14 +33,16 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.isSpecified
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.ui.R
 import com.sleepsaver.core.ui.format.formatHours1
@@ -53,6 +55,9 @@ import kotlin.math.sin
 private const val GAP_DEGREES = 76f
 private const val TRACK_DEGREES = 360f - GAP_DEGREES
 private const val START_DEGREES = 90f + GAP_DEGREES / 2
+
+/** The largest system font scale the gauge's labels follow; beyond it they would run over the ring. */
+private const val MAX_LABEL_FONT_SCALE = 1.3f
 
 /**
  * The home screen's debt ring: an open ring whose sweep is proportional to [debt] (full at [fullScale]),
@@ -81,6 +86,10 @@ fun DebtGauge(
     val hours = formatHours1(debt)
     val statusLabel = status.label()
     val description = stringResource(R.string.ss_debt_gauge_description, hours, statusLabel)
+    // The ring has a fixed size, so its text can't follow large system font sizes all the way without spilling
+    // over it: the number (already huge) stays put and the small labels grow up to MAX_LABEL_FONT_SCALE.
+    val density = LocalDensity.current
+    val labelScale = (MAX_LABEL_FONT_SCALE / density.fontScale).coerceAtMost(1f)
 
     Box(
         modifier = modifier
@@ -93,14 +102,14 @@ fun DebtGauge(
             Text(
                 text = hours,
                 style = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = (size.value * 0.32f).sp,
-                    lineHeight = (size.value * 0.34f).sp,
+                    fontSize = with(density) { (size * 0.32f).toSp() },
+                    lineHeight = with(density) { (size * 0.34f).toSp() },
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.scaled(labelScale),
                 color = SleepSaverTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
@@ -108,7 +117,7 @@ fun DebtGauge(
         if (showStatus) {
             Text(
                 text = statusLabel,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.scaled(labelScale),
                 color = color,
                 // Centred in the ring's opening, on the circle's bottom edge.
                 modifier = Modifier
@@ -118,6 +127,16 @@ fun DebtGauge(
         }
     }
 }
+
+private fun TextStyle.scaled(factor: Float): TextStyle =
+    if (factor >= 1f) {
+        this
+    } else {
+        copy(
+            fontSize = fontSize * factor,
+            lineHeight = if (lineHeight.isSpecified) lineHeight * factor else lineHeight,
+        )
+    }
 
 private fun DrawScope.drawGauge(fraction: Float, color: Color, track: Color) {
     val stroke = size.minDimension * 0.055f
