@@ -34,7 +34,10 @@ class ReviewRepositoryImpl @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override val pendingReview: Flow<LocalDate?> = combine(
-        settingsRepository.settings.map { it.morningReviewEnabled }.distinctUntilChanged(),
+        settingsRepository.settings
+            .orFallback(TAG, "Settings") { AppSettings() }
+            .map { it.morningReviewEnabled }
+            .distinctUntilChanged(),
         insightsRepository.state,
     ) { enabled, state ->
         val insights = (state as? InsightsState.Ready)?.insights

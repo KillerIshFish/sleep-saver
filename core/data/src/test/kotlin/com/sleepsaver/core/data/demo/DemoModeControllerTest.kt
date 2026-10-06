@@ -19,6 +19,8 @@ import com.sleepsaver.core.data.sync.ROBOLECTRIC_SDK
 import com.sleepsaver.core.data.sync.hcSession
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.VitalType
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -286,6 +288,75 @@ class DemoModeControllerTest {
         assertThat(settings.current().demoStartedAt).isNull()
         assertEdits(real)
         assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+    }
+
+    @Test
+    fun enable_whenEmptyingTheTablesFails_rollsBackAndLeavesNoBackup() = runTest {
+        val real = insertRealEdits()
+        // The backup is written, then the transaction fails while emptying the tables.
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER block_review_delete BEFORE DELETE ON morning_reviews BEGIN SELECT RAISE(ABORT, 'blocked'); END",
+        )
+
+        controller.setDemoMode(true)
+
+        assertThat(settings.current().demoMode).isFalse()
+        assertThat(settings.current().demoStartedAt).isNull()
+        assertEdits(real)
+        // A backup left behind would be restored over newer real edits after the next demo.
+        assertThat(backupFile.exists()).isFalse()
+        assertThat(db.sleepSessionDao().count(SourceKind.DEMO.name)).isEqualTo(0)
+
+        db.openHelper.writableDatabase.execSQL("DROP TRIGGER block_review_delete")
+        controller.setDemoMode(true)
+        assertNoEdits()
+        controller.setDemoMode(false)
+        assertEdits(real)
+    }
+
+    @Test
+    fun extendToNow_finishesASwitchThatDiedBeforeMovingTheEdits() = runTest {
+        // The flag was set, then the app died; the next sync (not another tap) runs into it.
+        val real = insertRealEdits()
+        settings.setDemoModeFlag(true, time.now)
+
+        assertThat(controller.extendToNow()).isEqualTo(demoSource.generate().sessions.size)
+
+        assertNoEdits()
+        assertThat(backupFile.isFile).isTrue()
+        editDuringDemo()
+        controller.setDemoMode(false)
+        assertEdits(real)
+    }
+
+    @Test
+    fun extendToNow_leavesTheTablesAloneOnceTheEditsAreAside() = runTest {
+        val real = insertRealEdits()
+        controller.setDemoMode(true)
+        editDuringDemo()
+        val demoEdits = currentEdits()
+
+        time.now = time.now.plus(Duration.ofDays(1))
+        controller.extendToNow()
+
+        assertEdits(demoEdits)
+        controller.setDemoMode(false)
+        assertEdits(real)
+    }
+
+    @Test
+    fun aSwitchRunsToTheEndEvenIfItsCallerIsCancelled() = runTest {
+        val real = insertRealEdits()
+
+        val job = launch(start = CoroutineStart.UNDISPATCHED) { controller.setDemoMode(true) }
+        job.cancel()
+        job.join()
+
+        assertThat(settings.current().demoMode).isTrue()
+        assertNoEdits()
+        assertThat(backupFile.isFile).isTrue()
+        controller.setDemoMode(false)
+        assertEdits(real)
     }
 
     @Test

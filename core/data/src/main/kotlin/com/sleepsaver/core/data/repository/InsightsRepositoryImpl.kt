@@ -88,6 +88,7 @@ class InsightsRepositoryImpl @Inject constructor(
 
     /** The device zone and the local date there, re-read on every tick (ticks restart at once when the zone changes). */
     private val deviceDay: Flow<DeviceDay> = timeProvider.minuteTicks
+        .orFallback(TAG, "Minute ticks") { timeProvider.now() }
         .map { now -> timeProvider.zone().let { zone -> DeviceDay(zone, now.atZone(zone).toLocalDate()) } }
         .distinctUntilChanged()
 
