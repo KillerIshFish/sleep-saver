@@ -13,3 +13,4 @@
 *.aab
 *.hprof
 .claude/
+bin/

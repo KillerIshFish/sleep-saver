@@ -19,7 +19,7 @@ import javax.inject.Provider
  * Robolectric 4.17's Android 16 (SDK 36) runtime reflects into `jdk.internal.access`, which JDK 25 blocks unless
  * the test JVM gets `--add-exports java.base/jdk.internal.access=ALL-UNNAMED`. SDK 35 doesn't need it.
  */
-const val ROBOLECTRIC_SDK = 35
+const val ROBOLECTRIC_SDK = 36
 
 /** In-memory Room + a private DataStore file + fakes around a real [SyncManager]. Robolectric only. */
 class SyncFixture(dataStoreDir: File) {

@@ -45,6 +45,9 @@ import com.sleepsaver.app.R
 import com.sleepsaver.feature.energy.navigation.EnergyRoute
 import com.sleepsaver.feature.energy.navigation.energyScreen
 import com.sleepsaver.feature.habits.navigation.habitsGraph
+import com.sleepsaver.feature.learn.navigation.LearnRoute
+import com.sleepsaver.feature.learn.navigation.learnGraph
+import com.sleepsaver.feature.learn.navigation.navigateToArticle
 import com.sleepsaver.feature.habits.navigation.navigateToHabitDetail
 import com.sleepsaver.feature.habits.navigation.navigateToHabits
 import com.sleepsaver.feature.onboarding.navigation.OnboardingRoute
@@ -68,7 +71,7 @@ private enum class TopLevel(val route: Any, val icon: ImageVector, @StringRes va
     SLEEP(SleepRoute, Icons.Outlined.Bedtime, R.string.nav_sleep),
     ENERGY(EnergyRoute, Icons.Outlined.Bolt, R.string.nav_energy),
     PROGRESS(ProgressRoute, Icons.Outlined.AutoGraph, R.string.nav_progress),
-    LEARN(LearnTabRoute, Icons.Outlined.Lightbulb, R.string.nav_learn),
+    LEARN(LearnRoute, Icons.Outlined.Lightbulb, R.string.nav_learn),
     ;
 
     val routeClass: KClass<*> get() = route::class
@@ -148,7 +151,10 @@ fun SleepSaverApp(
                     onAddMissingNight = navController::navigateToEditNight,
                     onOpenSettings = navController::navigateToSettings,
                 )
-                learnTab(navController)
+                learnGraph(
+                    onOpenArticle = navController::navigateToArticle,
+                    onBack = { navController.popBackStack() },
+                )
                 reviewGraph(
                     navController = navController,
                     onOpenSettings = navController::navigateToSettings,

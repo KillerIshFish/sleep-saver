@@ -23,12 +23,6 @@ internal fun Project.configureScreenshotTests() {
     }
     val screenshotDir = layout.buildDirectory.dir("outputs/roborazzi")
     tasks.withType<Test>().configureEach {
-        // Robolectric's SDK 36 runtime reaches into JDK internals that newer JDKs (25+) no longer export.
-        jvmArgs(
-            "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
-            "--add-opens=java.base/java.io=ALL-UNNAMED",
-            "--enable-native-access=ALL-UNNAMED",
-        )
         systemProperty("robolectric.graphicsMode", "NATIVE")
         if (name.endsWith("DebugUnitTest")) {
             systemProperty("roborazzi.test.record", "true")
