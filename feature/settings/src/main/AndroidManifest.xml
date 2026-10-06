@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        The data-source picker shows the name of every app that wrote sleep to Health Connect. Since Android 11,
+        another app's name can only be read when it's visible to us. Every app that works with Health Connect
+        declares one of these screens, so querying them makes exactly those apps visible (no broad package access).
+    -->
+    <queries>
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+            <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+        </intent>
+    </queries>
+</manifest>
