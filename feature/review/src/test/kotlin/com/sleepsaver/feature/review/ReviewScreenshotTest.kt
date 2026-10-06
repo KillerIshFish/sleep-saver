@@ -2,6 +2,9 @@ package com.sleepsaver.feature.review
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
 import com.sleepsaver.core.domain.model.ManualNap
@@ -95,7 +98,36 @@ class ReviewScreenshotTest : ScreenshotTest() {
 
     @Test
     fun reviewMissing() = captureScreen("review_missing") {
-        MorningReviewContent(review(ReviewStep.Missing(syncFailed = false)), MorningReviewActions.Noop)
+        MorningReviewContent(review(ReviewStep.Missing()), MorningReviewActions.Noop)
+    }
+
+    @Test
+    fun reviewMissingPermission() = captureScreen("review_missing_permission") {
+        MorningReviewContent(
+            review(ReviewStep.Missing(SyncError.PERMISSION_DENIED)),
+            MorningReviewActions(
+                onClose = {}, onSyncNow = {}, onLooksRight = {}, onAdjust = {}, onAdjustCancel = {}, onAdjustDone = {},
+                onDone = {}, onDontShowAgain = {}, editor = NightEditorCallbacks.Noop, onOpenHealthConnect = {},
+            ),
+        )
+    }
+
+    @Test
+    fun reviewSummaryLargeFont() = captureScreen("review_summary_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            MorningReviewContent(review(ReviewStep.Summary(lastNight, source(lastNight))), MorningReviewActions.Noop)
+        }
+    }
+
+    @Test
+    fun reviewAdjustLargeFont() = captureScreen("review_adjust_large_font") {
+        val editor = NightEditorState.from(today, lastNight, Duration.ofHours(8), LocalTime.of(7, 0), zone)
+        CompositionLocalProvider(
+            LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f),
+            LocalUse24HourClock provides true,
+        ) {
+            MorningReviewContent(review(ReviewStep.Adjust(editor)), MorningReviewActions.Noop)
+        }
     }
 
     @Test

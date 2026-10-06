@@ -1,7 +1,6 @@
 package com.sleepsaver.feature.review.nap
 
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,15 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.ui.components.MinuteStepper
@@ -38,7 +31,9 @@ import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
+import com.sleepsaver.feature.review.common.CloseWhenFinished
 import com.sleepsaver.feature.review.common.ConfirmDialog
+import com.sleepsaver.feature.review.common.InlineNote
 import com.sleepsaver.feature.review.common.NavIcon
 import com.sleepsaver.feature.review.common.PageHeader
 import com.sleepsaver.feature.review.common.ReviewPage
@@ -51,7 +46,7 @@ internal fun AddNapScreen(
     viewModel: AddNapViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(state.finished) { if (state.finished) onClose() }
+    CloseWhenFinished(state.finished, onClose)
     AddNapContent(
         state = state,
         onClose = onClose,
@@ -129,22 +124,8 @@ internal fun AddNapContent(
                     )
                 }
             }
-            if (state.endsInFuture) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
-                        .padding(horizontal = Spacing.l, vertical = Spacing.m),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Text(
-                        text = stringResource(R.string.review_nap_error_future),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(start = Spacing.m),
-                    )
-                }
-            }
+            if (state.endsInFuture) InlineNote(stringResource(R.string.review_nap_error_future))
+            if (state.saveFailed) InlineNote(stringResource(R.string.review_save_failed))
             SectionCard(title = stringResource(R.string.review_naps_that_day), modifier = Modifier.fillMaxWidth()) {
                 if (state.naps.isEmpty()) {
                     Text(

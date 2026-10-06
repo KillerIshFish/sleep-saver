@@ -2,6 +2,7 @@ package com.sleepsaver.feature.review
 
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.SleepRepository
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.ManualNap
 import com.sleepsaver.core.domain.model.Night
@@ -11,9 +12,11 @@ import com.sleepsaver.core.domain.model.SleepStage
 import com.sleepsaver.core.domain.model.SleepStageType
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.night.NightAssembler
+import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -38,6 +41,19 @@ class FakeMorningReviewNotifier : MorningReviewNotifier {
     override fun cancel() {
         cancels++
     }
+}
+
+/** Reads like [delegate] but every write fails, like a database that's full or locked. */
+class FailingWritesSleepRepository(private val delegate: FakeSleepRepository) : SleepRepository by delegate {
+    var writeAttempts = 0
+    private fun fail(): Nothing {
+        writeAttempts++
+        throw IOException("disk full")
+    }
+    override suspend fun saveOverride(override: NightOverride) = fail()
+    override suspend fun revert(wakeDate: LocalDate) = fail()
+    override suspend fun addManualNight(wakeDate: LocalDate, fellAsleep: Instant, wokeUp: Instant, offset: ZoneOffset) = fail()
+    override suspend fun addNap(start: Instant, end: Instant, offset: ZoneOffset): Long = fail()
 }
 
 /** One simple night in New York (EDT, GMT−4): 23:00 → 07:00 with 30 min awake at 02:00. */

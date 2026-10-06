@@ -28,6 +28,8 @@ data class EditNightUiState(
     /** null while the night loads. */
     val editor: NightEditorState? = null,
     val saving: Boolean = false,
+    /** The last save or revert didn't go through: the editor stays open with a note. */
+    val saveFailed: Boolean = false,
     /** Saved or reverted: the screen closes. */
     val finished: Boolean = false,
 )
@@ -66,23 +68,23 @@ class EditNightViewModel @Inject constructor(
         val current = state.value
         val editor = current.editor ?: return
         if (current.saving || current.finished || editor.error != null) return
-        state.update { it.copy(saving = true) }
+        state.update { it.copy(saving = true, saveFailed = false) }
         viewModelScope.launch {
-            runCatching { sleepRepository.apply(editor.toSave(timeProvider.now())) }
-            state.update { it.copy(saving = false, finished = true) }
+            val ok = runCatching { sleepRepository.apply(editor.toSave(timeProvider.now())) }.isSuccess
+            state.update { it.copy(saving = false, saveFailed = !ok, finished = ok) }
         }
     }
 
     /** Drops the edits (or removes a manual night) and closes. */
     fun onRevert() {
         if (state.value.saving || state.value.finished) return
-        state.update { it.copy(saving = true) }
+        state.update { it.copy(saving = true, saveFailed = false) }
         viewModelScope.launch {
-            runCatching { sleepRepository.revert(wakeDate) }
-            state.update { it.copy(saving = false, finished = true) }
+            val ok = runCatching { sleepRepository.revert(wakeDate) }.isSuccess
+            state.update { it.copy(saving = false, saveFailed = !ok, finished = ok) }
         }
     }
 
     private fun edit(block: (NightEditorState) -> NightEditorState) =
-        state.update { s -> if (s.saving || s.editor == null) s else s.copy(editor = block(s.editor)) }
+        state.update { s -> if (s.saving || s.editor == null) s else s.copy(editor = block(s.editor), saveFailed = false) }
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
@@ -37,6 +38,8 @@ data class AddNapUiState(
     /** Naps already on the chosen day. */
     val naps: List<SleepBlock> = emptyList(),
     val saving: Boolean = false,
+    /** The last save didn't go through: the form stays open with a note. */
+    val saveFailed: Boolean = false,
     /** Saved: the screen closes. */
     val finished: Boolean = false,
 ) {
@@ -80,28 +83,37 @@ class AddNapViewModel @Inject constructor(
     val uiState: StateFlow<AddNapUiState> = combine(form, naps) { f, n -> f.copy(naps = n) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, form.value)
 
+    init {
+        // Keep "now" fresh while the form is open, so "ends after now" and the scrubber's limit stay right.
+        viewModelScope.launch {
+            runCatching { timeProvider.minuteTicks.collect { tick -> form.update { it.copy(now = tick) } } }
+        }
+    }
+
     /** Today/yesterday: keeps the clock time, moves the date. */
     fun onDayChange(day: NapDay) = form.update { f ->
-        if (f.day == day) return@update f
+        if (f.day == day || f.saving) return@update f
         val time = f.start.atZone(f.zone).toLocalTime()
         val moved = f.copy(day = day)
         moved.copy(start = moved.date.atTime(time).atZone(f.zone).toInstant().clampTo(moved))
     }
 
-    fun onStartChange(start: Instant) = form.update { if (it.saving) it else it.copy(start = start) }
+    fun onStartChange(start: Instant) = form.update { if (it.saving) it else it.copy(start = start, saveFailed = false) }
 
     fun onMinutesChange(minutes: Int) = form.update {
+        if (it.saving) return@update it
         val snapped = minutes / AddNapUiState.STEP * AddNapUiState.STEP
-        it.copy(minutes = snapped.coerceIn(AddNapUiState.MIN_MINUTES, AddNapUiState.MAX_MINUTES))
+        it.copy(minutes = snapped.coerceIn(AddNapUiState.MIN_MINUTES, AddNapUiState.MAX_MINUTES), saveFailed = false)
     }
 
+    /** Saves the nap in the offset the device had when it started, then closes. A failed save keeps the form. */
     fun onSave() {
-        val f = form.value
+        val f = form.updateAndGet { it.copy(now = maxOf(it.now, timeProvider.now())) }
         if (!f.canSave) return
-        form.update { it.copy(saving = true) }
+        form.update { it.copy(saving = true, saveFailed = false) }
         viewModelScope.launch {
-            runCatching { sleepRepository.addNap(f.start, f.end, f.zone.rules.getOffset(f.start)) }
-            form.update { it.copy(saving = false, finished = true) }
+            val ok = runCatching { sleepRepository.addNap(f.start, f.end, f.zone.rules.getOffset(f.start)) }.isSuccess
+            form.update { it.copy(saving = false, saveFailed = !ok, finished = ok) }
         }
     }
 

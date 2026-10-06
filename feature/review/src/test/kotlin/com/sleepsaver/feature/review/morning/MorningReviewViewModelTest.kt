@@ -17,6 +17,7 @@ import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.feature.review.FailingWritesSleepRepository
 import com.sleepsaver.feature.review.FakeMorningReviewNotifier
 import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.edit.EditKind
@@ -243,7 +244,7 @@ class MorningReviewViewModelTest {
         sleep.nightsState.value = SampleData.nights(includeLastNight = false)
         val vm = viewModel()
         advanceUntilIdle()
-        assertThat(vm.step).isEqualTo(ReviewStep.Missing(syncFailed = false))
+        assertThat(vm.step).isEqualTo(ReviewStep.Missing())
 
         vm.onAdjust()
         advanceUntilIdle()
@@ -268,7 +269,7 @@ class MorningReviewViewModelTest {
         sync.nextResult = SyncResult(success = false, error = SyncError.PERMISSION_DENIED)
         val vm = viewModel()
         advanceUntilIdle()
-        assertThat(vm.step).isEqualTo(ReviewStep.Missing(syncFailed = true))
+        assertThat(vm.step).isEqualTo(ReviewStep.Missing(SyncError.PERMISSION_DENIED))
 
         sync.nextResult = SyncResult(success = true)
         sleep.nightsState.value = SampleData.nights()
@@ -278,6 +279,56 @@ class MorningReviewViewModelTest {
 
         assertThat(sync.syncCalls).hasSize(2)
         assertThat(vm.step).isInstanceOf(ReviewStep.Summary::class.java)
+    }
+
+    @Test
+    fun `missing Health Connect is reported so the screen can offer the fix`() = runTest {
+        sleep.nightsState.value = SampleData.nights(includeLastNight = false)
+        sync.nextResult = SyncResult(success = false, error = SyncError.HEALTH_CONNECT_NOT_INSTALLED)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.step).isEqualTo(ReviewStep.Missing(SyncError.HEALTH_CONNECT_NOT_INSTALLED))
+    }
+
+    @Test
+    fun `a sync that throws still lands on a friendly state`() = runTest {
+        sleep.nightsState.value = SampleData.nights(includeLastNight = false)
+        val vm = MorningReviewViewModel(
+            SavedStateHandle(mapOf("wakeDate" to today.toString())),
+            sleep, insights, settings,
+            object : com.sleepsaver.core.data.repository.SyncRepository by sync {
+                override suspend fun sync(trigger: SyncTrigger): SyncResult = error("boom")
+            },
+            reviews, notifier, time,
+        )
+        advanceUntilIdle()
+
+        assertThat(vm.step).isEqualTo(ReviewStep.Missing(SyncError.UNKNOWN))
+    }
+
+    @Test
+    fun `an adjustment that can't be saved goes back to the editor with a note`() = runTest {
+        val failing = FailingWritesSleepRepository(sleep)
+        val vm = MorningReviewViewModel(
+            SavedStateHandle(mapOf("wakeDate" to today.toString())),
+            failing, insights, settings, sync, reviews, notifier, time,
+        )
+        advanceUntilIdle()
+        vm.onAdjust()
+        advanceUntilIdle()
+        vm.onAwakeChange(90)
+
+        vm.onAdjustDone()
+        advanceUntilIdle()
+
+        val adjust = vm.step as ReviewStep.Adjust
+        assertThat(adjust.saveFailed).isTrue()
+        assertThat(adjust.editor.awakeMinutes).isEqualTo(90)
+        assertThat(reviews.reviews.value).isEmpty()
+
+        vm.onAwakeChange(95)
+        assertThat((vm.step as ReviewStep.Adjust).saveFailed).isFalse()
     }
 
     @Test

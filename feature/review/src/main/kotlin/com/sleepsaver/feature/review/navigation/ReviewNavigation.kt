@@ -32,16 +32,20 @@ data object AddNapRoute
 /**
  * The review screens: morning review, night detail, edit night and add nap. Each closes by popping itself;
  * close/back taps on a screen that isn't resumed (still animating in or out) are dropped, so a double tap can't
- * pop twice. [onOpenSettings] backs the "Change data source" link in the "How we measure sleep" sheet.
+ * pop twice. [onOpenSettings] backs the "Change data source" link in the "How we measure sleep" sheet;
+ * [onOpenHealthConnectSetup] is the morning review's fix-it when Health Connect is missing or not allowed
+ * (Settings when not given).
  */
 fun NavGraphBuilder.reviewGraph(
     navController: NavController,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: (() -> Unit)? = null,
 ) {
     composable<MorningReviewRoute> {
         MorningReviewScreen(
             onClose = dropUnlessResumed { navController.popBackStack() },
             onOpenSettings = dropUnlessResumed(block = onOpenSettings),
+            onOpenHealthConnect = dropUnlessResumed(block = onOpenHealthConnectSetup ?: onOpenSettings),
         )
     }
     composable<NightDetailRoute> { entry ->

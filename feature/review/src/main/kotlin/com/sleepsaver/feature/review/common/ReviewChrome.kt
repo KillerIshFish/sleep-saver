@@ -1,6 +1,7 @@
 package com.sleepsaver.feature.review.common
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material3.AlertDialog
@@ -36,11 +38,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.withResumed
 import com.sleepsaver.core.ui.components.IconListItem
 import com.sleepsaver.core.ui.components.SectionCard
 import com.sleepsaver.core.ui.components.TextLinkButton
@@ -230,3 +240,42 @@ internal fun DataSourceCard(
 
 /** Lines a text button's label up with the content's start edge (its touch target reaches 12 dp beyond). */
 internal fun Modifier.alignTextStart(): Modifier = offset(x = (-12).dp)
+
+/** A short note in a soft tide panel: validation hints and "couldn't save" messages. Announced when it appears. */
+@Composable
+internal fun InlineNote(text: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
+            .padding(horizontal = Spacing.l, vertical = Spacing.m)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Rounded.Info,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = Spacing.m),
+        )
+    }
+}
+
+/**
+ * Calls [onFinished] once [finished] is true and the screen is resumed. A close that lands while the app is in the
+ * background (a save finishing late) waits for the user to come back instead of being dropped.
+ */
+@Composable
+internal fun CloseWhenFinished(finished: Boolean, onFinished: () -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val latest by rememberUpdatedState(onFinished)
+    LaunchedEffect(finished, lifecycle) {
+        if (finished) lifecycle.withResumed { latest() }
+    }
+}

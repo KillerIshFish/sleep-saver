@@ -12,6 +12,7 @@ import com.sleepsaver.core.data.repository.ReviewRepository
 import com.sleepsaver.core.data.repository.ReviewStatus
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
+import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
@@ -34,6 +35,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -53,10 +55,13 @@ sealed interface ReviewStep {
 
     data class Summary(val night: Night, val source: NightSource) : ReviewStep
 
-    /** The night isn't in. [syncFailed]: the last sync couldn't read Health Connect. */
-    data class Missing(val syncFailed: Boolean) : ReviewStep
+    /** The night isn't in. [syncError]: why the last sync couldn't read Health Connect (null = it could). */
+    data class Missing(val syncError: SyncError? = null) : ReviewStep {
+        val syncFailed: Boolean get() = syncError != null
+    }
 
-    data class Adjust(val editor: NightEditorState) : ReviewStep
+    /** The editor, inline. [saveFailed]: the last "Done" couldn't be written, so the edits are still here. */
+    data class Adjust(val editor: NightEditorState, val saveFailed: Boolean = false) : ReviewStep
 
     data class Result(val update: DebtUpdate) : ReviewStep
 }
@@ -96,7 +101,8 @@ class MorningReviewViewModel @Inject constructor(
     private val phase = MutableStateFlow(Phase.SYNCING)
     private val editor = MutableStateFlow<NightEditorState?>(null)
     private val update = MutableStateFlow<DebtUpdate?>(null)
-    private val syncFailed = MutableStateFlow(false)
+    private val syncError = MutableStateFlow<SyncError?>(null)
+    private val saveFailed = MutableStateFlow(false)
     private val finished = MutableStateFlow(false)
 
     /** What the user decided (set on "Looks right" or a saved adjustment), recorded on Done. */
@@ -109,22 +115,25 @@ class MorningReviewViewModel @Inject constructor(
     /** null until the night has loaded once. */
     private val night: StateFlow<Loaded?> = sleepRepository.night(wakeDate)
         .map { Loaded(it) }
+        .catch { emit(Loaded(null)) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private class Loaded(val night: Night?)
+
+    private data class Flags(val syncError: SyncError?, val saveFailed: Boolean, val finished: Boolean)
 
     val uiState: StateFlow<MorningReviewUiState> = combine(
         phase,
         night,
         editor,
         update,
-        combine(syncFailed, finished) { failed, done -> failed to done },
-    ) { phase, loaded, editor, update, (failed, done) ->
+        combine(syncError, saveFailed, finished, ::Flags),
+    ) { phase, loaded, editor, update, flags ->
         MorningReviewUiState(
             wakeDate = wakeDate,
             today = today,
-            step = step(phase, loaded, editor, update, failed),
-            finished = done,
+            step = step(phase, loaded, editor, update, flags),
+            finished = flags.finished,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MorningReviewUiState(wakeDate, today, ReviewStep.Loading(false)))
 
@@ -132,7 +141,7 @@ class MorningReviewViewModel @Inject constructor(
         sync()
     }
 
-    private fun step(phase: Phase, loaded: Loaded?, editor: NightEditorState?, update: DebtUpdate?, failed: Boolean): ReviewStep =
+    private fun step(phase: Phase, loaded: Loaded?, editor: NightEditorState?, update: DebtUpdate?, flags: Flags): ReviewStep =
         when (phase) {
             Phase.SYNCING -> ReviewStep.Loading(recalculating = false)
             Phase.REVIEW -> {
@@ -141,10 +150,10 @@ class MorningReviewViewModel @Inject constructor(
                     loaded == null -> ReviewStep.Loading(recalculating = false)
                     night != null && night.isPresent ->
                         ReviewStep.Summary(night, NightSource.of(night, timeProvider.zone(), timeProvider.now()))
-                    else -> ReviewStep.Missing(syncFailed = failed)
+                    else -> ReviewStep.Missing(syncError = flags.syncError)
                 }
             }
-            Phase.ADJUST -> editor?.let(ReviewStep::Adjust) ?: ReviewStep.Loading(recalculating = false)
+            Phase.ADJUST -> editor?.let { ReviewStep.Adjust(it, flags.saveFailed) } ?: ReviewStep.Loading(recalculating = false)
             Phase.RECALCULATING -> ReviewStep.Loading(recalculating = true)
             Phase.RESULT -> update?.let(ReviewStep::Result) ?: ReviewStep.Loading(recalculating = true)
         }
@@ -160,11 +169,11 @@ class MorningReviewViewModel @Inject constructor(
             coroutineScope {
                 launch { delay(MIN_SYNC_MS) }
                 val demo = runCatching { settingsRepository.current().demoMode }.getOrDefault(false)
-                if (!demo) {
-                    val result = runCatching { syncRepository.sync(SyncTrigger.MANUAL) }.getOrNull()
-                    syncFailed.value = result?.success != true
+                syncError.value = if (demo) {
+                    null
                 } else {
-                    syncFailed.value = false
+                    val result = runCatching { syncRepository.sync(SyncTrigger.MANUAL) }.getOrNull()
+                    if (result?.success == true) null else result?.error ?: SyncError.UNKNOWN
                 }
             }
             phase.value = Phase.REVIEW
@@ -183,8 +192,12 @@ class MorningReviewViewModel @Inject constructor(
         if (phase.value != Phase.REVIEW) return
         phase.value = Phase.ADJUST
         editor.value = null
+        saveFailed.value = false
         work = viewModelScope.launch {
-            editor.value = loadEditor(wakeDate, sleepRepository, settingsRepository, insightsRepository, timeProvider)
+            val loaded = runCatching {
+                loadEditor(wakeDate, sleepRepository, settingsRepository, insightsRepository, timeProvider)
+            }.getOrNull()
+            if (loaded != null) editor.value = loaded else phase.value = Phase.REVIEW
         }
     }
 
@@ -220,13 +233,18 @@ class MorningReviewViewModel @Inject constructor(
                 val ok = runCatching { sleepRepository.apply(save) }.isSuccess
                 if (ok && save != NightSave.NoChange) {
                     // The data layer re-assembles nights asynchronously: wait (briefly) until the edit shows up.
-                    withTimeoutOrNull(PROPAGATION_TIMEOUT_MS) { sleepRepository.night(wakeDate).first { save.isVisibleIn(it) } }
+                    runCatching {
+                        withTimeoutOrNull(PROPAGATION_TIMEOUT_MS) {
+                            sleepRepository.night(wakeDate).first { save.isVisibleIn(it) }
+                        }
+                    }
                 }
                 ok
             }
             if (!saved) {
-                // Couldn't write the edit: back to the editor so nothing is lost.
+                // Couldn't write the edit: back to the editor (with a note) so nothing is lost.
                 outcome = null
+                saveFailed.value = true
                 phase.value = if (editor.value != null) Phase.ADJUST else Phase.REVIEW
                 return@launch
             }
@@ -314,7 +332,9 @@ class MorningReviewViewModel @Inject constructor(
     }
 
     private fun edit(block: (NightEditorState) -> NightEditorState) {
-        if (phase.value == Phase.ADJUST) editor.update { it?.let(block) }
+        if (phase.value != Phase.ADJUST) return
+        editor.update { it?.let(block) }
+        saveFailed.value = false
     }
 
     companion object {

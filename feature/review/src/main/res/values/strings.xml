@@ -7,6 +7,7 @@
     <string name="review_done">Done</string>
     <string name="review_delete">Delete</string>
     <string name="review_keep">Keep</string>
+    <string name="review_save_failed">That didn’t save. Your changes are still here, so try again in a moment.</string>
     <!-- Two facts on one line: "via Health Connect · Recorded in GMT−4" -->
     <string name="review_joined">%1$s · %2$s</string>
     <!-- "Mon, Oct 5 into Tue, Oct 6": the evening the night started and the morning it ended. -->
@@ -37,12 +38,19 @@
     <string name="review_missing_body_error">We couldn’t read Health Connect just now. Try syncing again, or add the night yourself.</string>
     <string name="review_sync_now">Sync now</string>
     <string name="review_add_manually">Add it manually</string>
+    <string name="review_try_again">Try again</string>
+    <string name="review_missing_hc_title">Health Connect isn’t ready</string>
+    <string name="review_missing_hc_body">Sleep Saver reads your Garmin sleep through Health Connect, which needs to be installed or updated on this phone. Set it up and we’ll look for last night again.</string>
+    <string name="review_set_up_hc">Set up Health Connect</string>
+    <string name="review_missing_permission_title">Sleep Saver can’t read your sleep</string>
+    <string name="review_missing_permission_body">Access to sleep data in Health Connect is switched off, so last night can’t come in. Allow it, or add the night yourself.</string>
+    <string name="review_allow_access">Allow access</string>
     <string name="review_adjust_title">Adjust your night</string>
     <string name="review_recalculating">Updating your sleep debt</string>
     <string name="review_result_title">Sleep debt updated</string>
     <string name="review_result_last_night">Last night</string>
-    <!-- "Need 8h − slept 6h 53m" -->
-    <string name="review_result_need_slept">Need %1$s − slept %2$s</string>
+    <!-- "Sleep need 8h − slept 6h 53m" -->
+    <string name="review_result_need_slept">Sleep need %1$s − slept %2$s</string>
     <string name="review_result_fading">Older nights fading</string>
     <string name="review_result_fading_body">Each past night weighs a little less every day</string>
     <string name="review_result_now">Sleep debt now</string>

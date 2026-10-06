@@ -9,6 +9,7 @@ import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.feature.review.FailingWritesSleepRepository
 import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.TestNight
 import com.sleepsaver.feature.review.TestNight.at
@@ -149,6 +150,27 @@ class EditNightViewModelTest {
         val editor = vm.uiState.value.editor!!
         val wake = editor.wokeUp.atZone(SampleData.zone).toLocalTime()
         assertThat(wake).isEqualTo(SampleData.schedule().typicalWake.toLocalTime())
+    }
+
+    @Test
+    fun `a save that fails keeps the editor open with the edits`() = runTest {
+        val failing = FailingWritesSleepRepository(sleep)
+        val vm = EditNightViewModel(SavedStateHandle(mapOf("wakeDate" to wakeDate.toString())), failing, settings, insights, time)
+        advanceUntilIdle()
+
+        vm.onAwakeChange(45)
+        vm.onDone()
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertThat(failing.writeAttempts).isEqualTo(1)
+        assertThat(state.finished).isFalse()
+        assertThat(state.saveFailed).isTrue()
+        assertThat(state.saving).isFalse()
+        assertThat(state.editor!!.awakeMinutes).isEqualTo(45)
+
+        vm.onAwakeChange(50)
+        assertThat(vm.uiState.value.saveFailed).isFalse()
     }
 
     @Test

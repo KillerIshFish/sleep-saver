@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.model.ManualNap
 import com.sleepsaver.core.testing.FakeSleepRepository
+import com.sleepsaver.feature.review.FailingWritesSleepRepository
 import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.TestNight
 import com.sleepsaver.feature.review.TestNight.at
@@ -96,6 +97,35 @@ class AddNapViewModelTest {
 
         assertThat(sleep.addedNaps).isEmpty()
         assertThat(vm.uiState.value.finished).isFalse()
+    }
+
+    @Test
+    fun `a save that fails keeps the form open`() = runTest {
+        val vm = AddNapViewModel(FailingWritesSleepRepository(sleep), time)
+
+        vm.onSave()
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertThat(state.finished).isFalse()
+        assertThat(state.saveFailed).isTrue()
+        assertThat(state.canSave).isTrue()
+    }
+
+    @Test
+    fun `saving re-checks the clock`() = runTest {
+        val vm = viewModel()
+        // The form opened at 15:07; a nap from 15:00 for 10 minutes ends after that...
+        vm.onStartChange(at(wakeDate, 15, 0))
+        vm.onMinutesChange(10)
+        assertThat(vm.uiState.value.endsInFuture).isTrue()
+
+        // ...but not after 15:20, when the user finally taps Save.
+        time.now = at(wakeDate, 15, 20)
+        vm.onSave()
+        advanceUntilIdle()
+
+        assertThat(sleep.addedNaps).containsExactly(at(wakeDate, 15, 0) to at(wakeDate, 15, 10))
     }
 
     @Test

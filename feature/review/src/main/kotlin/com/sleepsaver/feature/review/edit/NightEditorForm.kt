@@ -1,15 +1,10 @@
 package com.sleepsaver.feature.review.edit
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,9 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.ui.components.MinuteStepper
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.TimeScrubber
@@ -30,6 +23,7 @@ import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
 import com.sleepsaver.feature.review.common.DataSourceCard
+import com.sleepsaver.feature.review.common.InlineNote
 import java.time.Duration
 import java.time.Instant
 
@@ -169,30 +163,12 @@ private fun StepperCard(
 
 @Composable
 private fun ErrorNote(error: EditError) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
-            .padding(horizontal = Spacing.l, vertical = Spacing.m)
-            .semantics { liveRegion = LiveRegionMode.Assertive },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Rounded.Info,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Text(
-            text = stringResource(
-                when (error) {
-                    EditError.WAKE_BEFORE_SLEEP -> R.string.review_error_order
-                    EditError.TOO_LONG -> R.string.review_error_too_long
-                },
-            ),
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(start = Spacing.m),
-        )
-    }
+    InlineNote(
+        text = stringResource(
+            when (error) {
+                EditError.WAKE_BEFORE_SLEEP -> R.string.review_error_order
+                EditError.TOO_LONG -> R.string.review_error_too_long
+            },
+        ),
+    )
 }

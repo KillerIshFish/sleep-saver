@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -27,7 +26,9 @@ import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
+import com.sleepsaver.feature.review.common.CloseWhenFinished
 import com.sleepsaver.feature.review.common.ConfirmDialog
+import com.sleepsaver.feature.review.common.InlineNote
 import com.sleepsaver.feature.review.common.HowWeMeasureSheet
 import com.sleepsaver.feature.review.common.NavIcon
 import com.sleepsaver.feature.review.common.PageHeader
@@ -42,7 +43,7 @@ internal fun EditNightScreen(
     viewModel: EditNightViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(state.finished) { if (state.finished) onClose() }
+    CloseWhenFinished(state.finished, onClose)
     EditNightContent(
         state = state,
         callbacks = NightEditorCallbacks(
@@ -110,6 +111,10 @@ internal fun EditNightContent(
             )
             Spacer(Modifier.height(Spacing.l))
             NightEditorForm(state = editor, callbacks = formCallbacks)
+            if (state.saveFailed) {
+                Spacer(Modifier.height(Spacing.cardGap))
+                InlineNote(stringResource(R.string.review_save_failed))
+            }
             if (editor.isEdited) {
                 Spacer(Modifier.height(Spacing.s))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {

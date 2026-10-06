@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.HealthAndSafety
 import androidx.compose.material.icons.rounded.Snooze
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.WbTwilight
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.ui.components.ChangeChip
@@ -72,8 +74,10 @@ import com.sleepsaver.core.ui.format.formatHours1
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
+import com.sleepsaver.feature.review.common.CloseWhenFinished
 import com.sleepsaver.feature.review.common.ConfirmDialog
 import com.sleepsaver.feature.review.common.HowWeMeasureSheet
+import com.sleepsaver.feature.review.common.InlineNote
 import com.sleepsaver.feature.review.common.NavIcon
 import com.sleepsaver.feature.review.common.NightSource
 import com.sleepsaver.feature.review.common.PageHeader
@@ -100,6 +104,8 @@ class MorningReviewActions(
     val onDontShowAgain: () -> Unit,
     val editor: NightEditorCallbacks,
     val onOpenSettings: (() -> Unit)? = null,
+    /** Fix-it for "Health Connect isn't installed / allowed"; falls back to [onOpenSettings]. */
+    val onOpenHealthConnect: (() -> Unit)? = null,
 ) {
     companion object {
         val Noop = MorningReviewActions({}, {}, {}, {}, {}, {}, {}, {}, NightEditorCallbacks.Noop)
@@ -110,10 +116,11 @@ class MorningReviewActions(
 internal fun MorningReviewScreen(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnect: () -> Unit = onOpenSettings,
     viewModel: MorningReviewViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(state.finished) { if (state.finished) onClose() }
+    CloseWhenFinished(state.finished, onClose)
     // System back: leave the editor first; elsewhere it's the close X.
     BackHandler(enabled = !state.finished) {
         if (state.step is ReviewStep.Adjust) viewModel.onAdjustCancel() else viewModel.onClose()
@@ -137,6 +144,7 @@ internal fun MorningReviewScreen(
                 onHowWeMeasure = {},
             ),
             onOpenSettings = onOpenSettings,
+            onOpenHealthConnect = onOpenHealthConnect,
         ),
     )
 }
@@ -173,7 +181,7 @@ internal fun MorningReviewContent(
                 onHowCalculated = { howWeMeasure = true },
                 onDontShowAgain = { confirmDontShow = true },
             )
-            is ReviewStep.Missing -> MissingStep(target.syncFailed, actions)
+            is ReviewStep.Missing -> MissingStep(target.syncError, actions)
             is ReviewStep.Adjust -> ReviewPage(
                 navIcon = NavIcon.BACK,
                 onNavigate = actions.onAdjustCancel,
@@ -202,6 +210,10 @@ internal fun MorningReviewContent(
                         onHowWeMeasure = { howWeMeasure = true },
                     ),
                 )
+                if (target.saveFailed) {
+                    Spacer(Modifier.height(Spacing.cardGap))
+                    InlineNote(stringResource(R.string.review_save_failed))
+                }
             }
             is ReviewStep.Result -> ResultStep(state, target.update, actions, animateResult)
         }
@@ -404,28 +416,63 @@ private fun SummaryRow(icon: ImageVector, label: String, value: String, onClick:
     )
 }
 
+/**
+ * Last night isn't in. When Health Connect itself is the problem (not installed, or no permission) the main action
+ * fixes that and "Try again" re-syncs; otherwise it's "Sync now". Adding the night by hand always works.
+ */
 @Composable
-private fun MissingStep(syncFailed: Boolean, actions: MorningReviewActions) {
+private fun MissingStep(syncError: SyncError?, actions: MorningReviewActions) {
+    val healthConnectFix = actions.onOpenHealthConnect ?: actions.onOpenSettings
+    val blocker = when (syncError) {
+        SyncError.HEALTH_CONNECT_NOT_INSTALLED, SyncError.HEALTH_CONNECT_UPDATE_REQUIRED -> Blocker.SETUP
+        SyncError.PERMISSION_DENIED -> Blocker.PERMISSION
+        else -> null
+    }.takeIf { healthConnectFix != null }
     ReviewPage(navIcon = NavIcon.CLOSE, onNavigate = actions.onClose, scrollState = null) {
-        Box(
+        Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 56.dp),
-            contentAlignment = Alignment.Center,
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            EmptyState(
-                icon = Icons.Rounded.CloudSync,
-                title = stringResource(R.string.review_missing_title),
-                body = stringResource(if (syncFailed) R.string.review_missing_body_error else R.string.review_missing_body),
-                primaryActionLabel = stringResource(R.string.review_sync_now),
-                onPrimaryAction = actions.onSyncNow,
-                secondaryActionLabel = stringResource(R.string.review_add_manually),
-                onSecondaryAction = actions.onAdjust,
-            )
+            when (blocker) {
+                null -> EmptyState(
+                    icon = Icons.Rounded.CloudSync,
+                    title = stringResource(R.string.review_missing_title),
+                    body = stringResource(
+                        if (syncError != null) R.string.review_missing_body_error else R.string.review_missing_body,
+                    ),
+                    primaryActionLabel = stringResource(R.string.review_sync_now),
+                    onPrimaryAction = actions.onSyncNow,
+                    secondaryActionLabel = stringResource(R.string.review_add_manually),
+                    onSecondaryAction = actions.onAdjust,
+                )
+                else -> {
+                    val setup = blocker == Blocker.SETUP
+                    EmptyState(
+                        icon = Icons.Rounded.HealthAndSafety,
+                        title = stringResource(if (setup) R.string.review_missing_hc_title else R.string.review_missing_permission_title),
+                        body = stringResource(if (setup) R.string.review_missing_hc_body else R.string.review_missing_permission_body),
+                        primaryActionLabel = stringResource(if (setup) R.string.review_set_up_hc else R.string.review_allow_access),
+                        onPrimaryAction = healthConnectFix,
+                        secondaryActionLabel = stringResource(R.string.review_add_manually),
+                        onSecondaryAction = actions.onAdjust,
+                    )
+                    TextLinkButton(
+                        text = stringResource(R.string.review_try_again),
+                        onClick = actions.onSyncNow,
+                        color = SleepSaverTheme.colors.textSecondary,
+                        modifier = Modifier.padding(top = Spacing.xs),
+                    )
+                }
+            }
         }
     }
 }
+
+private enum class Blocker { SETUP, PERMISSION }
 
 @Composable
 private fun ResultStep(state: MorningReviewUiState, update: DebtUpdate, actions: MorningReviewActions, animate: Boolean) {
