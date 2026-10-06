@@ -10,8 +10,10 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.sleepsaver.core.data.di.SettingsDataStore
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -45,6 +47,13 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setTypicalWake(time: LocalTime) =
         edit { it[SettingsKeys.TYPICAL_WAKE_MIN_OF_DAY] = time.toSecondOfDay() / 60 }
+
+    override suspend fun setWakeTimeMode(mode: WakeTimeMode) = edit { it[SettingsKeys.WAKE_TIME_MODE] = mode.name }
+
+    override suspend fun setBedtime(time: LocalTime) =
+        edit { it[SettingsKeys.BEDTIME_MIN_OF_DAY] = time.toSecondOfDay() / 60 }
+
+    override suspend fun setBedtimeMode(mode: BedtimeMode) = edit { it[SettingsKeys.BEDTIME_MODE] = mode.name }
 
     override suspend fun setStreakThreshold(threshold: Duration) =
         edit { it[SettingsKeys.STREAK_THRESHOLD_MIN] = threshold.toMinutes().toInt() }
@@ -88,6 +97,9 @@ internal object SettingsKeys {
 
     val SLEEP_NEED_MIN = intPreferencesKey("sleepNeedMin")
     val TYPICAL_WAKE_MIN_OF_DAY = intPreferencesKey("typicalWakeMinOfDay")
+    val WAKE_TIME_MODE = stringPreferencesKey("wakeTimeMode")
+    val BEDTIME_MIN_OF_DAY = intPreferencesKey("bedtimeMinOfDay")
+    val BEDTIME_MODE = stringPreferencesKey("bedtimeMode")
     val STREAK_THRESHOLD_MIN = intPreferencesKey("streakThresholdMin")
     val LOW_DEBT_MAX_MIN = intPreferencesKey("lowDebtMaxMin")
     val HIGH_DEBT_MIN_MIN = intPreferencesKey("highDebtMinMin")
@@ -107,9 +119,14 @@ internal fun Preferences.toAppSettings(): AppSettings {
     return AppSettings(
         sleep = UserSleepSettings(
             sleepNeed = minutes(SettingsKeys.SLEEP_NEED_MIN) ?: sleepDefaults.sleepNeed,
-            typicalWake = this[SettingsKeys.TYPICAL_WAKE_MIN_OF_DAY]
-                ?.let { LocalTime.ofSecondOfDay(Math.floorMod(it, MINUTES_PER_DAY) * 60L) }
-                ?: sleepDefaults.typicalWake,
+            typicalWake = timeOfDay(SettingsKeys.TYPICAL_WAKE_MIN_OF_DAY) ?: sleepDefaults.typicalWake,
+            wakeTimeMode = this[SettingsKeys.WAKE_TIME_MODE]
+                ?.let { name -> WakeTimeMode.entries.firstOrNull { it.name == name } }
+                ?: sleepDefaults.wakeTimeMode,
+            bedtime = timeOfDay(SettingsKeys.BEDTIME_MIN_OF_DAY) ?: sleepDefaults.bedtime,
+            bedtimeMode = this[SettingsKeys.BEDTIME_MODE]
+                ?.let { name -> BedtimeMode.entries.firstOrNull { it.name == name } }
+                ?: sleepDefaults.bedtimeMode,
             streakThreshold = minutes(SettingsKeys.STREAK_THRESHOLD_MIN) ?: sleepDefaults.streakThreshold,
             lowDebtMax = minutes(SettingsKeys.LOW_DEBT_MAX_MIN) ?: sleepDefaults.lowDebtMax,
             highDebtMin = minutes(SettingsKeys.HIGH_DEBT_MIN_MIN) ?: sleepDefaults.highDebtMin,
@@ -138,6 +155,9 @@ internal fun decodeSource(value: String): SourceSelection =
 private const val MINUTES_PER_DAY = 24 * 60
 
 private fun Preferences.minutes(key: Preferences.Key<Int>): Duration? = this[key]?.let { Duration.ofMinutes(it.toLong()) }
+
+private fun Preferences.timeOfDay(key: Preferences.Key<Int>): LocalTime? =
+    this[key]?.let { LocalTime.ofSecondOfDay(Math.floorMod(it, MINUTES_PER_DAY) * 60L) }
 
 private fun <T> MutablePreferences.putOrRemove(key: Preferences.Key<T>, value: T?) {
     if (value == null) remove(key) else this[key] = value

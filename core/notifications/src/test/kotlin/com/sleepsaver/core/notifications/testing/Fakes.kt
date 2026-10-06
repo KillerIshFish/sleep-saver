@@ -11,6 +11,7 @@ import com.sleepsaver.core.data.repository.MorningReview
 import com.sleepsaver.core.data.repository.ReviewRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.domain.habits.HabitCatalog
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
@@ -18,6 +19,7 @@ import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -76,6 +78,9 @@ class FakeSettingsRepository(initial: AppSettings = AppSettings(onboardingDone =
     override suspend fun current(): AppSettings = failure?.let { throw it } ?: settings.value
     override suspend fun setSleepNeed(need: Duration) = settings.update { it.copy(sleep = it.sleep.copy(sleepNeed = need)) }
     override suspend fun setTypicalWake(time: LocalTime) = settings.update { it.copy(sleep = it.sleep.copy(typicalWake = time)) }
+    override suspend fun setWakeTimeMode(mode: WakeTimeMode) = settings.update { it.copy(sleep = it.sleep.copy(wakeTimeMode = mode)) }
+    override suspend fun setBedtime(time: LocalTime) = settings.update { it.copy(sleep = it.sleep.copy(bedtime = time)) }
+    override suspend fun setBedtimeMode(mode: BedtimeMode) = settings.update { it.copy(sleep = it.sleep.copy(bedtimeMode = mode)) }
     override suspend fun setStreakThreshold(threshold: Duration) = settings.update { it.copy(sleep = it.sleep.copy(streakThreshold = threshold)) }
     override suspend fun setDebtThresholds(lowMax: Duration, highMin: Duration) =
         settings.update { it.copy(sleep = it.sleep.copy(lowDebtMax = lowMax, highDebtMin = highMin)) }

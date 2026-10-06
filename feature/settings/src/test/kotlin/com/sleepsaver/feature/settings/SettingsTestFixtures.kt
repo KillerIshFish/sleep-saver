@@ -5,6 +5,7 @@ import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Confidence
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.settings.platform.SettingsPlatform
@@ -49,7 +50,14 @@ internal object SettingsSamples {
         loading = false,
         sleepNeed = Duration.ofHours(8),
         typicalWake = LocalTime.of(7, 0),
-        learnedWake = LocalTime.of(6, 52),
+        learned = LearnedSleepTiming(
+            weekdayWake = LocalTime.of(6, 52),
+            weekendWake = LocalTime.of(8, 35),
+            weekdayFellAsleep = LocalTime.of(23, 10),
+            weekendFellAsleep = LocalTime.of(0, 20),
+        ),
+        scheduleWake = LocalTime.of(6, 52),
+        scheduleBedtime = LocalTime.of(22, 55),
         needSuggestion = NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9),
         streakThreshold = Duration.ofHours(5),
         lowDebtMax = Duration.ofHours(2),
@@ -69,7 +77,9 @@ internal object SettingsSamples {
 
     /** Fresh install: no estimate yet, onboarding wake time, never synced, notifications not granted. */
     val fresh = ready.copy(
-        learnedWake = null,
+        learned = LearnedSleepTiming(),
+        scheduleWake = null,
+        scheduleBedtime = null,
         needSuggestion = null,
         healthConnect = HealthConnectAccess.PERMISSION_NEEDED,
         sync = SyncUi(lastSyncedAt = null, lastError = SyncError.PERMISSION_DENIED),

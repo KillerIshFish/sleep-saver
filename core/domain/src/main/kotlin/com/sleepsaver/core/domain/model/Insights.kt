@@ -12,12 +12,78 @@ import java.time.ZonedDateTime
 /** The user-editable settings the engine needs. Defaults match SleepConfig. */
 data class UserSleepSettings(
     val sleepNeed: Duration = Duration.ofHours(8),
-    /** From onboarding; only used until there are enough nights to estimate the circadian anchor. */
+    /** The user's own wake time: used when [wakeTimeMode] is FIXED, and until there are enough nights to learn it. */
     val typicalWake: LocalTime = LocalTime.of(7, 0),
+    val wakeTimeMode: WakeTimeMode = WakeTimeMode.FROM_DATA,
+    /** The user's own bedtime: used when [bedtimeMode] is FIXED, and until there are enough nights to learn it. */
+    val bedtime: LocalTime = LocalTime.of(23, 0),
+    val bedtimeMode: BedtimeMode = BedtimeMode.FROM_DATA,
     val streakThreshold: Duration = Duration.ofHours(5),
     val lowDebtMax: Duration = Duration.ofHours(2),
     val highDebtMin: Duration = Duration.ofHours(5),
     val source: SourceSelection = SourceSelection.Single(com.sleepsaver.core.domain.config.SleepConfig.GARMIN_CONNECT_PACKAGE),
+) {
+    val timing: SleepTiming get() = SleepTiming(wakeTimeMode, typicalWake, bedtimeMode, bedtime)
+}
+
+/** Where the schedule's wake time comes from. */
+enum class WakeTimeMode {
+    /** Learned from the wake times in recent sleep data (weekdays and weekends apart). */
+    FROM_DATA,
+
+    /** Always the user's own wake time. */
+    FIXED,
+}
+
+/** Where tonight's target bedtime comes from. */
+enum class BedtimeMode {
+    /** When the user usually falls asleep, learned from recent sleep data (weekday and weekend nights apart). */
+    FROM_DATA,
+
+    /** Tomorrow's wake time minus the sleep need and the time it takes to fall asleep. */
+    SLEEP_NEED,
+
+    /** Always the user's own bedtime. */
+    FIXED,
+}
+
+/**
+ * The user's choices for the schedule's two anchors. [wakeTime] and [bedtime] are their own times: used when the
+ * mode is FIXED, and as the fallback while there aren't enough nights to learn from.
+ */
+data class SleepTiming(
+    val wakeTimeMode: WakeTimeMode = WakeTimeMode.FROM_DATA,
+    val wakeTime: LocalTime = LocalTime.of(7, 0),
+    val bedtimeMode: BedtimeMode = BedtimeMode.FROM_DATA,
+    val bedtime: LocalTime = LocalTime.of(23, 0),
+)
+
+/** Where a schedule's wake time or bedtime actually came from. */
+enum class TimingSource {
+    /** Learned from sleep data. */
+    LEARNED,
+
+    /** Wake time minus sleep need (bedtime only). */
+    SLEEP_NEED,
+
+    /** The user's fixed time. */
+    FIXED,
+
+    /** Learning was asked for but there aren't enough nights yet: the user's own time stands in. */
+    NOT_ENOUGH_DATA,
+}
+
+/**
+ * Wake and fall-asleep times learned from recent nights, shown next to the settings. A value is null when there
+ * aren't enough nights to learn it.
+ */
+data class LearnedSleepTiming(
+    val weekdayWake: LocalTime? = null,
+    val weekendWake: LocalTime? = null,
+    /** Nights before a weekday (Sunday–Thursday nights). */
+    val weekdayFellAsleep: LocalTime? = null,
+    /** Nights before a weekend day (Friday and Saturday nights). */
+    val weekendFellAsleep: LocalTime? = null,
 )
 
 // ---------------------------------------------------------------- Debt
@@ -98,11 +164,13 @@ sealed interface SleepNeedEstimateResult {
 data class CircadianAnchor(
     /** Weighted circular mean of main-sleep midpoints, minutes after local midnight [0, 1440). */
     val midpointMinuteOfDay: Double,
-    /** W = anchor + need/2, as a local time of day. */
+    /** W, the day's typical wake time: learned from recent wake times, or the user's own (see [wakeSource]). */
     val typicalWake: LocalTime,
     val nightsUsed: Int,
-    /** True when there weren't enough nights and the onboarding wake time was used. */
+    /** True when W had to fall back to the user's own wake time (not enough nights yet). */
     val isFallback: Boolean,
+    val wakeSource: TimingSource = TimingSource.LEARNED,
+    val bedtimeSource: TimingSource = TimingSource.SLEEP_NEED,
 )
 
 enum class PhaseType {
@@ -269,6 +337,8 @@ data class DailyInsights(
     /** Missing nights inside the 14-night debt window, never before the user's first night with data. */
     val missingNights: List<LocalDate>,
     val needEstimate: SleepNeedEstimateResult,
+    /** Wake and fall-asleep times learned from recent nights (for the settings). */
+    val learnedTiming: LearnedSleepTiming = LearnedSleepTiming(),
 )
 
 // ---------------------------------------------------------------- Vitals (optional data)

@@ -43,6 +43,11 @@ internal data class ExportDocument(
 internal data class SettingsDto(
     val sleepNeedMin: Long,
     val typicalWake: String,
+    /** WakeTimeMode name. Absent in files exported before it existed. */
+    val wakeTimeMode: String? = null,
+    val bedtime: String? = null,
+    /** BedtimeMode name. */
+    val bedtimeMode: String? = null,
     val streakThresholdMin: Long,
     val lowDebtMaxMin: Long,
     val highDebtMinMin: Long,
@@ -141,6 +146,9 @@ internal data class ReviewDto(
 internal fun AppSettings.toDto() = SettingsDto(
     sleepNeedMin = sleep.sleepNeed.toMinutes(),
     typicalWake = sleep.typicalWake.toString(),
+    wakeTimeMode = sleep.wakeTimeMode.name,
+    bedtime = sleep.bedtime.toString(),
+    bedtimeMode = sleep.bedtimeMode.name,
     streakThresholdMin = sleep.streakThreshold.toMinutes(),
     lowDebtMaxMin = sleep.lowDebtMax.toMinutes(),
     highDebtMinMin = sleep.highDebtMin.toMinutes(),

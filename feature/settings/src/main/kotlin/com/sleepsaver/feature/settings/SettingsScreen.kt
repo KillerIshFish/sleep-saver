@@ -30,7 +30,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.data.repository.ClockFormat
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import java.time.LocalTime
 
 /**
@@ -109,7 +111,8 @@ internal fun SettingsScreen(
             override fun onBack() = currentOnBack()
             override fun onSleepNeedChange(minutes: Int) = viewModel.setSleepNeed(minutes)
             override fun onUseSuggestedNeed() = viewModel.useSuggestedNeed()
-            override fun onTypicalWakeChange(time: LocalTime) = viewModel.setTypicalWake(time)
+            override fun onWakeTimeChange(mode: WakeTimeMode, time: LocalTime) = viewModel.setWakeTime(mode, time)
+            override fun onBedtimeChange(mode: BedtimeMode, time: LocalTime) = viewModel.setBedtime(mode, time)
             override fun onStreakThresholdChange(minutes: Int) = viewModel.setStreakThreshold(minutes)
             override fun onDebtLevelsChange(lowMaxMinutes: Int, highMinMinutes: Int) {
                 viewModel.setDebtLevels(lowMaxMinutes, highMinMinutes)

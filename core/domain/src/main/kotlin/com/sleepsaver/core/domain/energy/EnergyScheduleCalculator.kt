@@ -1,8 +1,10 @@
 package com.sleepsaver.core.domain.energy
 
 import com.sleepsaver.core.domain.circadian.CircadianAnchorEstimator
+import com.sleepsaver.core.domain.circadian.SleepTimingEstimator
 import com.sleepsaver.core.domain.config.PhaseGuardrail
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.EnergyCurve
 import com.sleepsaver.core.domain.model.EnergyPoint
 import com.sleepsaver.core.domain.model.EnergySchedule
@@ -10,7 +12,10 @@ import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.Phase
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.SleepBlock
+import com.sleepsaver.core.domain.model.SleepTiming
 import com.sleepsaver.core.domain.model.TimeSpan
+import com.sleepsaver.core.domain.model.TimingSource
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -25,8 +30,10 @@ import kotlin.math.roundToLong
  * Inputs: all assembled nights (used for the anchor and for Process S history), the day [date] (a wake date),
  * the device [zone] for turning W into instants (DST-safe via ZonedDateTime), need, current debt.
  *
- *  - Anchor/W from CircadianAnchorEstimator using nights with wakeDate ≤ date.
- *  - W as ZonedDateTime = date at typicalWake in [zone] (ZonedDateTime.of resolves DST gaps forward).
+ *  - W (typical wake) per [SleepTiming.wakeTimeMode]: FROM_DATA → learned from recent wake times
+ *    ([SleepTimingEstimator], weekdays and weekends apart), falling back to the user's own wake time while there
+ *    aren't enough nights; FIXED → the user's own wake time.
+ *  - W as ZonedDateTime = date at that time in [zone] (ZonedDateTime.of resolves DST gaps forward).
  *  - Wa = effective wokeUp of the night with wakeDate == date, if present; else W.
  *  - Process S: seeded `sSeed` at Wa − sHistoryHours, integrated over every asleep interval (main/extra blocks minus their
  *    awake periods, naps) that overlaps the history, awake otherwise; then awake from Wa to B.
@@ -35,7 +42,11 @@ import kotlin.math.roundToLong
  *    Otherwise the WAITING morning (last night not in yet) would read as a night awake: phases would slide to their
  *    limits and snap back once the data arrives. A brand-new user therefore gets the nominal phases.
  *  - Curve: [TwoProcessModel] from Wa to B at curveStep (B is always the last point), min-max normalised to 0..1.
- *  - Phases per the table in §3.7. B uses *tomorrow's* W: (date + 1) at typicalWake in [zone], minus need, minus latency.
+ *  - B (target bedtime, the evening of [date]) per [SleepTiming.bedtimeMode]: FROM_DATA → when the user usually falls
+ *    asleep before a day like tomorrow, minus `sleepLatency` (the user's own bedtime while there aren't enough nights);
+ *    SLEEP_NEED → tomorrow's W − need − `sleepLatency`; FIXED → the user's own bedtime. A clock time before noon
+ *    means after midnight (the next calendar day).
+ *  - Phases per the table in §3.7.
  *    Morning peak, afternoon dip and evening peak never start before grogginess ends (matters after a very late wake).
  *  - Phases list order: GROGGINESS, MORNING_PEAK, AFTERNOON_DIP, EVENING_PEAK, WIND_DOWN, MELATONIN_WINDOW.
  *  - shiftVsYesterday is left null here; see [withShifts].
@@ -43,6 +54,7 @@ import kotlin.math.roundToLong
 class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEFAULT) {
 
     private val anchorEstimator = CircadianAnchorEstimator(config)
+    private val timingEstimator = SleepTimingEstimator(config)
     private val model = TwoProcessModel(config)
 
     init {
@@ -55,19 +67,21 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         nights: List<Night>,
         need: Duration,
         debt: Duration,
-        fallbackWake: LocalTime,
+        timing: SleepTiming,
     ): EnergySchedule {
         val history = nights.filter { !it.wakeDate.isAfter(date) }
-        val anchor = anchorEstimator.estimate(history, date, need, fallbackWake)
-        val typicalWake = ZonedDateTime.of(date, anchor.typicalWake, zone)
-        val tomorrowWake = ZonedDateTime.of(date.plusDays(1), anchor.typicalWake, zone).toInstant()
+        val (wakeTime, wakeSource) = wakeTimeOn(date, history, timing)
+        val (tomorrowWakeTime, _) = wakeTimeOn(date.plusDays(1), history, timing)
+        val anchor = anchorEstimator.estimate(history, date, need, timing.wakeTime)
+        val typicalWake = ZonedDateTime.of(date, wakeTime, zone)
+        val tomorrowWake = ZonedDateTime.of(date.plusDays(1), tomorrowWakeTime, zone).toInstant()
         val w = typicalWake.toInstant()
         val actualWake = history.firstOrNull { it.wakeDate == date && it.isPresent }?.let { it.wokeUp ?: it.main?.end }
         val wa = actualWake ?: w
-        val bedtime = tomorrowWake - need - config.sleepLatency
+        val (bedtime, bedtimeSource) = bedtimeOn(date, zone, history, need, tomorrowWake, timing)
         val debtHours = hours(debt)
         val historyStart = wa - Duration.ofHours(config.sHistoryHours)
-        val asleep = asleepIntervals(history) + nominalNights(history, historyStart, date, anchor.typicalWake, zone, need)
+        val asleep = asleepIntervals(history) + nominalNights(history, historyStart, date, wakeTime, zone, need)
         val curve = curve(wa, historyStart, w, bedtime, debtHours, asleep)
 
         val grogginess = Phase(PhaseType.GROGGINESS, wa, wa + grogginessLength(debtHours))
@@ -90,9 +104,42 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
             phases = listOf(grogginess, morningPeak, afternoonDip, eveningPeak, windDown, melatonin)
                 .map { it.atLeast(config.minPhaseLength) },
             curve = curve,
-            anchor = anchor,
+            anchor = anchor.copy(
+                typicalWake = wakeTime,
+                isFallback = wakeSource == TimingSource.NOT_ENOUGH_DATA,
+                wakeSource = wakeSource,
+                bedtimeSource = bedtimeSource,
+            ),
         )
     }
+
+    /** W on [wakeDate] and where it came from. */
+    private fun wakeTimeOn(wakeDate: LocalDate, history: List<Night>, timing: SleepTiming): Pair<LocalTime, TimingSource> =
+        when (timing.wakeTimeMode) {
+            WakeTimeMode.FIXED -> timing.wakeTime to TimingSource.FIXED
+            WakeTimeMode.FROM_DATA -> timingEstimator.wakeTime(history, wakeDate)?.let { it to TimingSource.LEARNED }
+                ?: (timing.wakeTime to TimingSource.NOT_ENOUGH_DATA)
+        }
+
+    /** B on the evening of [date] and where it came from. */
+    private fun bedtimeOn(
+        date: LocalDate,
+        zone: ZoneId,
+        history: List<Night>,
+        need: Duration,
+        tomorrowWake: Instant,
+        timing: SleepTiming,
+    ): Pair<Instant, TimingSource> = when (timing.bedtimeMode) {
+        BedtimeMode.SLEEP_NEED -> tomorrowWake - need - config.sleepLatency to TimingSource.SLEEP_NEED
+        BedtimeMode.FIXED -> eveningOf(date, timing.bedtime, zone) to TimingSource.FIXED
+        BedtimeMode.FROM_DATA -> timingEstimator.fellAsleepTime(history, date.plusDays(1))
+            ?.let { eveningOf(date, it, zone) - config.sleepLatency to TimingSource.LEARNED }
+            ?: (eveningOf(date, timing.bedtime, zone) to TimingSource.NOT_ENOUGH_DATA)
+    }
+
+    /** [time] on the evening of [date]; a time before noon is after midnight, i.e. on the next day. */
+    private fun eveningOf(date: LocalDate, time: LocalTime, zone: ZoneId): Instant =
+        ZonedDateTime.of(if (time.isBefore(LocalTime.NOON)) date.plusDays(1) else date, time, zone).toInstant()
 
     /**
      * Fills Phase.shiftVsYesterday = (today's start local time of day) − (yesterday's start local time of day),

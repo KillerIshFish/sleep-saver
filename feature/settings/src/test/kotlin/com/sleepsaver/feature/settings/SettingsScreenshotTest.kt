@@ -13,7 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import com.sleepsaver.core.domain.model.BedtimeMode
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
 import com.sleepsaver.core.ui.testing.captureScreen
@@ -137,18 +140,58 @@ class SettingsScreenshotTest : ScreenshotTest() {
     }
 
     @Test
-    fun typicalWakeDialog() = captureScreen("settings_dialog_typical_wake") {
+    fun wakeTimeDialog() = captureScreen("settings_dialog_wake_time") {
         WithDialog {
-            TypicalWakeDialogCard(current = LocalTime.of(7, 0), learnedWake = null, onSave = {}, onDismiss = {})
+            WakeTimeDialogCard(
+                mode = WakeTimeMode.FROM_DATA,
+                ownTime = LocalTime.of(7, 0),
+                learned = SettingsSamples.ready.learned,
+                onSave = { _, _ -> },
+                onDismiss = {},
+            )
         }
     }
 
     @Test
-    fun typicalWakeDialog24h() = captureScreen("settings_dialog_typical_wake_24h") {
+    fun wakeTimeDialogFixed24h() = captureScreen("settings_dialog_wake_time_fixed_24h") {
         CompositionLocalProvider(LocalUse24HourClock provides true) {
             WithDialog {
-                TypicalWakeDialogCard(current = LocalTime.of(6, 35), learnedWake = LocalTime.of(6, 52), onSave = {}, onDismiss = {})
+                WakeTimeDialogCard(
+                    mode = WakeTimeMode.FIXED,
+                    ownTime = LocalTime.of(6, 35),
+                    learned = LearnedSleepTiming(),
+                    onSave = { _, _ -> },
+                    onDismiss = {},
+                )
             }
+        }
+    }
+
+    @Test
+    fun bedtimeDialog() = captureScreen("settings_dialog_bedtime") {
+        WithDialog {
+            BedtimeDialogCard(
+                mode = BedtimeMode.FROM_DATA,
+                ownTime = LocalTime.of(23, 0),
+                learned = SettingsSamples.ready.learned,
+                sleepNeed = Duration.ofMinutes(500),
+                onSave = { _, _ -> },
+                onDismiss = {},
+            )
+        }
+    }
+
+    @Test
+    fun bedtimeDialogSleepNeed() = captureScreen("settings_dialog_bedtime_need") {
+        WithDialog {
+            BedtimeDialogCard(
+                mode = BedtimeMode.SLEEP_NEED,
+                ownTime = LocalTime.of(23, 0),
+                learned = LearnedSleepTiming(),
+                sleepNeed = Duration.ofMinutes(500),
+                onSave = { _, _ -> },
+                onDismiss = {},
+            )
         }
     }
 

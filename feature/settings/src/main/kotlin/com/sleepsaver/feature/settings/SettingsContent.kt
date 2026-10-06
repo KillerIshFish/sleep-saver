@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.DataObject
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.FileDownload
+import androidx.compose.material.icons.rounded.KingBed
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MonitorHeart
 import androidx.compose.material.icons.rounded.NightsStay
@@ -71,7 +72,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Confidence
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.components.LoadingOrb
 import com.sleepsaver.core.ui.components.ScreenHeader
 import com.sleepsaver.core.ui.components.SegmentedControl
@@ -266,12 +269,30 @@ private fun SleepGroup(
         RowDivider()
         SettingsRow(
             icon = Icons.Rounded.WbSunny,
-            title = stringResource(R.string.settings_typical_wake),
-            supporting = state.learnedWake
-                ?.let { stringResource(R.string.settings_typical_wake_learned, formatClockTime(it, use24h)) }
-                ?: stringResource(R.string.settings_typical_wake_caption),
-            onClick = { openDialog(SettingsDialog.TYPICAL_WAKE) },
-            value = formatClockTime(state.typicalWake, use24h),
+            title = stringResource(R.string.settings_wake_time),
+            supporting = when (state.wakeTimeMode) {
+                WakeTimeMode.FIXED -> stringResource(R.string.settings_timing_fixed)
+                WakeTimeMode.FROM_DATA -> learnedWakeText(state.learned, use24h)
+                    ?.let { stringResource(R.string.settings_timing_from_data, it) }
+                    ?: stringResource(R.string.settings_timing_waiting, formatClockTime(state.typicalWake, use24h))
+            },
+            onClick = { openDialog(SettingsDialog.WAKE_TIME) },
+            value = formatClockTime(state.scheduleWake ?: state.typicalWake, use24h),
+        )
+        RowDivider()
+        SettingsRow(
+            icon = Icons.Rounded.KingBed,
+            title = stringResource(R.string.settings_bedtime),
+            supporting = when (state.bedtimeMode) {
+                BedtimeMode.FIXED -> stringResource(R.string.settings_timing_fixed)
+                BedtimeMode.SLEEP_NEED -> stringResource(R.string.settings_bedtime_need_caption, formatDuration(state.sleepNeed))
+                BedtimeMode.FROM_DATA -> learnedBedtimeText(state.learned, use24h)
+                    ?.let { stringResource(R.string.settings_timing_from_data, it) }
+                    ?: stringResource(R.string.settings_timing_waiting, formatClockTime(state.bedtime, use24h))
+            },
+            onClick = { openDialog(SettingsDialog.BEDTIME) },
+            value = state.scheduleBedtime?.let { formatClockTime(it, use24h) }
+                ?: formatClockTime(state.bedtime, use24h),
         )
     }
 }
@@ -556,10 +577,19 @@ private fun SettingsDialogs(
                 onSave = { actions.onSleepNeedChange(it); close() },
                 onDismiss = close,
             )
-            SettingsDialog.TYPICAL_WAKE -> TypicalWakeDialogCard(
-                current = state.typicalWake,
-                learnedWake = state.learnedWake,
-                onSave = { actions.onTypicalWakeChange(it); close() },
+            SettingsDialog.WAKE_TIME -> WakeTimeDialogCard(
+                mode = state.wakeTimeMode,
+                ownTime = state.typicalWake,
+                learned = state.learned,
+                onSave = { mode, time -> actions.onWakeTimeChange(mode, time); close() },
+                onDismiss = close,
+            )
+            SettingsDialog.BEDTIME -> BedtimeDialogCard(
+                mode = state.bedtimeMode,
+                ownTime = state.bedtime,
+                learned = state.learned,
+                sleepNeed = state.sleepNeed,
+                onSave = { mode, time -> actions.onBedtimeChange(mode, time); close() },
                 onDismiss = close,
             )
             SettingsDialog.STREAK -> StreakDialogCard(

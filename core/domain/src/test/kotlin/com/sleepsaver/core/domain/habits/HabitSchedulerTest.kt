@@ -2,12 +2,14 @@ package com.sleepsaver.core.domain.habits
 
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.ReminderCategory
 import com.sleepsaver.core.domain.model.ScheduledHabit
+import com.sleepsaver.core.domain.model.SleepTiming
 import com.sleepsaver.core.domain.testing.Fx
 import java.time.Duration
 import java.time.Instant
@@ -29,7 +31,7 @@ class HabitSchedulerTest {
         nights = (0L..6L).map { Fx.night(date.minusDays(it), "23:00", "07:00") },
         need = Duration.ofHours(8),
         debt = Duration.ZERO,
-        fallbackWake = LocalTime.of(7, 0),
+        timing = SleepTiming(wakeTime = LocalTime.of(7, 0), bedtimeMode = BedtimeMode.SLEEP_NEED),
     )
 
     private fun at(time: String): Instant = LocalDateTime.of(date, LocalTime.parse(time)).toInstant(Fx.UTC)

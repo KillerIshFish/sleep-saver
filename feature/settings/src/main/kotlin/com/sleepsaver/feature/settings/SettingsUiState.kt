@@ -4,8 +4,11 @@ import androidx.compose.runtime.Immutable
 import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Confidence
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -20,10 +23,17 @@ data class SettingsUiState(
 
     // Sleep
     val sleepNeed: Duration = Duration.ofHours(8),
-    /** The onboarding wake time, used until there are enough nights to learn the rhythm. */
+    val wakeTimeMode: WakeTimeMode = WakeTimeMode.FROM_DATA,
+    /** The user's own wake time: used when fixed, and until there are enough nights to learn it. */
     val typicalWake: LocalTime = LocalTime.of(7, 0),
-    /** The wake time learned from recent nights, once there are enough of them. */
-    val learnedWake: LocalTime? = null,
+    val bedtimeMode: BedtimeMode = BedtimeMode.FROM_DATA,
+    /** The user's own bedtime: used when fixed, and until there are enough nights to learn it. */
+    val bedtime: LocalTime = LocalTime.of(23, 0),
+    /** Wake and fall-asleep times learned from recent nights. */
+    val learned: LearnedSleepTiming = LearnedSleepTiming(),
+    /** Today's wake time and tonight's bedtime as the schedule uses them; null until insights are ready. */
+    val scheduleWake: LocalTime? = null,
+    val scheduleBedtime: LocalTime? = null,
     val needSuggestion: NeedSuggestion? = null,
 
     // Goals
@@ -162,6 +172,7 @@ object SettingsLimits {
     const val DEBT_LEVEL_STEP_MINUTES = 30
 
     const val WAKE_STEP_MINUTES = 5
+    const val BEDTIME_STEP_MINUTES = 5
 }
 
 /**
@@ -172,7 +183,8 @@ interface SettingsActions {
     fun onBack() {}
     fun onSleepNeedChange(minutes: Int) {}
     fun onUseSuggestedNeed() {}
-    fun onTypicalWakeChange(time: LocalTime) {}
+    fun onWakeTimeChange(mode: WakeTimeMode, time: LocalTime) {}
+    fun onBedtimeChange(mode: BedtimeMode, time: LocalTime) {}
     fun onStreakThresholdChange(minutes: Int) {}
     fun onDebtLevelsChange(lowMaxMinutes: Int, highMinMinutes: Int) {}
     fun onSourceSelected(source: SourceSelection) {}

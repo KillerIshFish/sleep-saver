@@ -196,6 +196,7 @@ class SettingsContentTest {
     fun `notifications that were never allowed can be requested`() {
         show(SettingsSamples.ready.copy(notifications = NotificationAccess.PERMISSION_NEEDED))
         scrollTo("Notifications are off")
+        scrollTo("Allow notifications")
         compose.onNodeWithText("Allow notifications").performClick()
 
         assertThat(actions.calls).containsExactly("allowNotifications")
@@ -205,6 +206,7 @@ class SettingsContentTest {
     fun `notifications blocked in system settings link there`() {
         show(SettingsSamples.ready.copy(notifications = NotificationAccess.BLOCKED))
         scrollTo("Notifications are off")
+        scrollTo("Open settings")
         compose.onNodeWithText("Open settings").performClick()
 
         assertThat(actions.calls).containsExactly("notificationSettings")

@@ -75,10 +75,10 @@ class InsightsEngineTest {
 
         val expected = scheduleCalculator.withShifts(
             today = scheduleCalculator.schedule(
-                today, zone, nights, need, debtCalculator.debtAsOf(today, byDate, need).debt, settings.typicalWake,
+                today, zone, nights, need, debtCalculator.debtAsOf(today, byDate, need).debt, settings.timing,
             ),
             yesterday = scheduleCalculator.schedule(
-                yesterday, zone, nights.drop(1), need, debtCalculator.debtAsOf(yesterday, byDate, need).debt, settings.typicalWake,
+                yesterday, zone, nights.drop(1), need, debtCalculator.debtAsOf(yesterday, byDate, need).debt, settings.timing,
             ),
         )
         assertThat(insights.schedule).isEqualTo(expected)
@@ -236,7 +236,7 @@ class InsightsEngineTest {
         fun on(d: LocalDate): EnergySchedule {
             val debtDate = if (byDate[d]?.isPresent == true) d else d.minusDays(1)
             val debt = debtCalculator.debtAsOf(debtDate, byDate, need).debt
-            return scheduleCalculator.schedule(d, zone, nights.filter { !it.wakeDate.isAfter(d) }, need, debt, settings.typicalWake)
+            return scheduleCalculator.schedule(d, zone, nights.filter { !it.wakeDate.isAfter(d) }, need, debt, settings.timing)
         }
         return scheduleCalculator.withShifts(on(day), on(day.minusDays(1)))
     }

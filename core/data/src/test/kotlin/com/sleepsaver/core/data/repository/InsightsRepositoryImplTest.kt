@@ -192,7 +192,7 @@ class InsightsRepositoryImplTest {
         val sleepSettings = settings.state.value.sleep
         val calculator = EnergyScheduleCalculator(SleepConfig.DEFAULT)
         val expected = calculator.withShifts(
-            calculator.schedule(tomorrow, ZoneOffset.UTC, history, sleepSettings.sleepNeed, home.debt.debt, sleepSettings.typicalWake),
+            calculator.schedule(tomorrow, ZoneOffset.UTC, history, sleepSettings.sleepNeed, home.debt.debt, sleepSettings.timing),
             home.schedule,
         )
         assertThat(schedule).isEqualTo(expected)

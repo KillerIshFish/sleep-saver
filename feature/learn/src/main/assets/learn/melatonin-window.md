@@ -22,6 +22,6 @@ The name comes from melatonin, a hormone your body releases as evening turns to 
 
 ## In Sleep Saver
 
-The melatonin window spans the hour around your target bedtime, 30 minutes either side. Your target bedtime is worked out backwards from tomorrow's typical wake time: minus your sleep need, minus 15 minutes to drift off.
+The melatonin window spans the hour around your target bedtime, 30 minutes either side. By default your target bedtime follows your data: when you usually fall asleep on nights like tonight, minus 15 minutes to drift off. In Settings you can work it out backwards from your sleep need instead (tomorrow's wake time, minus your need, minus 15 minutes), or pick a fixed time.
 
 The **Bedtime** reminder arrives as the window opens, and your wind-down block sits just before it. Treat the window as a guide rather than a deadline. Anywhere inside it is a good time to turn in.

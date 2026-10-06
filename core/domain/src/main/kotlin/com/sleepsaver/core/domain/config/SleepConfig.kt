@@ -60,6 +60,12 @@ data class SleepConfig(
     val anchorMinNights: Int = 3,
     val anchorDecay: Double = 0.85,
 
+    // --- Learned wake and fall-asleep times (§3.5) ---
+    /** Nights older than this (before the target wake date) aren't used to learn wake and fall-asleep times. */
+    val timingLookbackDays: Long = 28,
+    /** With at least this many nights of the same kind (weekday / weekend), only those are used. */
+    val timingMinSameKindNights: Int = 2,
+
     // --- Two-process model (§3.6) ---
     val sRiseTauHours: Double = 18.2,
     val sDecayTauHours: Double = 4.2,

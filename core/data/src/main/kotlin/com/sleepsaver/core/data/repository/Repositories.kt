@@ -1,5 +1,6 @@
 package com.sleepsaver.core.data.repository
 
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DailyInsights
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.EnergySchedule
@@ -12,6 +13,7 @@ import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.model.VitalSample
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.OutputStream
@@ -104,7 +106,13 @@ interface SettingsRepository {
     val settings: Flow<AppSettings>
     suspend fun current(): AppSettings
     suspend fun setSleepNeed(need: Duration)
+    /** The user's own wake time: used when the wake-time mode is FIXED, and before there's data to learn from. */
     suspend fun setTypicalWake(time: LocalTime)
+    suspend fun setWakeTimeMode(mode: WakeTimeMode)
+
+    /** The user's own bedtime: used when the bedtime mode is FIXED, and before there's data to learn from. */
+    suspend fun setBedtime(time: LocalTime)
+    suspend fun setBedtimeMode(mode: BedtimeMode)
     suspend fun setStreakThreshold(threshold: Duration)
     suspend fun setDebtThresholds(lowMax: Duration, highMin: Duration)
     suspend fun setSource(source: SourceSelection)

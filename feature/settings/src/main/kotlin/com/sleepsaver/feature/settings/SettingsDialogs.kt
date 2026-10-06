@@ -44,8 +44,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DebtStatus
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.components.InfoChip
 import com.sleepsaver.core.ui.components.MinuteStepper
 import com.sleepsaver.core.ui.components.TimeScrubber
@@ -63,7 +66,7 @@ import java.time.LocalTime
 import java.time.ZoneOffset
 
 /** The dialogs the settings screen can show. */
-enum class SettingsDialog { SLEEP_NEED, TYPICAL_WAKE, STREAK, DEBT_LEVELS, SOURCE, DEMO_OFF, RESET }
+enum class SettingsDialog { SLEEP_NEED, WAKE_TIME, BEDTIME, STREAK, DEBT_LEVELS, SOURCE, DEMO_OFF, RESET }
 
 // ---------------------------------------------------------------- Sleep need
 
@@ -107,42 +110,63 @@ internal fun SleepNeedDialogCard(
     }
 }
 
-// ---------------------------------------------------------------- Typical wake
+// ---------------------------------------------------------------- Wake time and bedtime
 
 /** The scrubber works on instants: a fixed UTC day stands in for "any day", so local time = UTC time. */
 private val ScrubberDay: LocalDate = LocalDate.of(2000, 1, 3)
 
 private fun LocalTime.onScrubberDay(): Instant = ScrubberDay.atTime(this).toInstant(ZoneOffset.UTC)
 
+/** Bedtimes run through the night: 16:00 on the scrubber day to 08:00 the next, so 00:30 sits after 23:30. */
+private fun LocalTime.onBedtimeScrubber(): Instant =
+    (if (isBefore(LocalTime.NOON)) ScrubberDay.plusDays(1) else ScrubberDay).atTime(this).toInstant(ZoneOffset.UTC)
+
+private val BedtimeScrubberMin: Instant = LocalTime.of(16, 0).onBedtimeScrubber()
+private val BedtimeScrubberMax: Instant = LocalTime.of(8, 0).onBedtimeScrubber()
+
+private fun Instant.timeOfDay(): LocalTime = atZone(ZoneOffset.UTC).toLocalTime()
+
 @Composable
-internal fun TypicalWakeDialogCard(
-    current: LocalTime,
-    learnedWake: LocalTime?,
-    onSave: (LocalTime) -> Unit,
+internal fun WakeTimeDialogCard(
+    mode: WakeTimeMode,
+    ownTime: LocalTime,
+    learned: LearnedSleepTiming,
+    onSave: (WakeTimeMode, LocalTime) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var draftMinute by rememberSaveable { mutableIntStateOf(current.hour * 60 + current.minute) }
+    var draftMode by rememberSaveable { mutableStateOf(mode) }
+    var draftMinute by rememberSaveable { mutableIntStateOf(ownTime.hour * 60 + ownTime.minute) }
     val draft = LocalTime.of(draftMinute / 60, draftMinute % 60)
-    val body = if (learnedWake != null) {
-        stringResource(R.string.settings_typical_wake_learned_body, formatClockTime(learnedWake, LocalUse24HourClock.current))
-    } else {
-        stringResource(R.string.settings_typical_wake_caption)
-    }
-    val title = stringResource(R.string.settings_typical_wake)
+    val title = stringResource(R.string.settings_wake_time)
+    val use24h = LocalUse24HourClock.current
     SettingsDialogCard(
         title = title,
-        body = body,
+        body = stringResource(R.string.settings_wake_dialog_body),
         confirmLabel = stringResource(R.string.settings_save),
-        onConfirm = { onSave(draft) },
+        onConfirm = { onSave(draftMode, draft) },
         dismissLabel = stringResource(R.string.settings_cancel),
         onDismiss = onDismiss,
     ) {
+        ModeChoice(
+            options = listOf(
+                ModeOption(
+                    key = WakeTimeMode.FROM_DATA,
+                    title = stringResource(R.string.settings_mode_from_data),
+                    detail = learnedWakeText(learned, use24h)?.capitalized() ?: stringResource(R.string.settings_mode_from_data_wake_body),
+                ),
+                ModeOption(
+                    key = WakeTimeMode.FIXED,
+                    title = stringResource(R.string.settings_mode_fixed),
+                    detail = stringResource(R.string.settings_mode_fixed_body),
+                ),
+            ),
+            selected = draftMode,
+            onSelect = { draftMode = it },
+        )
+        OwnTimeLabel(fixed = draftMode == WakeTimeMode.FIXED)
         TimeScrubber(
             value = draft.onScrubberDay(),
-            onValueChange = { instant ->
-                val time = instant.atZone(ZoneOffset.UTC).toLocalTime()
-                draftMinute = time.hour * 60 + time.minute
-            },
+            onValueChange = { instant -> instant.timeOfDay().let { draftMinute = it.hour * 60 + it.minute } },
             zone = ZoneOffset.UTC,
             min = LocalTime.MIDNIGHT.onScrubberDay(),
             max = LocalTime.of(23, 55).onScrubberDay(),
@@ -152,6 +176,130 @@ internal fun TypicalWakeDialogCard(
                 .semantics { contentDescription = title },
         )
     }
+}
+
+@Composable
+internal fun BedtimeDialogCard(
+    mode: BedtimeMode,
+    ownTime: LocalTime,
+    learned: LearnedSleepTiming,
+    sleepNeed: Duration,
+    onSave: (BedtimeMode, LocalTime) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var draftMode by rememberSaveable { mutableStateOf(mode) }
+    var draftMinute by rememberSaveable { mutableIntStateOf(ownTime.hour * 60 + ownTime.minute) }
+    val draft = LocalTime.of(draftMinute / 60, draftMinute % 60)
+    val title = stringResource(R.string.settings_bedtime)
+    val use24h = LocalUse24HourClock.current
+    SettingsDialogCard(
+        title = title,
+        body = stringResource(R.string.settings_bedtime_dialog_body),
+        confirmLabel = stringResource(R.string.settings_save),
+        onConfirm = { onSave(draftMode, draft) },
+        dismissLabel = stringResource(R.string.settings_cancel),
+        onDismiss = onDismiss,
+    ) {
+        ModeChoice(
+            options = listOf(
+                ModeOption(
+                    key = BedtimeMode.FROM_DATA,
+                    title = stringResource(R.string.settings_mode_from_data),
+                    detail = learnedBedtimeText(learned, use24h)?.capitalized() ?: stringResource(R.string.settings_mode_from_data_bed_body),
+                ),
+                ModeOption(
+                    key = BedtimeMode.SLEEP_NEED,
+                    title = stringResource(R.string.settings_mode_need),
+                    detail = stringResource(R.string.settings_mode_need_body, formatDuration(sleepNeed)),
+                ),
+                ModeOption(
+                    key = BedtimeMode.FIXED,
+                    title = stringResource(R.string.settings_mode_fixed),
+                    detail = stringResource(R.string.settings_mode_fixed_body),
+                ),
+            ),
+            selected = draftMode,
+            onSelect = { draftMode = it },
+        )
+        // The sleep-need bedtime is computed; the user's own time only matters for the other two.
+        if (draftMode != BedtimeMode.SLEEP_NEED) {
+            OwnTimeLabel(fixed = draftMode == BedtimeMode.FIXED)
+            TimeScrubber(
+                value = draft.onBedtimeScrubber(),
+                onValueChange = { instant -> instant.timeOfDay().let { draftMinute = it.hour * 60 + it.minute } },
+                zone = ZoneOffset.UTC,
+                min = BedtimeScrubberMin,
+                max = BedtimeScrubberMax,
+                stepMinutes = SettingsLimits.BEDTIME_STEP_MINUTES,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = title },
+            )
+        }
+    }
+}
+
+/** "weekdays 6:55 AM, weekends 8:40 AM", or null when nothing has been learned yet. */
+@Composable
+internal fun learnedWakeText(learned: LearnedSleepTiming, use24h: Boolean): String? = listOfNotNull(
+    learned.weekdayWake?.let { stringResource(R.string.settings_learned_weekdays, formatClockTime(it, use24h)) },
+    learned.weekendWake?.let { stringResource(R.string.settings_learned_weekends, formatClockTime(it, use24h)) },
+).takeIf { it.isNotEmpty() }?.joinToString(", ")
+
+/** "asleep by 11:20 PM on weeknights, 12:30 AM before weekends", or null when nothing has been learned yet. */
+@Composable
+internal fun learnedBedtimeText(learned: LearnedSleepTiming, use24h: Boolean): String? = listOfNotNull(
+    learned.weekdayFellAsleep?.let { stringResource(R.string.settings_learned_weeknights, formatClockTime(it, use24h)) },
+    learned.weekendFellAsleep?.let { stringResource(R.string.settings_learned_weekend_nights, formatClockTime(it, use24h)) },
+).takeIf { it.isNotEmpty() }?.joinToString(", ")
+
+private fun String.capitalized(): String = replaceFirstChar { it.titlecase() }
+
+private class ModeOption<T>(val key: T, val title: String, val detail: String)
+
+/** A radio list of modes, each with a one-line explanation. */
+@Composable
+private fun <T> ModeChoice(options: List<ModeOption<T>>, selected: T, onSelect: (T) -> Unit) {
+    Column(Modifier.selectableGroup()) {
+        options.forEach { option ->
+            val isSelected = option.key == selected
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.medium)
+                    .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(option.key) })
+                    .padding(vertical = Spacing.s),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = isSelected,
+                    onClick = null,
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = MaterialTheme.colorScheme.primary,
+                        unselectedColor = SleepSaverTheme.colors.textTertiary,
+                    ),
+                )
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .padding(start = Spacing.m),
+                ) {
+                    Text(option.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Text(option.detail, style = MaterialTheme.typography.bodySmall, color = SleepSaverTheme.colors.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OwnTimeLabel(fixed: Boolean) {
+    Spacer(Modifier.height(Spacing.l))
+    Text(
+        text = stringResource(if (fixed) R.string.settings_own_time else R.string.settings_own_time_fallback),
+        style = MaterialTheme.typography.labelMedium,
+        color = SleepSaverTheme.colors.textSecondary,
+    )
 }
 
 // ---------------------------------------------------------------- Streak

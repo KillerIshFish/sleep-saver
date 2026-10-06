@@ -346,8 +346,8 @@ class TimelineGeometryTest {
             EnergyTestData.nightOwl(),
             EnergyTestData.nightOwlAfterMidnight(),
             EnergyTestData.waiting(now = at(15, 0)),
-            EnergyTestData.ready(now = at(17, 30), settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)),
-            EnergyTestData.ready(settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed)),
+            EnergyTestData.ready(now = at(17, 30), settings = EnergyTestData.longNeedSettings),
+            EnergyTestData.ready(settings = EnergyTestData.longNeedSettings),
         ).forEach { assertNoLabelOverlap(buildTimelineLayout(it, testSpec())) }
     }
 
@@ -363,7 +363,7 @@ class TimelineGeometryTest {
 
     @Test
     fun `a long sleep need overlaps wind-down with the evening peak and splits their lanes`() {
-        val state = EnergyTestData.ready(settings = SampleData.settings.copy(sleepNeed = EnergyTestData.longNeed))
+        val state = EnergyTestData.ready(settings = EnergyTestData.longNeedSettings)
         val layout = buildTimelineLayout(state, testSpec())
 
         val evening = layout.phases.single { it.phase.type == PhaseType.EVENING_PEAK }

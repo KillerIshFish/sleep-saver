@@ -35,13 +35,35 @@
     <string name="settings_confidence_medium">medium confidence</string>
     <string name="settings_confidence_high">high confidence</string>
 
-    <!-- Typical wake -->
-    <string name="settings_typical_wake">Typical wake time</string>
-    <string name="settings_typical_wake_caption">Used until there are enough nights to learn your rhythm</string>
-    <!-- "Now learned from your nights: 6:52 AM" -->
-    <string name="settings_typical_wake_learned">Now learned from your nights: %1$s</string>
-    <!-- Dialog body once the rhythm is learned: "Your nights now set your rhythm (about 6:52 AM). This time is only used if..." -->
-    <string name="settings_typical_wake_learned_body">Your recent nights now set your rhythm (about %1$s). This time is only a fallback for when there aren\'t enough nights.</string>
+    <!-- Wake time and bedtime -->
+    <string name="settings_wake_time">Wake time</string>
+    <string name="settings_bedtime">Bedtime</string>
+    <!-- Row captions. %1$s = what was learned, e.g. "weekdays 6:55 AM, weekends 8:40 AM" -->
+    <string name="settings_timing_from_data">From your sleep data: %1$s</string>
+    <!-- %1$s = the user's own time, used until there are enough nights -->
+    <string name="settings_timing_waiting">From your sleep data after a few nights. Until then %1$s</string>
+    <string name="settings_timing_fixed">A fixed time you set</string>
+    <!-- %1$s = sleep need, e.g. "8h 20m" -->
+    <string name="settings_bedtime_need_caption">Leaves room for your %1$s before tomorrow\'s wake time</string>
+    <!-- Learned parts, joined with ", " -->
+    <string name="settings_learned_weekdays">weekdays %1$s</string>
+    <string name="settings_learned_weekends">weekends %1$s</string>
+    <string name="settings_learned_weeknights">asleep by %1$s on weeknights</string>
+    <string name="settings_learned_weekend_nights">%1$s before weekends</string>
+    <!-- Dialogs -->
+    <string name="settings_wake_dialog_body">Your schedule, wake zone and morning reminders start from this time.</string>
+    <string name="settings_bedtime_dialog_body">Your wind-down, melatonin window and evening reminders are timed from this.</string>
+    <string name="settings_mode_from_data">From my sleep data</string>
+    <string name="settings_mode_from_data_wake_body">Follows when your watch sees you wake up. Weekdays and weekends are learned separately.</string>
+    <string name="settings_mode_from_data_bed_body">Follows when your watch sees you fall asleep. Weeknights and weekends are learned separately.</string>
+    <string name="settings_mode_need">To meet my sleep need</string>
+    <!-- %1$s = sleep need, e.g. "8h 20m" -->
+    <string name="settings_mode_need_body">Tomorrow\'s wake time minus your %1$s, so there\'s time for all of it.</string>
+    <string name="settings_mode_fixed">A fixed time</string>
+    <string name="settings_mode_fixed_body">Always the time below.</string>
+    <!-- Label above the time picker while learning from data -->
+    <string name="settings_own_time_fallback">Until there are enough nights</string>
+    <string name="settings_own_time">Your time</string>
 
     <!-- Streak -->
     <string name="settings_streak">Streak threshold</string>

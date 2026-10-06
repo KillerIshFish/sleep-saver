@@ -15,11 +15,14 @@ import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Confidence
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SleepNeedEstimate
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.testing.FakeDataResetter
 import com.sleepsaver.core.testing.FakeDemoModeController
 import com.sleepsaver.core.testing.FakeExportRepository
@@ -180,18 +183,36 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `typical wake is saved rounded to 5 minutes`() = runTest {
+    fun `wake time mode and own time are saved, the time rounded to 5 minutes`() = runTest {
         val viewModel = viewModel()
+        assertThat(viewModel.state.wakeTimeMode).isEqualTo(WakeTimeMode.FROM_DATA)
 
-        viewModel.setTypicalWake(LocalTime.of(6, 45))
+        viewModel.setWakeTime(WakeTimeMode.FIXED, LocalTime.of(6, 45))
+        assertThat(stored.wakeTimeMode).isEqualTo(WakeTimeMode.FIXED)
         assertThat(stored.typicalWake).isEqualTo(LocalTime.of(6, 45))
         assertThat(viewModel.state.typicalWake).isEqualTo(LocalTime.of(6, 45))
+        assertThat(viewModel.state.wakeTimeMode).isEqualTo(WakeTimeMode.FIXED)
 
-        viewModel.setTypicalWake(LocalTime.of(6, 48))
+        viewModel.setWakeTime(WakeTimeMode.FROM_DATA, LocalTime.of(6, 48))
+        assertThat(stored.wakeTimeMode).isEqualTo(WakeTimeMode.FROM_DATA)
         assertThat(stored.typicalWake).isEqualTo(LocalTime.of(6, 50))
 
-        viewModel.setTypicalWake(LocalTime.of(23, 58))
+        viewModel.setWakeTime(WakeTimeMode.FIXED, LocalTime.of(23, 58))
         assertThat(stored.typicalWake).isEqualTo(LocalTime.MIDNIGHT)
+    }
+
+    @Test
+    fun `bedtime mode and own time are saved`() = runTest {
+        val viewModel = viewModel()
+        assertThat(viewModel.state.bedtimeMode).isEqualTo(BedtimeMode.FROM_DATA)
+
+        viewModel.setBedtime(BedtimeMode.SLEEP_NEED, LocalTime.of(22, 33))
+        assertThat(stored.bedtimeMode).isEqualTo(BedtimeMode.SLEEP_NEED)
+        assertThat(stored.bedtime).isEqualTo(LocalTime.of(22, 35))
+
+        viewModel.setBedtime(BedtimeMode.FIXED, LocalTime.of(0, 30))
+        assertThat(viewModel.state.bedtimeMode).isEqualTo(BedtimeMode.FIXED)
+        assertThat(viewModel.state.bedtime).isEqualTo(LocalTime.of(0, 30))
     }
 
     @Test
@@ -222,19 +243,22 @@ class SettingsViewModelTest {
 
         insights.mutableState.value = InsightsState.NoNights
         assertThat(viewModel.state.needSuggestion).isNull()
-        assertThat(viewModel.state.learnedWake).isNull()
+        assertThat(viewModel.state.learned).isEqualTo(LearnedSleepTiming())
+        assertThat(viewModel.state.scheduleWake).isNull()
     }
 
     @Test
-    fun `the learned wake time shows once the rhythm is known`() = runTest {
+    fun `learned times and today's wake time and bedtime come from the insights`() = runTest {
         val ready = SampleData.readyState() as InsightsState.Ready
         insights.mutableState.value = ready
-        val anchor = ready.insights.schedule.anchor
+        val schedule = ready.insights.schedule
 
         val viewModel = viewModel()
 
-        assertThat(anchor.isFallback).isFalse()
-        assertThat(viewModel.state.learnedWake).isEqualTo(anchor.typicalWake)
+        assertThat(viewModel.state.learned).isEqualTo(ready.insights.learnedTiming)
+        assertThat(viewModel.state.learned.weekdayWake).isNotNull()
+        assertThat(viewModel.state.scheduleWake).isEqualTo(schedule.typicalWake.toLocalTime())
+        assertThat(viewModel.state.scheduleBedtime).isEqualTo(schedule.targetBedtime.atZone(schedule.zone).toLocalTime())
     }
 
     @Test

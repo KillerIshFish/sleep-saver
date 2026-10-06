@@ -117,11 +117,18 @@ Nights before your very first recorded night are not flagged as missing.
   (doesn't count, doesn't break) unless ≥ **3** missing days in a row, which breaks it.
 - Energy potential = clamp(100 − **5**·debtHours, **50**, **100**), rounded.
 
-### 3.5 Circadian anchor
-- Up to **14** most recent main sleeps from the last **21** days (naps excluded), weight w_i = **0.85**^(i−1).
-- θ_i = 2π·(local minute-of-day of midpoint)/1440, anchor = atan2(Σ w sinθ, Σ w cosθ) → minute-of-day.
-- Fewer than **3** nights → anchor = onboarding typical wake − need/2.
-- Typical wake **W** = anchor + need/2.
+### 3.5 Wake time and bedtime (learned from your data, adjustable)
+- **Learning** (`SleepTimingEstimator`): for a target wake date T, main sleeps with wake dates in [T − **28** d, T)
+  (strictly before T, so a schedule doesn't move when that night arrives), naps excluded, edits applied. Weekdays and
+  weekends apart: if ≥ **2** nights share T's kind (Sat/Sun vs Mon–Fri) only those count, else all nights (≥ **3**),
+  else nothing is learned. Most recent **14**, weights **0.85**^(i−1), circular mean of the local time of day (each
+  night in its recorded offset), so 23:50 and 00:10 average to midnight.
+- **Typical wake W** (Settings → Wake time): *From my sleep data* (default) = learned wake time for that day, or the
+  user's own wake time until there's enough data; *A fixed time* = the user's own wake time.
+- **Target bedtime B** (Settings → Bedtime): *From my sleep data* (default) = learned fall-asleep time for tonight's
+  kind of night − 15 min latency (the user's own bedtime until there's enough data); *To meet my sleep need* =
+  tomorrow's W − need − 15 min; *A fixed time* = the user's own bedtime. A time before noon means after midnight.
+- The sleep midpoint (circular mean of main-sleep midpoints) is still computed and kept in the schedule for reference.
 
 ### 3.6 Energy curve (two-process model), t in hours
 - S awake: `S = 1 − (1 − S0)·e^(−t/18.2)`; asleep: `S = S0·e^(−t/4.2)`. Seeded at 0.5 72 h back, integrated
@@ -140,7 +147,7 @@ Nights before your very first recorded night are not flagged as missing.
 | Morning peak | nominal [W+2h, W+5h]; centre = argmax E in [W+1h, W+6.5h]; slide window by centre−(W+3.5h), clamped ±45 m; start ≥ grogginess end |
 | Afternoon dip | nominal [W+6.5h, W+9h]; centre = argmin E in [W+5h, W+10h]; slide ±45 m vs W+7.75h |
 | Evening peak | nominal [W+10h, W+13h]; centre = argmax E in [W+9h, W+14.5h]; slide ±45 m vs W+11.5h |
-| Target bedtime B | tomorrow's W − need − 15 m |
+| Target bedtime B | per Settings → Bedtime (§3.5) |
 | Melatonin window | [B − 30 m, B + 30 m] |
 | Wind-down | [B − 90 m, B − 30 m] |
 | Wake zone | [W − 30 m, W + 30 m] (today's and tomorrow's) |
@@ -218,3 +225,7 @@ weigh less each day). Shown as "8h need − 6h 53m slept = +1.1 h", "older night
     schedule day now rolls over when yesterday's melatonin window ends.
 16. **All-sources de-duplication** could let a short Garmin fragment knock out another app's whole night. The longer
     session now wins when one is less than half as long as the other.
+17. **Wake time and bedtime now follow your data** (changed after review). The original formula (sleep midpoint plus
+    half your need) put the schedule's wake time near 7:50 for someone whose alarm goes at 6:55. Both anchors are now
+    learned from when you actually wake and fall asleep, weekdays and weekends apart, and either can be fixed in
+    Settings; bedtime can also be set to leave room for your full sleep need.

@@ -159,7 +159,7 @@ class InsightsRepositoryImpl @Inject constructor(
         val shownOn = minOf(date, day.today)
         val debtDate = if (nightsByDate[shownOn]?.isPresent == true) shownOn else shownOn.minusDays(1)
         val debt = debtCalculator.debtAsOf(debtDate, nightsByDate, settings.sleepNeed).debt
-        return scheduleCalculator.schedule(date, day.zone, nights, settings.sleepNeed, debt, settings.typicalWake)
+        return scheduleCalculator.schedule(date, day.zone, nights, settings.sleepNeed, debt, settings.timing)
     }
 
     private data class DeviceDay(val zone: ZoneId, val today: LocalDate)

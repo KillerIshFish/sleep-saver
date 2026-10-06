@@ -1,6 +1,7 @@
 package com.sleepsaver.feature.energy
 
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.RawSleepSession
 import com.sleepsaver.core.domain.model.SourceSelection
@@ -102,4 +103,8 @@ internal object EnergyTestData {
     }
 
     val longNeed: Duration = Duration.ofMinutes(10 * 60 + 30)
+
+    /** A long need with bedtime set to leave room for it, so wind-down reaches back into the evening peak. */
+    val longNeedSettings: UserSleepSettings =
+        SampleData.settings.copy(sleepNeed = longNeed, bedtimeMode = BedtimeMode.SLEEP_NEED)
 }

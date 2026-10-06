@@ -119,7 +119,7 @@ object SampleData {
         settings: UserSleepSettings = this.settings,
     ): EnergySchedule {
         val debt = SleepDebtCalculator().debtAsOf(date, nights.associateBy { it.wakeDate }, settings.sleepNeed).debt
-        return EnergyScheduleCalculator().schedule(date, zone, nights.filter { !it.wakeDate.isAfter(date) }, settings.sleepNeed, debt, settings.typicalWake)
+        return EnergyScheduleCalculator().schedule(date, zone, nights.filter { !it.wakeDate.isAfter(date) }, settings.sleepNeed, debt, settings.timing)
     }
 
     /** Resting HR, HRV and daily steps for each night in [nights]. */

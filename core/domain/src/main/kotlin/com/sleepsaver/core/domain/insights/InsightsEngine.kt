@@ -1,5 +1,6 @@
 package com.sleepsaver.core.domain.insights
 
+import com.sleepsaver.core.domain.circadian.SleepTimingEstimator
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
 import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
@@ -45,6 +46,7 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
     private val needEstimator = SleepNeedEstimator(config)
     private val scheduleCalculator = EnergyScheduleCalculator(config)
     private val habitScheduler = HabitScheduler(HabitCatalog(config))
+    private val timingEstimator = SleepTimingEstimator(config)
 
     fun compute(
         nights: List<Night>,
@@ -74,7 +76,7 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
             nights = nights,
             need = need,
             debt = debtCalculator.debtAsOf(displayedDebtDate(day, nightsByDate), nightsByDate, need).debt,
-            fallbackWake = settings.typicalWake,
+            timing = settings.timing,
         )
         val todaySchedule = scheduleOn(today)
         val yesterdaySchedule = scheduleOn(yesterday)
@@ -115,6 +117,7 @@ class InsightsEngine(private val config: SleepConfig = SleepConfig.DEFAULT) {
                 firstNight != null && !date.isBefore(firstNight) && !(stillExpected && date == today)
             },
             needEstimate = needEstimator.estimate(nights, need, today),
+            learnedTiming = timingEstimator.learned(nights, today),
         )
     }
 

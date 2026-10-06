@@ -18,6 +18,7 @@ import com.sleepsaver.core.data.source.RecordedVital
 import com.sleepsaver.core.data.source.SleepDataSource
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.RawSleepSession
@@ -27,6 +28,7 @@ import com.sleepsaver.core.domain.model.SleepStageType
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.VitalSample
 import com.sleepsaver.core.domain.model.VitalType
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -171,6 +173,9 @@ class FakeSettingsRepository(initial: AppSettings = AppSettings()) : SettingsRep
     override suspend fun current(): AppSettings = flow.value
     override suspend fun setSleepNeed(need: Duration) = flow.update { it.copy(sleep = it.sleep.copy(sleepNeed = need)) }
     override suspend fun setTypicalWake(time: LocalTime) = flow.update { it.copy(sleep = it.sleep.copy(typicalWake = time)) }
+    override suspend fun setWakeTimeMode(mode: WakeTimeMode) = flow.update { it.copy(sleep = it.sleep.copy(wakeTimeMode = mode)) }
+    override suspend fun setBedtime(time: LocalTime) = flow.update { it.copy(sleep = it.sleep.copy(bedtime = time)) }
+    override suspend fun setBedtimeMode(mode: BedtimeMode) = flow.update { it.copy(sleep = it.sleep.copy(bedtimeMode = mode)) }
     override suspend fun setStreakThreshold(threshold: Duration) =
         flow.update { it.copy(sleep = it.sleep.copy(streakThreshold = threshold)) }
     override suspend fun setDebtThresholds(lowMax: Duration, highMin: Duration) =

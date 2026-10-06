@@ -28,8 +28,8 @@ Big swings, such as sleeping in three hours on Saturday, act a little like cross
 
 ## In Sleep Saver
 
-Sleep Saver estimates your rhythm from when you actually sleep. It takes the midpoint of up to 14 of your most recent main sleeps from the past three weeks, with newer nights counting more, and uses it to work out your typical wake time.
+Sleep Saver learns your rhythm from when you actually wake up and fall asleep. It looks at up to 14 recent nights from the past four weeks, with newer nights counting more, and keeps weekdays and weekends apart, since alarms usually differ.
 
-Your whole daily schedule hangs off that anchor: the morning and evening peaks, the afternoon dip, your target bedtime and the timing of reminders. Until you have three nights of data, the app uses the wake time and sleep need you chose during setup.
+Your whole daily schedule hangs off those two times: the morning and evening peaks, the afternoon dip, your target bedtime and the timing of reminders. Until there are a few nights of data, the app uses the times from setup. In Settings you can fix either time yourself, or set your bedtime to leave room for your full sleep need.
 
 Because the estimate uses a rolling window, a single late night only nudges your schedule, while a steady shift over a week or two will.

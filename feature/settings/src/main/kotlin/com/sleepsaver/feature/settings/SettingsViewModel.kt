@@ -22,8 +22,11 @@ import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.model.BedtimeMode
+import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.feature.settings.platform.SettingsPlatform
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -131,9 +134,22 @@ class SettingsViewModel @Inject constructor(
         save { settingsRepository.setSleepNeed(suggestion.need) }
     }
 
-    fun setTypicalWake(time: LocalTime) {
-        val minuteOfDay = (time.hour * 60 + time.minute).roundTo(SettingsLimits.WAKE_STEP_MINUTES) % MINUTES_PER_DAY
-        save { settingsRepository.setTypicalWake(LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)) }
+    /** Where the wake time comes from, and the user's own wake time (used when fixed or before there's data). */
+    fun setWakeTime(mode: WakeTimeMode, time: LocalTime) {
+        val rounded = time.roundTo(SettingsLimits.WAKE_STEP_MINUTES)
+        save {
+            settingsRepository.setTypicalWake(rounded)
+            settingsRepository.setWakeTimeMode(mode)
+        }
+    }
+
+    /** Where the bedtime comes from, and the user's own bedtime (used when fixed or before there's data). */
+    fun setBedtime(mode: BedtimeMode, time: LocalTime) {
+        val rounded = time.roundTo(SettingsLimits.BEDTIME_STEP_MINUTES)
+        save {
+            settingsRepository.setBedtime(rounded)
+            settingsRepository.setBedtimeMode(mode)
+        }
     }
 
     // ------------------------------------------------------------------ Goals
@@ -309,8 +325,13 @@ class SettingsViewModel @Inject constructor(
         return SettingsUiState(
             loading = false,
             sleepNeed = sleep.sleepNeed,
+            wakeTimeMode = sleep.wakeTimeMode,
             typicalWake = sleep.typicalWake,
-            learnedWake = insights.learnedWake,
+            bedtimeMode = sleep.bedtimeMode,
+            bedtime = sleep.bedtime,
+            learned = insights.learned,
+            scheduleWake = insights.scheduleWake,
+            scheduleBedtime = insights.scheduleBedtime,
             needSuggestion = suggestion,
             streakThreshold = sleep.streakThreshold,
             lowDebtMax = sleep.lowDebtMax,
@@ -337,15 +358,22 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    private data class InsightsBits(val suggestion: NeedSuggestion?, val learnedWake: LocalTime?)
+    private data class InsightsBits(
+        val suggestion: NeedSuggestion? = null,
+        val learned: LearnedSleepTiming = LearnedSleepTiming(),
+        val scheduleWake: LocalTime? = null,
+        val scheduleBedtime: LocalTime? = null,
+    )
 
     private fun InsightsState.toInsightsBits(): InsightsBits {
-        val insights = (this as? InsightsState.Ready)?.insights ?: return InsightsBits(null, null)
+        val insights = (this as? InsightsState.Ready)?.insights ?: return InsightsBits()
         val estimate = (insights.needEstimate as? SleepNeedEstimateResult.Available)?.estimate
-        val anchor = insights.schedule.anchor
+        val schedule = insights.schedule
         return InsightsBits(
             suggestion = estimate?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed) },
-            learnedWake = anchor.typicalWake.takeUnless { anchor.isFallback },
+            learned = insights.learnedTiming,
+            scheduleWake = schedule.typicalWake.toLocalTime(),
+            scheduleBedtime = schedule.targetBedtime.atZone(schedule.zone).toLocalTime(),
         )
     }
 
@@ -356,6 +384,11 @@ class SettingsViewModel @Inject constructor(
             low >= SettingsLimits.DEBT_LEVEL_MIN_MINUTES && high <= SettingsLimits.DEBT_LEVEL_MAX_MINUTES && low < high
 
         fun Int.roundTo(step: Int): Int = Math.floorDiv(this + step / 2, step) * step
+
+        fun LocalTime.roundTo(step: Int): LocalTime {
+            val minuteOfDay = (hour * 60 + minute).roundTo(step) % MINUTES_PER_DAY
+            return LocalTime.of(minuteOfDay / 60, minuteOfDay % 60)
+        }
 
         /** Runs [block]; false when it threw (cancellation still propagates). */
         inline fun attempt(block: () -> Unit): Boolean = try {

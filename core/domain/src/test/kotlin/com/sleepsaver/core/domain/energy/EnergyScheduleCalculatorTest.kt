@@ -4,11 +4,13 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.AwakeKind
 import com.sleepsaver.core.domain.model.AwakePeriod
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.BlockKind
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.SleepBlock
+import com.sleepsaver.core.domain.model.SleepTiming
 import com.sleepsaver.core.domain.testing.Fx
 import java.time.Duration
 import java.time.Instant
@@ -25,7 +27,11 @@ class EnergyScheduleCalculatorTest {
     private val calculator = EnergyScheduleCalculator()
     private val date = LocalDate.of(2026, 9, 30)
     private val need = Duration.ofHours(8)
-    private val fallback = LocalTime.of(7, 0)
+    /** Bedtime from the sleep need, wake time learned (07:00 until there are nights). */
+    private val fallback = SleepTiming(wakeTime = LocalTime.of(7, 0), bedtimeMode = BedtimeMode.SLEEP_NEED)
+
+    /** [fallback] with the user's own wake time at [hour]:[minute] (what an empty history falls back to). */
+    private fun wakingAt(hour: Int, minute: Int) = fallback.copy(wakeTime = LocalTime.of(hour, minute))
 
     private fun nights(days: LongRange, fellAsleep: String, wokeUp: String, offset: ZoneOffset = Fx.UTC): List<Night> =
         days.map { Fx.night(date.minusDays(it), fellAsleep, wokeUp, offset = offset) }
@@ -166,7 +172,7 @@ class EnergyScheduleCalculatorTest {
     }
 
     @Test
-    fun `short night with debt lengthens grogginess and moves typical wake later`() {
+    fun `short night with debt lengthens grogginess but keeps the learned wake time`() {
         val history = nights(1L..6L, "23:00", "07:00") + nights(0L..0L, "03:00", "07:00")
         val steady = calculator.schedule(date, Fx.UTC, nights(0L..6L, "23:00", "07:00"), need, Duration.ZERO, fallback)
         val rested = calculator.schedule(date, Fx.UTC, history, need, Duration.ZERO, fallback)
@@ -180,10 +186,10 @@ class EnergyScheduleCalculatorTest {
         assertThat(groggyLength.seconds / 60.0).isWithin(0.1).of(84.77)
         assertThat(indebted.get(PhaseType.MORNING_PEAK).start).isAtLeast(groggy.end)
 
-        // Midpoints: last night 05:00 (weight 1), six nights at 03:00 → weighted circular mean ≈ 03:26, so W = 07:26.
+        // The late bedtime moves the sleep midpoint (03:26) but not the wake time: W follows real wake times, all 07:00.
         assertThat(steady.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(7, 0))
         assertThat(indebted.anchor.midpointMinuteOfDay).isWithin(0.5).of(206.0)
-        assertThat(indebted.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(7, 26))
+        assertThat(indebted.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(7, 0))
         assertThat(indebted.actualWake).isEqualTo(at(date, "07:00"))
         assertThat(indebted.get(PhaseType.GROGGINESS).start).isEqualTo(at(date, "07:00"))
         assertOrderedWithoutGaps(indebted)
@@ -258,7 +264,7 @@ class EnergyScheduleCalculatorTest {
 
     @Test
     fun `a brand-new user gets the nominal phases`() {
-        val s = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(7, 0))
+        val s = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(7, 0))
 
         assertThat(s.anchor.isFallback).isTrue()
         assertThat(s.actualWake).isNull()
@@ -328,7 +334,7 @@ class EnergyScheduleCalculatorTest {
     @Test
     fun `DST spring-forward day resolves a typical wake inside the gap forward`() {
         val dstDay = LocalDate.of(2026, 3, 8)
-        val s = calculator.schedule(dstDay, Fx.NEW_YORK, emptyList(), need, Duration.ZERO, LocalTime.of(2, 30))
+        val s = calculator.schedule(dstDay, Fx.NEW_YORK, emptyList(), need, Duration.ZERO, wakingAt(2, 30))
 
         assertThat(s.anchor.isFallback).isTrue()
         assertThat(s.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(3, 30))
@@ -371,8 +377,8 @@ class EnergyScheduleCalculatorTest {
 
     @Test
     fun `shifts compare start times of day with yesterday`() {
-        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(7, 0))
-        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(6, 45))
+        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(7, 0))
+        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(6, 45))
 
         val shifted = calculator.withShifts(today, yesterday)
 
@@ -384,8 +390,8 @@ class EnergyScheduleCalculatorTest {
     @Test
     fun `shifts wrap around midnight`() {
         // Melatonin window starts 23:50 yesterday and 00:10 (the next calendar day) today: 20 min later, not 23 h 40 m earlier.
-        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(8, 35))
-        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(8, 55))
+        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(8, 35))
+        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(8, 55))
 
         val shifted = calculator.withShifts(today, yesterday)
 
@@ -396,8 +402,8 @@ class EnergyScheduleCalculatorTest {
 
     @Test
     fun `no yesterday or a missing phase leaves shifts null`() {
-        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(7, 0))
-        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, LocalTime.of(7, 10))
+        val yesterday = calculator.schedule(date.minusDays(1), Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(7, 0))
+        val today = calculator.schedule(date, Fx.UTC, emptyList(), need, Duration.ZERO, wakingAt(7, 10))
 
         val noYesterday = calculator.withShifts(today, null)
         val partial = calculator.withShifts(
