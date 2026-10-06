@@ -15,14 +15,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.app.ActivityCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.domain.model.SourceSelection
@@ -72,17 +77,21 @@ internal fun SettingsScreen(
     val csvName = stringResource(R.string.settings_export_file_csv, exportDate)
     val jsonName = stringResource(R.string.settings_export_file_json, exportDate)
 
+    // Taps that leave the app are dropped unless the screen is resumed, so a double tap opens one page.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val isResumed = { lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+
     val openNotificationSettings = {
         if (!context.openAppNotificationSettings()) viewModel.showMessage(SettingsMessage.SETTINGS_UNAVAILABLE)
     }
+    // Whether Android would have explained the request before it was made. If it wouldn't before *and* after a
+    // denial, the system never showed its dialog (denied for good earlier): only the system page can help now.
+    // A fresh "no" from the user is respected and doesn't bounce them to settings.
+    var rationaleBeforeRequest by rememberSaveable { mutableStateOf(true) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.refreshSystemStatus()
-        // Denied for good (or the system didn't even ask): only the system page can turn it on now.
-        if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val activity = context.findActivity()
-            val canAskAgain = activity != null &&
-                ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
-            if (!canAskAgain) openNotificationSettings()
+        if (!granted && !rationaleBeforeRequest && !context.shouldExplainNotificationPermission()) {
+            openNotificationSettings()
         }
     }
 
@@ -93,6 +102,7 @@ internal fun SettingsScreen(
     val currentCsvName by rememberUpdatedState(csvName)
     val currentJsonName by rememberUpdatedState(jsonName)
     val currentOpenNotificationSettings by rememberUpdatedState(openNotificationSettings)
+    val currentIsResumed by rememberUpdatedState(isResumed)
 
     val actions = remember(viewModel) {
         object : SettingsActions {
@@ -109,6 +119,7 @@ internal fun SettingsScreen(
             override fun onOpenHealthConnect() = currentOnOpenHealthConnect()
             override fun onSyncNow() = viewModel.syncNow()
             override fun onExport(format: ExportFormat) {
+                if (!currentIsResumed()) return
                 val name = if (format == ExportFormat.CSV) currentCsvName else currentJsonName
                 try {
                     exportLaunchers.getValue(format).launch(name)
@@ -119,10 +130,18 @@ internal fun SettingsScreen(
             override fun onOpenPrivacyPolicy() = currentOnOpenPrivacyPolicy()
             override fun onMorningReviewChange(enabled: Boolean) = viewModel.setMorningReviewEnabled(enabled)
             override fun onOpenHabits() = currentOnOpenHabits()
-            override fun onOpenNotificationSettings() = currentOpenNotificationSettings()
+            override fun onOpenNotificationSettings() {
+                if (currentIsResumed()) currentOpenNotificationSettings()
+            }
             override fun onAllowNotifications() {
+                if (!currentIsResumed()) return
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    rationaleBeforeRequest = context.shouldExplainNotificationPermission()
+                    try {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } catch (_: ActivityNotFoundException) {
+                        currentOpenNotificationSettings()
+                    }
                 } else {
                     currentOpenNotificationSettings()
                 }
@@ -154,6 +173,13 @@ private fun Context.openAppNotificationSettings(): Boolean {
         }
     }
     return false
+}
+
+/** Android 13+: whether the system would show its "why" hint for the notification permission right now. */
+private fun Context.shouldExplainNotificationPermission(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    val activity = findActivity() ?: return false
+    return ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
