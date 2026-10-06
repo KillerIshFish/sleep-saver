@@ -30,6 +30,10 @@ import kotlin.math.roundToLong
  *  - Wa = effective wokeUp of the night with wakeDate == date, if present; else W.
  *  - Process S: seeded `sSeed` at Wa − sHistoryHours, integrated over every asleep interval (main/extra blocks minus their
  *    awake periods, naps) that overlaps the history, awake otherwise; then awake from Wa to B.
+ *    A wake date d in the history without main sleep (not synced yet, not recorded, nap-only) is assumed to be a
+ *    typical night: a nominal asleep span [W_d − need, W_d] with W_d = d at the anchor's typical wake in [zone].
+ *    Otherwise the WAITING morning (last night not in yet) would read as a night awake: phases would slide to their
+ *    limits and snap back once the data arrives. A brand-new user therefore gets the nominal phases.
  *  - Curve: [TwoProcessModel] from Wa to B at curveStep (B is always the last point), min-max normalised to 0..1.
  *  - Phases per the table in §3.7. B uses *tomorrow's* W: (date + 1) at typicalWake in [zone], minus need, minus latency.
  *    Morning peak, afternoon dip and evening peak never start before grogginess ends (matters after a very late wake).
@@ -62,7 +66,9 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         val wa = actualWake ?: w
         val bedtime = tomorrowWake - need - config.sleepLatency
         val debtHours = hours(debt)
-        val curve = curve(wa, w, bedtime, debtHours, asleepIntervals(history))
+        val historyStart = wa - Duration.ofHours(config.sHistoryHours)
+        val asleep = asleepIntervals(history) + nominalNights(history, historyStart, date, anchor.typicalWake, zone, need)
+        val curve = curve(wa, historyStart, w, bedtime, debtHours, asleep)
 
         val grogginess = Phase(PhaseType.GROGGINESS, wa, wa + grogginessLength(debtHours))
         fun Phase.afterGrogginess() = copy(start = maxOf(start, grogginess.end))
@@ -104,8 +110,15 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
             },
         )
 
-    private fun curve(wa: Instant, w: Instant, bedtime: Instant, debtHours: Double, asleep: List<TimeSpan>): EnergyCurve {
-        val sAtWake = model.homeostaticPressure(wa - Duration.ofHours(config.sHistoryHours), wa, asleep)
+    private fun curve(
+        wa: Instant,
+        historyStart: Instant,
+        w: Instant,
+        bedtime: Instant,
+        debtHours: Double,
+        asleep: List<TimeSpan>,
+    ): EnergyCurve {
+        val sAtWake = model.homeostaticPressure(historyStart, wa, asleep)
         val times = if (bedtime.isAfter(wa)) {
             generateSequence(wa) { it + config.curveStep }.takeWhile { it.isBefore(bedtime) }.toList() + bedtime
         } else {
@@ -119,6 +132,29 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         return EnergyCurve(
             times.zip(raw) { t, e -> EnergyPoint(t, if (max > min) ((e - min) / (max - min)).toFloat() else 0.5f) },
         )
+    }
+
+    /**
+     * [W_d − need, W_d] for every wake date d from [historyStart]'s date through [date] that has no main sleep in
+     * [history]. Spans reaching outside the history are clipped by the model.
+     */
+    private fun nominalNights(
+        history: List<Night>,
+        historyStart: Instant,
+        date: LocalDate,
+        typicalWake: LocalTime,
+        zone: ZoneId,
+        need: Duration,
+    ): List<TimeSpan> {
+        val recorded = history.filter { it.main != null }.mapTo(HashSet()) { it.wakeDate }
+        return generateSequence(historyStart.atZone(zone).toLocalDate()) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(date) }
+            .filterNot { it in recorded }
+            .map { day ->
+                val wake = ZonedDateTime.of(day, typicalWake, zone).toInstant()
+                TimeSpan(wake - need, wake)
+            }
+            .toList()
     }
 
     /** Main, extra and nap blocks minus their awake periods. */

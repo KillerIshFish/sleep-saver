@@ -97,6 +97,71 @@ class SourceFilterTest {
     }
 
     @Test
+    fun `a short Garmin fragment doesn't knock out another app's whole night`() {
+        val fragment = session("g", "05:00", "06:00")
+        val wholeNight = session("o", "23:00", "07:00", origin = Fx.OTHER)
+
+        assertThat(ids(listOf(fragment, wholeNight))).containsExactly("o")
+        assertThat(ids(listOf(wholeNight, fragment))).containsExactly("o")
+    }
+
+    @Test
+    fun `exactly half as long is not short, so priority still decides`() {
+        val wholeNight = session("o", "23:00", "07:00", origin = Fx.OTHER, withStages = true)
+
+        assertThat(ids(listOf(session("g", "03:00", "07:00"), wholeNight))).containsExactly("g")
+        assertThat(ids(listOf(session("g", "03:01", "07:00"), wholeNight))).containsExactly("o")
+    }
+
+    @Test
+    fun `the much longer session also beats one with stages`() {
+        val staged = session("staged", "04:00", "07:00", origin = Fx.OTHER, withStages = true)
+        val longer = session("longer", "23:00", "07:00", origin = third)
+
+        assertThat(ids(listOf(staged, longer))).containsExactly("longer")
+    }
+
+    @Test
+    fun `Garmin fragments are measured together against another app's night`() {
+        // Each half is under half of the other app's 8 h, but together they cover 7 h 15 m.
+        val g1 = session("g1", "23:00", "02:30")
+        val g2 = session("g2", "03:15", "07:00")
+        val other = session("o", "23:00", "07:00", origin = Fx.OTHER, withStages = true)
+
+        assertThat(ids(listOf(other, g1, g2))).containsExactly("g1", "g2").inOrder()
+    }
+
+    @Test
+    fun `a longer session replaces short duplicates from several apps`() {
+        val garmin = session("g", "05:00", "06:00")
+        // Both short ones are kept first (Garmin, then stages) and then replaced together.
+        val ring = session("ring", "01:00", "02:00", origin = third, withStages = true)
+        val other = session("o", "23:00", "07:00", origin = Fx.OTHER)
+
+        assertThat(ids(listOf(garmin, ring, other))).containsExactly("o")
+    }
+
+    @Test
+    fun `a session that only lost to a replaced one comes back`() {
+        // Garmin's hour beats "b" on priority, but loses to "c"'s much longer night, which doesn't overlap "b".
+        val g = session("g", "05:00", "06:00")
+        val b = session("b", "05:30", "07:00", origin = Fx.OTHER, withStages = true)
+        val c = session("c", "23:00", "05:30", origin = third)
+
+        assertThat(ids(listOf(g, b, c))).containsExactly("b", "c").inOrder()
+    }
+
+    @Test
+    fun `the short duplicate ratio comes from the config`() {
+        val fragment = session("g", "05:00", "06:00")
+        val wholeNight = session("o", "23:00", "07:00", origin = Fx.OTHER)
+
+        val result = SourceFilter(SleepConfig(dedupeShortDuplicateRatio = 0.1)).apply(listOf(fragment, wholeNight), SourceSelection.All)
+
+        assertThat(result.map { it.id }).containsExactly("g")
+    }
+
+    @Test
     fun `without Garmin the session with stages wins`() {
         val longer = session("longer", "22:00", "08:00", origin = Fx.OTHER)
         val staged = session("staged", "23:00", "07:00", origin = third, withStages = true)
