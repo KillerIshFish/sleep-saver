@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,9 +74,12 @@ internal val HabitType.whyRes: Int
 @ReadOnlyComposable
 internal fun habitTimeText(time: Instant?, windowEnd: Instant?, zone: ZoneId?): String = when {
     time == null || zone == null -> stringResource(R.string.habits_no_time)
-    windowEnd != null -> timeRange(time, windowEnd, zone)
-    else -> clockTime(time, zone)
+    windowEnd != null -> timeRange(time, windowEnd, zone).keepMeridiemAttached()
+    else -> clockTime(time, zone).keepMeridiemAttached()
 }
+
+/** Glues "AM"/"PM" to its time with a no-break space, so a wrapped range never leaves "PM" alone on a line. */
+internal fun String.keepMeridiemAttached(): String = replace(" AM", " AM").replace(" PM", " PM")
 
 /** The habit's icon in a tinted circle; grey when the habit is off. */
 @Composable
@@ -158,7 +162,7 @@ internal fun NotificationsOffNotice(onOpenSettings: () -> Unit, modifier: Modifi
                 TextLinkButton(
                     stringResource(R.string.habits_notifications_open_settings),
                     onClick = onOpenSettings,
-                    modifier = Modifier.padding(top = 4.dp).offsetStart(),
+                    modifier = Modifier.padding(top = 4.dp).offsetStart().trimBottom(),
                 )
             }
         }
@@ -167,3 +171,16 @@ internal fun NotificationsOffNotice(onOpenSettings: () -> Unit, modifier: Modifi
 
 /** Pulls a [TextLinkButton] left by its 12 dp inner padding so its label aligns with the text above it. */
 internal fun Modifier.offsetStart(): Modifier = offset(x = (-12).dp)
+
+/**
+ * Lets a 48 dp text button's empty lower edge overlap the card padding below it, so the card doesn't look
+ * bottom-heavy. The touch target keeps its full size.
+ */
+internal fun Modifier.trimBottom(amount: Dp = TextButtonSlack): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val height = (placeable.height - amount.roundToPx()).coerceIn(constraints.minHeight, constraints.maxHeight)
+    layout(placeable.width, height) { placeable.place(0, 0) }
+}
+
+/** The space a 48 dp text button leaves under its one-line label. */
+private val TextButtonSlack = 12.dp

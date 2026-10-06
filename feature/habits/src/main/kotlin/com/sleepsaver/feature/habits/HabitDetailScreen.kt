@@ -210,27 +210,30 @@ private fun TodayCard(state: HabitDetailUiState.Ready, modifier: Modifier = Modi
             style = MaterialTheme.typography.labelLarge,
             color = SleepSaverTheme.colors.textTertiary,
         )
-        // Windows ("10:15 – 11:15 PM") are long: shrink to one line rather than wrap.
-        BasicText(
-            text = habitTimeText(state.time, state.windowEnd, state.zone),
-            style = MaterialTheme.typography.displaySmall.copy(color = MaterialTheme.colorScheme.onSurface),
-            maxLines = 1,
-            autoSize = TextAutoSize.StepBased(minFontSize = 20.sp, maxFontSize = 40.sp, stepSize = 2.sp),
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
-        val explanation = when (state.times) {
-            TimesStatus.READY -> anchorText(state)
-            TimesStatus.LOADING -> stringResource(R.string.habits_detail_times_loading)
-            TimesStatus.NO_NIGHTS -> stringResource(R.string.habits_detail_times_pending)
-        }
-        if (explanation != null) {
-            Text(
-                text = explanation,
-                style = MaterialTheme.typography.bodyMedium,
-                color = SleepSaverTheme.colors.textSecondary,
+        // Without a time the explanation below says why; a lone dash would only look like a glitch.
+        if (state.time != null && state.zone != null) {
+            // Windows ("10:15 – 11:15 PM") are long: shrink to one line rather than wrap.
+            BasicText(
+                text = habitTimeText(state.time, state.windowEnd, state.zone),
+                style = MaterialTheme.typography.displaySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = 20.sp, maxFontSize = 40.sp, stepSize = 2.sp),
                 modifier = Modifier.padding(top = Spacing.xs),
             )
         }
+        val hasTime = state.time != null && state.zone != null
+        val explanation = when (state.times) {
+            TimesStatus.READY -> anchorText(state) ?: stringResource(R.string.habits_detail_no_time_today)
+            TimesStatus.LOADING -> stringResource(R.string.habits_detail_times_loading)
+            TimesStatus.NO_NIGHTS -> stringResource(R.string.habits_detail_times_pending)
+        }
+        Text(
+            text = explanation,
+            // Without a time, the explanation is the card's message.
+            style = if (hasTime) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+            color = if (hasTime) SleepSaverTheme.colors.textSecondary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = if (hasTime) Spacing.xs else Spacing.s),
+        )
     }
 }
 
@@ -357,7 +360,12 @@ private fun TimingCard(
             )
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(top = Spacing.xs))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .trimBottom(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = stringResource(R.string.habits_detail_default, format(state.defaultValue)),
                 style = MaterialTheme.typography.bodyMedium,
@@ -409,7 +417,7 @@ private fun timingCaption(kind: TimingKind, anchor: HabitAnchor): String = strin
 private fun anchorText(state: HabitDetailUiState.Ready): String? {
     val anchorTime = state.anchorTime ?: return null
     val zone = state.zone ?: return null
-    val at = clockTime(anchorTime, zone)
+    val at = clockTime(anchorTime, zone).keepMeridiemAttached()
     val minutes = state.offset.toMinutes()
     val amount = formatDuration(state.offset.abs())
     val (before, after, exactly) = when (state.anchor) {

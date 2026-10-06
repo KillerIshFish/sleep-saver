@@ -25,15 +25,15 @@
     <string name="habits_open_habit">Open</string>
 
     <!-- One-line descriptions in the list -->
-    <string name="habits_tagline_morning_light">Daylight soon after you wake</string>
+    <string name="habits_tagline_morning_light">Daylight after you wake</string>
     <string name="habits_tagline_caffeine">Last coffee, tea or cola</string>
     <string name="habits_tagline_large_meal">Finish heavy meals by now</string>
     <string name="habits_tagline_alcohol">Last drink of the evening</string>
     <string name="habits_tagline_exercise">Wrap up intense training</string>
     <string name="habits_tagline_dim_lights">Lower lamps and screens</string>
     <string name="habits_tagline_evening_routine">Your wind-down activities</string>
-    <string name="habits_tagline_bedtime">Your easiest window to fall asleep</string>
-    <string name="habits_tagline_nap_window">A short nap, only if you need one</string>
+    <string name="habits_tagline_bedtime">Easiest time to drift off</string>
+    <string name="habits_tagline_nap_window">Short nap, only if needed</string>
 
     <!-- Why each habit helps (detail screen) -->
     <string name="habits_why_morning_light">Bright light early in the day is the strongest cue your body clock gets. It keeps your rhythm anchored, so sleepiness shows up on time tonight and mornings feel easier. We time it from when you usually wake, because watch data can take a while to arrive.</string>
@@ -65,6 +65,7 @@
     <string name="habits_detail_not_found_body">It may have changed in an update. Head back to see the habits you can use.</string>
     <string name="habits_detail_times_pending">Your time for this appears once your first night has synced.</string>
     <string name="habits_detail_times_loading">Working out today\'s time…</string>
+    <string name="habits_detail_no_time_today">Today\'s schedule has no time for this yet. Check back after your next sync.</string>
 
     <!-- Captions under the timing stepper -->
     <string name="habits_timing_before_bedtime">before your target bedtime</string>

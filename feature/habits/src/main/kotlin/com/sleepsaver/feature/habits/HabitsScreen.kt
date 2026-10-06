@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -243,33 +244,9 @@ private fun HabitRow(
     onToggleReminder: (Boolean) -> Unit,
 ) {
     val title = row.type.title()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = stringResource(R.string.habits_open_habit), role = Role.Button, onClick = onOpen)
-            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HabitBadge(row.type, active = row.enabled)
-        Column(
-            Modifier
-                .weight(1f)
-                .padding(start = 14.dp, end = 4.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                text = stringResource(row.type.taglineRes),
-                style = MaterialTheme.typography.bodyMedium,
-                color = SleepSaverTheme.colors.textSecondary,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Text(
-                text = habitTimeText(row.time, row.windowEnd, zone),
-                style = MaterialTheme.typography.labelLarge,
-                color = if (row.enabled) MaterialTheme.colorScheme.primary else SleepSaverTheme.colors.textTertiary,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
+    // With very large text the controls move under the text, so the words keep most of the row's width.
+    val stacked = LocalDensity.current.fontScale >= StackedFontScale
+    val controls = @Composable {
         ReminderBell(
             checked = row.reminderEnabled && row.enabled,
             enabled = row.enabled,
@@ -285,7 +262,52 @@ private fun HabitRow(
                 .semantics { contentDescription = switchDescription },
         )
     }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = stringResource(R.string.habits_open_habit), role = Role.Button, onClick = onOpen)
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically,
+    ) {
+        HabitBadge(row.type, active = row.enabled)
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(start = 14.dp, end = if (stacked) 0.dp else 4.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = stringResource(row.type.taglineRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = SleepSaverTheme.colors.textSecondary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Text(
+                text = habitTimeText(row.time, row.windowEnd, zone),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (row.enabled && row.time != null) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    SleepSaverTheme.colors.textTertiary
+                },
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            if (stacked) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.xs),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) { controls() }
+            }
+        }
+        if (!stacked) controls()
+    }
 }
+
+/** Font scale from which list rows put their controls under the text. */
+private const val StackedFontScale = 1.5f
 
 /** The reminder toggle: a filled bell when on; greyed out while the habit itself is off. */
 @Composable
