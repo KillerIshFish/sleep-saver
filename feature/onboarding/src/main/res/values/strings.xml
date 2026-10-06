@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_explore_demo">Explore with demo data</string>
+    <!-- Spoken by screen readers for the progress bar: "Step 2 of 5". -->
+    <string name="onboarding_step_of">Step %1$d of %2$d</string>
+    <string name="onboarding_app_name">Sleep Saver</string>
+
+    <!-- Step 1: welcome -->
+    <string name="onboarding_welcome_tagline">Know what your sleep owes you, and plan your day around your energy.</string>
+    <string name="onboarding_value_debt_title">Sleep debt you can act on</string>
+    <string name="onboarding_value_debt_body">See the hours you\'re short and how fast steady nights pay them back.</string>
+    <string name="onboarding_value_energy_title">An energy schedule for your day</string>
+    <string name="onboarding_value_energy_body">Your peaks and dips, worked out from the nights your watch records.</string>
+    <string name="onboarding_value_habits_title">Gentle habit reminders</string>
+    <string name="onboarding_value_habits_body">Quiet nudges for light, caffeine and winding down, right on time.</string>
+    <string name="onboarding_privacy_line">Your data stays on this phone. No account, no cloud.</string>
+    <string name="onboarding_privacy_link">Privacy policy</string>
+    <string name="onboarding_get_started">Get started</string>
+
+    <!-- Step 2: connect -->
+    <string name="onboarding_flow_watch">Garmin</string>
+    <string name="onboarding_flow_health_connect">Health Connect</string>
+    <string name="onboarding_flow_app">Sleep Saver</string>
+
+    <string name="onboarding_checking">Checking Health Connect…</string>
+
+    <string name="onboarding_connect_title">Connect your sleep</string>
+    <string name="onboarding_connect_body">Garmin Connect saves your nights to Health Connect, and Sleep Saver reads them from there. It only reads: nothing is written back or sent anywhere.</string>
+    <string name="onboarding_ask_title">What we\'ll ask to read</string>
+    <string name="onboarding_ask_sleep">Sleep</string>
+    <string name="onboarding_ask_sleep_body">Required. Your nights, sleep stages and naps.</string>
+    <string name="onboarding_ask_heart">Heart rate, HRV and steps</string>
+    <string name="onboarding_ask_heart_body">Optional. Extra context on how you slept.</string>
+    <string name="onboarding_ask_history">More than 30 days of history</string>
+    <string name="onboarding_ask_history_body">Optional. Brings in up to a year of nights at once.</string>
+    <string name="onboarding_ask_background">Background sync</string>
+    <string name="onboarding_ask_background_body">Optional. New nights arrive without opening the app.</string>
+    <string name="onboarding_connect_action">Connect Health Connect</string>
+
+    <string name="onboarding_missing_title">Get Health Connect first</string>
+    <string name="onboarding_missing_body">Garmin Connect shares your sleep through Health Connect, a free app from Google. Install it, then come back here: we\'ll pick up where you left off.</string>
+    <string name="onboarding_missing_action">Install Health Connect</string>
+
+    <string name="onboarding_update_title">Health Connect needs an update</string>
+    <string name="onboarding_update_body">The version on this phone is too old for Sleep Saver. Update it in the Play Store, then come back here.</string>
+    <string name="onboarding_update_action">Update Health Connect</string>
+
+    <string name="onboarding_unsupported_title">Health Connect isn\'t available here</string>
+    <string name="onboarding_unsupported_body">This phone can\'t run Health Connect, so Sleep Saver can\'t read your Garmin sleep. You can still look around with a month of realistic sample nights.</string>
+
+    <string name="onboarding_denied_title">Sleep access is off</string>
+    <string name="onboarding_denied_body">Sleep Saver needs to read your sleep to work out your debt and your day. If no window appeared, open Health Connect, go to App permissions, pick Sleep Saver and turn on Sleep.</string>
+    <string name="onboarding_try_again">Try again</string>
+    <string name="onboarding_open_health_connect">Open Health Connect</string>
+
+    <string name="onboarding_connected_title">You\'re connected</string>
+    <string name="onboarding_connected_body">Here\'s what Sleep Saver can read. You can change this any time in Health Connect.</string>
+
+    <!-- Permission rows -->
+    <string name="onboarding_perm_sleep">Sleep</string>
+    <string name="onboarding_perm_sleep_granted">Allowed. This is all Sleep Saver strictly needs.</string>
+    <string name="onboarding_perm_sleep_missing">Off. Sleep Saver can\'t work without it.</string>
+    <string name="onboarding_perm_heart">Heart rate, HRV and steps</string>
+    <string name="onboarding_perm_heart_granted">Allowed. Adds context to each night.</string>
+    <string name="onboarding_perm_heart_missing">Not allowed. Heart extras stay hidden.</string>
+    <string name="onboarding_perm_history">More than 30 days of history</string>
+    <string name="onboarding_perm_history_granted">Allowed. Up to a year of nights comes in.</string>
+    <string name="onboarding_perm_history_missing">Not allowed. We start from the last 30 days.</string>
+    <string name="onboarding_perm_history_unavailable">Not available on this phone. We start from the last 30 days.</string>
+    <string name="onboarding_perm_background">Background sync</string>
+    <string name="onboarding_perm_background_granted">Allowed. New nights arrive on their own.</string>
+    <string name="onboarding_perm_background_missing">Not allowed. New nights arrive when you open the app.</string>
+    <string name="onboarding_perm_background_unavailable">Not available on this phone. New nights arrive when you open the app.</string>
+    <string name="onboarding_allow">Allow</string>
+    <string name="onboarding_manage_in_health_connect">Manage in Health Connect</string>
+
+    <!-- Sleep source (Garmin) check -->
+    <string name="onboarding_source_checking">Looking for Garmin sleep in Health Connect…</string>
+    <string name="onboarding_source_garmin_ok">Garmin Connect is sharing sleep</string>
+    <string name="onboarding_source_garmin_ok_body">Nights from your watch will flow in by themselves.</string>
+    <string name="onboarding_source_other_ok">Using %1$s for sleep</string>
+    <string name="onboarding_source_other_ok_body">You can switch back to Garmin Connect in Settings.</string>
+    <string name="onboarding_source_all_ok">Using sleep from all your apps</string>
+    <string name="onboarding_source_all_ok_body">When two apps record the same night, Garmin\'s version wins.</string>
+    <string name="onboarding_source_garmin_missing">No Garmin sleep yet</string>
+    <string name="onboarding_source_garmin_missing_body">Garmin Connect hasn\'t shared any sleep with Health Connect in the last 30 days. To turn it on:</string>
+    <string name="onboarding_source_other_missing">No sleep from %1$s yet</string>
+    <string name="onboarding_source_other_missing_body">Make sure %1$s is allowed to write sleep to Health Connect, then sync it.</string>
+    <string name="onboarding_source_all_missing">No sleep in Health Connect yet</string>
+    <string name="onboarding_garmin_step_1">Open Garmin Connect and tap More.</string>
+    <string name="onboarding_garmin_step_2">Go to Settings, then Connected apps, then Health Connect.</string>
+    <string name="onboarding_garmin_step_3">Allow Sleep, then sync your watch.</string>
+    <string name="onboarding_open_garmin">Open Garmin Connect</string>
+    <string name="onboarding_get_garmin">Get Garmin Connect</string>
+    <string name="onboarding_check_again">Check again</string>
+    <string name="onboarding_alternatives_title">Other apps are sharing sleep</string>
+    <string name="onboarding_use_app_instead">Use %1$s instead</string>
+    <string name="onboarding_use_all_sources">Use all sources</string>
+
+    <!-- Step 3: import -->
+    <string name="onboarding_import_title">Bringing in your nights</string>
+    <string name="onboarding_import_body">Reading your sleep history from Health Connect. The first time can take a minute.</string>
+    <!-- "42%" -->
+    <string name="onboarding_import_percent">%1$d%%</string>
+    <plurals name="onboarding_nights_found">
+        <item quantity="one">night found</item>
+        <item quantity="other">nights found</item>
+    </plurals>
+    <plurals name="onboarding_demo_nights">
+        <item quantity="one">sample night ready</item>
+        <item quantity="other">sample nights ready</item>
+    </plurals>
+    <string name="onboarding_import_done_title">Your history is in</string>
+    <string name="onboarding_import_recent">Last 14 nights</string>
+    <string name="onboarding_import_empty_title">No nights yet</string>
+    <string name="onboarding_import_empty_body">They\'ll appear after your next sync. Wear your watch to bed and open Garmin Connect in the morning.</string>
+    <string name="onboarding_demo_title">Demo data is on</string>
+    <string name="onboarding_demo_body">You\'re exploring made-up nights. Switch to your own Garmin data any time from Settings.</string>
+    <string name="onboarding_import_failed_title">Couldn\'t read your history</string>
+    <string name="onboarding_import_failed_body">%1$s You can try again now, or carry on: Sleep Saver keeps trying in the background.</string>
+    <string name="onboarding_continue_anyway">Continue anyway</string>
+
+    <!-- Sync errors (one sentence each) -->
+    <string name="onboarding_error_not_installed">Health Connect isn\'t installed.</string>
+    <string name="onboarding_error_update">Health Connect needs an update.</string>
+    <string name="onboarding_error_permission">Sleep access is off.</string>
+    <string name="onboarding_error_rate_limited">Health Connect asked us to slow down for a few minutes.</string>
+    <string name="onboarding_error_background">Background reading is off.</string>
+    <string name="onboarding_error_unknown">Something went wrong while reading Health Connect.</string>
+
+    <!-- Step 4: sleep need and wake time -->
+    <string name="onboarding_need_title">How much sleep do you need?</string>
+    <string name="onboarding_need_body">The amount that leaves you feeling rested. Most adults need between 7 and 9 hours.</string>
+    <string name="onboarding_need_suggestion">Your free nights suggest %1$s (%2$s)</string>
+    <plurals name="onboarding_need_suggestion_nights">
+        <item quantity="one">Based on %1$d night you woke later than on a usual weekday.</item>
+        <item quantity="other">Based on %1$d nights you woke later than on a usual weekday.</item>
+    </plurals>
+    <string name="onboarding_need_use_it">Use it</string>
+    <string name="onboarding_need_using_it">In use</string>
+    <string name="onboarding_confidence_low">low confidence</string>
+    <string name="onboarding_confidence_medium">medium confidence</string>
+    <string name="onboarding_confidence_high">high confidence</string>
+    <string name="onboarding_wake_title">When do you usually wake up?</string>
+    <string name="onboarding_wake_body">Only used to place your day until Sleep Saver has a few nights of your own.</string>
+    <string name="onboarding_wake_from_nights">Picked from your recent nights.</string>
+    <string name="onboarding_wake_label">Usual wake-up</string>
+
+    <!-- Step 5: habits -->
+    <string name="onboarding_habits_title">Pick your habits</string>
+    <string name="onboarding_habits_body">Each one is timed around your energy schedule. You can fine-tune them later.</string>
+    <string name="onboarding_remind_title">Remind me</string>
+    <string name="onboarding_remind_body">A quiet notification when a habit is due.</string>
+    <string name="onboarding_finish">Finish</string>
+
+    <!-- Health Connect fix-it screen -->
+    <string name="setup_title">Health Connect</string>
+    <string name="setup_subtitle">Where your sleep comes from</string>
+    <string name="setup_status_title">Status</string>
+    <string name="setup_row_health_connect">Health Connect</string>
+    <string name="setup_hc_ok">Installed and up to date.</string>
+    <string name="setup_hc_missing">Not installed.</string>
+    <string name="setup_hc_update">Needs an update.</string>
+    <string name="setup_hc_unsupported">Not available on this phone.</string>
+    <string name="setup_checking">Checking…</string>
+    <string name="setup_install">Install</string>
+    <string name="setup_update">Update</string>
+    <string name="setup_row_sleep_data">Sleep data</string>
+    <string name="setup_sleep_data_garmin">Garmin Connect is sharing sleep.</string>
+    <string name="setup_sleep_data_other">Coming from %1$s.</string>
+    <string name="setup_sleep_data_all">Coming from all your apps.</string>
+    <string name="setup_sleep_data_missing">No Garmin sleep in the last 30 days.</string>
+    <string name="setup_sleep_data_other_missing">No sleep from %1$s in the last 30 days.</string>
+    <string name="setup_sleep_data_all_missing">No app has shared sleep in the last 30 days.</string>
+    <string name="setup_row_last_sync">Last sync</string>
+    <string name="setup_sync_now">Sync now</string>
+    <string name="setup_syncing">Syncing now…</string>
+    <string name="setup_sync_never">Not synced yet.</string>
+    <string name="setup_sync_failed">Last try didn\'t work. %1$s</string>
+    <string name="setup_sync_demo">Demo data, nothing to sync.</string>
+    <string name="setup_sync_just_now">Just now.</string>
+    <plurals name="setup_sync_minutes_ago">
+        <item quantity="one">%1$d minute ago.</item>
+        <item quantity="other">%1$d minutes ago.</item>
+    </plurals>
+    <plurals name="setup_sync_hours_ago">
+        <item quantity="one">%1$d hour ago.</item>
+        <item quantity="other">%1$d hours ago.</item>
+    </plurals>
+    <!-- "Mon, Sep 28 at 9:41 AM." -->
+    <string name="setup_sync_on">%1$s at %2$s.</string>
+    <string name="setup_demo_title">You\'re exploring demo data</string>
+    <string name="setup_demo_body">Your own nights are kept aside, untouched. Switch back whenever you\'re ready.</string>
+    <string name="setup_leave_demo">Use my Health Connect data</string>
+</resources>
