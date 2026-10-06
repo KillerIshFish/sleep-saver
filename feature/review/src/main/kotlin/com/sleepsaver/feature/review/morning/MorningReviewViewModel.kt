@@ -1,9 +1,13 @@
 package com.sleepsaver.feature.review.morning
 
+import android.content.Intent
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
+import com.sleepsaver.core.data.healthconnect.garminSyncIntent
+import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.InsightsRepository
@@ -91,6 +95,7 @@ class MorningReviewViewModel @Inject constructor(
     private val reviewRepository: ReviewRepository,
     private val notifier: MorningReviewNotifier,
     private val timeProvider: TimeProvider,
+    private val healthConnect: HealthConnectGateway,
 ) : ViewModel() {
 
     private val wakeDate: LocalDate = timeProvider.parseWakeDate(savedStateHandle.toRoute<MorningReviewRoute>().wakeDate)
@@ -157,6 +162,17 @@ class MorningReviewViewModel @Inject constructor(
             Phase.RECALCULATING -> ReviewStep.Loading(recalculating = true)
             Phase.RESULT -> update?.let(ReviewStep::Result) ?: ReviewStep.Loading(recalculating = true)
         }
+
+    private val opensGarmin: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.syncOpensGarmin() }
+        .catch { emit(false) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /**
+     * The missing night's "Sync now": with Garmin as the source, Garmin Connect has to sync the watch first, so the
+     * screen opens it and calls [onSyncNow] when it's back. null = sync right away.
+     */
+    fun garminSyncIntent(): Intent? = if (opensGarmin.value) healthConnect.garminSyncIntent() else null
 
     /** Pulls the latest night (skipped in demo mode), showing the orb for at least [MIN_SYNC_MS]. */
     fun onSyncNow() {

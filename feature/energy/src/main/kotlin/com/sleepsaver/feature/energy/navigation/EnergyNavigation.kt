@@ -20,6 +20,7 @@ internal class EnergyActions(
     val onAddHabit: () -> Unit,
     val onOpenHabit: (HabitType) -> Unit,
     val onOpenSettings: () -> Unit,
+    val onOpenHealthConnectSetup: () -> Unit = onOpenSettings,
 )
 
 /**
@@ -31,14 +32,16 @@ fun NavGraphBuilder.energyScreen(
     onAddHabit: () -> Unit,
     onOpenHabit: (HabitType) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit = onOpenSettings,
 ) = energyScreen(
-    actions = EnergyActions(onEditNight, onAddHabit, onOpenHabit, onOpenSettings),
+    actions = EnergyActions(onEditNight, onAddHabit, onOpenHabit, onOpenSettings, onOpenHealthConnectSetup),
     screen = { actions ->
         EnergyScreen(
             onEditNight = actions.onEditNight,
             onAddHabit = actions.onAddHabit,
             onOpenHabit = actions.onOpenHabit,
             onOpenSettings = actions.onOpenSettings,
+            onOpenHealthConnectSetup = actions.onOpenHealthConnectSetup,
         )
     },
 )
@@ -52,6 +55,7 @@ internal fun NavGraphBuilder.energyScreen(actions: EnergyActions, screen: @Compo
                 onAddHabit = { if (entry.isResumed()) actions.onAddHabit() },
                 onOpenHabit = { type -> if (entry.isResumed()) actions.onOpenHabit(type) },
                 onOpenSettings = { if (entry.isResumed()) actions.onOpenSettings() },
+                onOpenHealthConnectSetup = { if (entry.isResumed()) actions.onOpenHealthConnectSetup() },
             ),
         )
     }

@@ -2,11 +2,11 @@ package com.sleepsaver.feature.sleep
 
 import androidx.compose.runtime.Immutable
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
+import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
-import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.DailyInsights
 import com.sleepsaver.core.domain.model.DebtStatus
@@ -16,7 +16,6 @@ import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.Phase
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
-import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.need.SleepNeedEstimator
 import java.time.Duration
 import java.time.Instant
@@ -115,13 +114,6 @@ data class HealthConnectCheck(val status: HealthConnectStatus, val sleepGranted:
 
 internal val SyncState.isSyncing: Boolean
     get() = status is SyncStatus.Syncing || status is SyncStatus.Importing
-
-/** Garmin is the source (alone or among all) and we're not in demo mode. */
-internal fun AppSettings.syncOpensGarmin(): Boolean =
-    !demoMode && when (val source = sleep.source) {
-        SourceSelection.All -> true
-        is SourceSelection.Single -> source.packageName == SleepConfig.GARMIN_CONNECT_PACKAGE
-    }
 
 internal fun emptyReason(demoMode: Boolean, check: HealthConnectCheck): EmptyReason = when {
     demoMode -> EmptyReason.NO_DATA

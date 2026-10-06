@@ -50,10 +50,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
@@ -64,6 +67,8 @@ import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.components.WellnessDisclaimer
 import com.sleepsaver.core.ui.components.label
 import com.sleepsaver.core.ui.format.timeRange
+import com.sleepsaver.core.ui.platform.rememberNotificationAccess
+import com.sleepsaver.core.ui.platform.tryStartActivity
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.energy.timeline.EnergyTimeline
@@ -84,19 +89,30 @@ internal fun EnergyScreen(
     onAddHabit: () -> Unit,
     onOpenHabit: (HabitType) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: EnergyViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val notifications = rememberNotificationAccess()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResume() }
     EnergyContent(
         state = state,
         onEditNight = onEditNight,
         onAddAwake = viewModel::addAwake,
         onAddHabit = onAddHabit,
         onOpenHabit = onOpenHabit,
-        onToggleReminder = viewModel::setReminder,
+        onToggleReminder = { type, on ->
+            viewModel.setReminder(type, on)
+            if (on) notifications.onReminderTurnedOn()
+        },
         onOpenSettings = onOpenSettings,
-        onSync = viewModel::syncNow,
+        onOpenHealthConnectSetup = onOpenHealthConnectSetup,
+        onSync = {
+            val intent = viewModel.syncNowIntent()
+            if (intent != null && !context.tryStartActivity(intent)) viewModel.onExternalLaunchFailed()
+        },
         modifier = modifier,
     )
 }
@@ -115,6 +131,7 @@ internal fun EnergyContent(
     onToggleReminder: (HabitType, Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenHealthConnectSetup: () -> Unit = onOpenSettings,
     onSync: () -> Unit = {},
     focusTime: Instant? = null,
     initialSheetValue: SheetValue = SheetValue.PartiallyExpanded,
@@ -132,7 +149,7 @@ internal fun EnergyContent(
         }
         is EnergyUiState.NoNights -> Column(insetsModifier) {
             EnergyHeader(subtitle = null, onOpenSettings = onOpenSettings)
-            NoNightsContent(reason = state.reason, onOpenSettings = onOpenSettings)
+            NoNightsContent(reason = state.reason, onSetUpData = onOpenHealthConnectSetup)
         }
         is EnergyUiState.Ready -> ReadyContent(
             state = state,
@@ -301,9 +318,9 @@ private fun LastNightBanner(
     }
 }
 
-/** Nothing to draw yet: say why and offer the fix (data source and Health Connect live in Settings). */
+/** Nothing to draw yet: say why and offer the fix (the Health Connect setup screen). */
 @Composable
-private fun NoNightsContent(reason: EmptyReason, onOpenSettings: () -> Unit) {
+private fun NoNightsContent(reason: EmptyReason, onSetUpData: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
@@ -329,7 +346,7 @@ private fun NoNightsContent(reason: EmptyReason, onOpenSettings: () -> Unit) {
                 title = stringResource(title),
                 body = stringResource(body),
                 primaryActionLabel = stringResource(R.string.energy_empty_action),
-                onPrimaryAction = onOpenSettings,
+                onPrimaryAction = onSetUpData,
             )
         }
     }

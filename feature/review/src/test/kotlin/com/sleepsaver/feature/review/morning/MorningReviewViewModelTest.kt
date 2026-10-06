@@ -11,6 +11,8 @@ import com.sleepsaver.core.data.repository.SyncResult
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.DebtStatus
+import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeReviewRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
@@ -63,6 +65,8 @@ class MorningReviewViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
+    private val healthConnect = FakeHealthConnectGateway()
+
     private fun viewModel(date: LocalDate = today) = MorningReviewViewModel(
         SavedStateHandle(mapOf("wakeDate" to date.toString())),
         sleep,
@@ -72,6 +76,7 @@ class MorningReviewViewModelTest {
         reviews,
         notifier,
         time,
+        healthConnect,
     )
 
     private val MorningReviewViewModel.step get() = uiState.value.step
@@ -300,7 +305,7 @@ class MorningReviewViewModelTest {
             object : com.sleepsaver.core.data.repository.SyncRepository by sync {
                 override suspend fun sync(trigger: SyncTrigger): SyncResult = error("boom")
             },
-            reviews, notifier, time,
+            reviews, notifier, time, healthConnect,
         )
         advanceUntilIdle()
 
@@ -312,7 +317,7 @@ class MorningReviewViewModelTest {
         val failing = FailingWritesSleepRepository(sleep)
         val vm = MorningReviewViewModel(
             SavedStateHandle(mapOf("wakeDate" to today.toString())),
-            failing, insights, settings, sync, reviews, notifier, time,
+            failing, insights, settings, sync, reviews, notifier, time, healthConnect,
         )
         advanceUntilIdle()
         vm.onAdjust()
@@ -348,10 +353,21 @@ class MorningReviewViewModelTest {
     fun `a bad date falls back to today`() = runTest {
         val vm = MorningReviewViewModel(
             SavedStateHandle(mapOf("wakeDate" to "not-a-date")),
-            sleep, insights, settings, sync, reviews, notifier, time,
+            sleep, insights, settings, sync, reviews, notifier, time, healthConnect,
         )
         advanceUntilIdle()
 
         assertThat(vm.uiState.value.wakeDate).isEqualTo(today)
+    }
+
+    @Test
+    fun `sync now on a missing night goes through Garmin Connect when Garmin is the source`() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertThat(vm.garminSyncIntent()).isNotNull()
+
+        settings.state.value = settings.state.value.let { it.copy(sleep = it.sleep.copy(source = SourceSelection.Single("com.example.other"))) }
+        advanceUntilIdle()
+        assertThat(vm.garminSyncIntent()).isNull()
     }
 }

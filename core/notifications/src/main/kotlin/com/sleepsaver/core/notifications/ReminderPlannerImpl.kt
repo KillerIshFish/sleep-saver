@@ -87,7 +87,8 @@ class ReminderPlannerImpl internal constructor(
         var lastPosted = store.lastPosted
         if (firing) {
             val due = planning.due(upcoming, now, postedThrough, lastPosted)
-            due.forEach(::post)
+            val routine = if (due.any { it.type == HabitType.EVENING_ROUTINE }) chosenRoutine() else emptyList()
+            due.forEach { post(it, routine) }
             store.markPosted(due)
             lastPosted = lastPosted + due.associate { it.type to it.time }
             postedThrough = planning.postedThroughAfterFiring(now)
@@ -97,15 +98,21 @@ class ReminderPlannerImpl internal constructor(
         if (next == null) alarmManager.cancel(alarmIntent()) else arm(next)
     }
 
-    /** Today's habits plus yesterday's and tomorrow's; empty without nights; null while insights are still loading. */
+    /**
+     * Habits from yesterday's, today's and tomorrow's schedules; empty without nights; null while insights are still
+     * loading. The insights already carry one of those days: today's, or yesterday's for a night owl between
+     * midnight and the end of yesterday's melatonin window.
+     */
     private suspend fun upcomingHabits(): List<ScheduledHabit>? {
         val state = withTimeoutOrNull(STATE_WAIT) { insights.state.first { it !is InsightsState.Loading } }
             ?: return null
         val insightsToday = (state as? InsightsState.Ready)?.insights ?: return emptyList()
+        val today = insightsToday.today
         val otherDays = withTimeoutOrNull(OTHER_DAYS_WAIT) {
             val settings = habits.habitSettings.first()
             coroutineScope {
-                listOf(insightsToday.today.minusDays(1), insightsToday.today.plusDays(1))
+                listOf(today.minusDays(1), today, today.plusDays(1))
+                    .filter { it != insightsToday.schedule.date }
                     .map { date -> async { habitsOn(date, settings) } }
                     .awaitAll()
                     .flatten()
@@ -124,9 +131,25 @@ class ReminderPlannerImpl internal constructor(
         emptyList()
     }
 
-    private fun post(habit: ScheduledHabit) {
+    /** "📖 Reading, 🎧 Podcast": the evening-routine activities the user picked, for its reminder. Best effort. */
+    private suspend fun chosenRoutine(): List<String> = try {
+        withTimeoutOrNull(OTHER_DAYS_WAIT) { habits.routineActivities.first() }.orEmpty()
+            .filter { it.selected }
+            .map { "${it.emoji} ${it.label}".trim() }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "No routine activities for the reminder", e)
+        emptyList()
+    }
+
+    private fun post(habit: ScheduledHabit, routine: List<String>) {
         val copy = HabitReminderCopy.of(habit.type)
-        val body = poster.text(copy.body)
+        val body = if (habit.type == HabitType.EVENING_ROUTINE && routine.isNotEmpty()) {
+            poster.text(R.string.reminder_evening_routine_body_with_activities, routine.joinToString(", "))
+        } else {
+            poster.text(copy.body)
+        }
         val builder = poster.builder(NotificationChannels.forCategory(habit.category), DeepLinks.energy())
             .setContentTitle(poster.text(copy.title))
             .setContentText(body)

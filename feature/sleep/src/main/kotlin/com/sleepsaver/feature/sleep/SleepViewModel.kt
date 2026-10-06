@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.di.IoDispatcher
 import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
+import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DemoModeController

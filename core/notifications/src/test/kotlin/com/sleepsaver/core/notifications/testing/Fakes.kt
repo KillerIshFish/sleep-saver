@@ -52,7 +52,8 @@ class FakeInsightsRepository(initial: InsightsState = InsightsState.Loading) : I
 
 class FakeHabitsRepository(settings: List<HabitSettings> = HabitCatalog().defaultSettings()) : HabitsRepository {
     override val habitSettings = MutableStateFlow(settings)
-    override val routineActivities: Flow<List<RoutineActivity>> = flowOf(emptyList())
+    val activities = MutableStateFlow<List<RoutineActivity>>(emptyList())
+    override val routineActivities: Flow<List<RoutineActivity>> = activities
 
     override suspend fun setEnabled(type: HabitType, enabled: Boolean) = edit(type) { it.copy(enabled = enabled) }
     override suspend fun setReminder(type: HabitType, enabled: Boolean) = edit(type) { it.copy(reminderEnabled = enabled) }

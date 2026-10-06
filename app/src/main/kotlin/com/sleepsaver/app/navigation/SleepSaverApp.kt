@@ -145,11 +145,13 @@ fun SleepSaverApp(
                     onAddHabit = navController::navigateToHabits,
                     onOpenHabit = navController::navigateToHabitDetail,
                     onOpenSettings = navController::navigateToSettings,
+                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
                 )
                 progressScreen(
                     onOpenNight = navController::navigateToNightDetail,
                     onAddMissingNight = navController::navigateToEditNight,
                     onOpenSettings = navController::navigateToSettings,
+                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
                 )
                 learnGraph(
                     onOpenArticle = navController::navigateToArticle,
@@ -158,6 +160,7 @@ fun SleepSaverApp(
                 reviewGraph(
                     navController = navController,
                     onOpenSettings = navController::navigateToSettings,
+                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
                 )
                 habitsGraph(navController)
                 settingsGraph(

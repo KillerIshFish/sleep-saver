@@ -13,6 +13,7 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
+import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.model.ScheduledHabit
 import com.sleepsaver.core.notifications.testing.FakeHabitsRepository
 import com.sleepsaver.core.notifications.testing.FakeInsightsRepository
@@ -46,8 +47,9 @@ class ReminderPlannerImplTest {
     private val scheduleHabits: (EnergySchedule, List<HabitSettings>) -> List<ScheduledHabit> =
         { schedule, _ -> habitsByDate[schedule.date].orEmpty() }
 
+    private val habits = FakeHabitsRepository()
     private val planner = ReminderPlannerImpl(
-        context, insights, FakeHabitsRepository(), time, NotificationPoster(context), scheduleHabits,
+        context, insights, habits, time, NotificationPoster(context), scheduleHabits,
     )
 
     private val todayHabits = listOf(
@@ -243,6 +245,42 @@ class ReminderPlannerImplTest {
         planner.replan()
 
         assertThat(nextAlarmAt()).isEqualTo(at(TODAY, "12:45"))
+    }
+
+    @Test
+    fun `the evening routine reminder names the chosen activities`() = runTest {
+        habits.activities.value = listOf(
+            RoutineActivity(1, "Reading", "R", isCustom = false, selected = true),
+            RoutineActivity(2, "Gaming", "G", isCustom = false, selected = false),
+        )
+        planner.replan()
+        time.now = at(TODAY, "21:00:20")
+
+        planner.onAlarm()
+
+        val text = notifications.getNotification(NotificationIds.habit(HabitType.EVENING_ROUTINE))
+            .extras.getCharSequence(Notification.EXTRA_TEXT).toString()
+        assertThat(text).contains("R Reading")
+        assertThat(text).doesNotContain("Gaming")
+    }
+
+    @Test
+    fun `a night owl after midnight still gets today's reminders`() = runTest {
+        // 00:30, before yesterday's late melatonin window ends: the insights still carry yesterday's evening schedule.
+        time.now = at(TODAY, "00:30")
+        insights.schedules[TODAY] = schedule(TODAY)
+        habitsByDate[TODAY] = todayHabits
+        val lateBedtime = habit(HabitType.BEDTIME, at(TODAY, "00:45"), windowEnd = at(TODAY, "01:45"))
+        insights.state.value = InsightsState.Ready(
+            insights(time.now, listOf(lateBedtime)).copy(schedule = schedule(TODAY.minusDays(1))),
+        )
+
+        planner.replan()
+        assertThat(nextAlarmAt()).isEqualTo(at(TODAY, "00:45"))
+
+        time.now = at(TODAY, "00:45:10")
+        planner.onAlarm()
+        assertThat(nextAlarmAt()).isEqualTo(at(TODAY, "07:15"))
     }
 
     private fun nextAlarmAt(): Instant? = alarms.peekNextScheduledAlarm()?.let { Instant.ofEpochMilli(it.triggerAtMs) }

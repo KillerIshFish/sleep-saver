@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.energy
 
+import androidx.lifecycle.SavedStateHandle
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.InsightsState
@@ -9,7 +10,9 @@ import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
+import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.testing.FakeHabitsRepository
+import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
@@ -55,7 +58,10 @@ class EnergyViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = EnergyViewModel(insights, sleep, settings, habits, sync, time, dispatcher)
+    private val healthConnect = FakeHealthConnectGateway()
+
+    private fun viewModel() =
+        EnergyViewModel(insights, sleep, settings, habits, sync, healthConnect, SavedStateHandle(), time, dispatcher)
 
     @Test
     fun `starts loading`() = runTest {
@@ -194,5 +200,36 @@ class EnergyViewModelTest {
         viewModel().setReminder(HabitType.CAFFEINE_CUTOFF, false)
 
         assertThat(habits.settingsState.value.single { it.type == HabitType.CAFFEINE_CUTOFF }.reminderEnabled).isFalse()
+    }
+
+    @Test
+    fun `sync now opens Garmin Connect and syncs once the screen resumes`() = runTest {
+        val viewModel = viewModel()
+
+        assertThat(viewModel.syncNowIntent()).isNotNull()
+        assertThat(sync.syncCalls).isEmpty()
+
+        viewModel.onResume()
+        viewModel.onResume()
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+    }
+
+    @Test
+    fun `sync now syncs right away when Garmin isn't the source`() = runTest {
+        settings.state.value = settings.state.value.let { it.copy(sleep = it.sleep.copy(source = SourceSelection.Single("com.example.other"))) }
+        val viewModel = viewModel()
+
+        assertThat(viewModel.syncNowIntent()).isNull()
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
+    }
+
+    @Test
+    fun `if Garmin Connect can't be opened it syncs directly`() = runTest {
+        val viewModel = viewModel()
+        viewModel.syncNowIntent()
+
+        viewModel.onExternalLaunchFailed()
+        viewModel.onResume()
+        assertThat(sync.syncCalls).containsExactly(SyncTrigger.MANUAL)
     }
 }

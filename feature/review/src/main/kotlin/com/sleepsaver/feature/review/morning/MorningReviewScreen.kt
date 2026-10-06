@@ -47,12 +47,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.domain.model.DebtStatus
@@ -71,6 +74,7 @@ import com.sleepsaver.core.ui.components.color
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatHours1
+import com.sleepsaver.core.ui.platform.tryStartActivity
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
@@ -120,6 +124,15 @@ internal fun MorningReviewScreen(
     viewModel: MorningReviewViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // "Sync now" sent the user to Garmin Connect so the watch syncs; pull from Health Connect once they're back.
+    var syncOnResume by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (syncOnResume) {
+            syncOnResume = false
+            viewModel.onSyncNow()
+        }
+    }
     CloseWhenFinished(state.finished, onClose)
     // System back: leave the editor first; elsewhere it's the close X.
     BackHandler(enabled = !state.finished) {
@@ -129,7 +142,10 @@ internal fun MorningReviewScreen(
         state = state,
         actions = MorningReviewActions(
             onClose = viewModel::onClose,
-            onSyncNow = viewModel::onSyncNow,
+            onSyncNow = {
+                val intent = viewModel.garminSyncIntent()
+                if (intent != null && context.tryStartActivity(intent)) syncOnResume = true else viewModel.onSyncNow()
+            },
             onLooksRight = viewModel::onLooksRight,
             onAdjust = viewModel::onAdjust,
             onAdjustCancel = viewModel::onAdjustCancel,

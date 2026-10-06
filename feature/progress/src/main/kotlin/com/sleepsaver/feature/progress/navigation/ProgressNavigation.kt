@@ -20,6 +20,7 @@ fun NavGraphBuilder.progressScreen(
     onOpenNight: (LocalDate) -> Unit,
     onAddMissingNight: (LocalDate) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit = onOpenSettings,
 ) {
     composable<ProgressRoute> { entry ->
         fun resumed() = entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
@@ -27,6 +28,7 @@ fun NavGraphBuilder.progressScreen(
             onOpenNight = { if (resumed()) onOpenNight(it) },
             onAddMissingNight = { if (resumed()) onAddMissingNight(it) },
             onOpenSettings = dropUnlessResumed(block = onOpenSettings),
+            onOpenHealthConnectSetup = dropUnlessResumed(block = onOpenHealthConnectSetup),
         )
     }
 }

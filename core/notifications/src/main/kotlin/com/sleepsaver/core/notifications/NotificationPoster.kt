@@ -69,6 +69,8 @@ class NotificationPoster @Inject constructor(@ApplicationContext private val con
 
     internal fun text(resId: Int): String = context.getString(resId)
 
+    internal fun text(resId: Int, vararg args: Any): String = context.getString(resId, *args)
+
     private fun openApp(uri: Uri): PendingIntent = PendingIntent.getActivity(
         context,
         0,

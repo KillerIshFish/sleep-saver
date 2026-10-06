@@ -75,6 +75,7 @@ internal fun ProgressScreen(
     onOpenNight: (LocalDate) -> Unit,
     onAddMissingNight: (LocalDate) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProgressViewModel = hiltViewModel(),
 ) {
@@ -87,6 +88,7 @@ internal fun ProgressScreen(
         onOpenNight = onOpenNight,
         onAddMissingNight = onAddMissingNight,
         onOpenSettings = onOpenSettings,
+        onOpenHealthConnectSetup = onOpenHealthConnectSetup,
         modifier = modifier,
     )
 }
@@ -102,6 +104,7 @@ internal fun ProgressContent(
     onAddMissingNight: (LocalDate) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenHealthConnectSetup: () -> Unit = onOpenSettings,
     initialTab: ProgressTab = ProgressTab.SLEEP_TIMES,
     listState: LazyListState = rememberLazyListState(),
 ) {
@@ -128,7 +131,7 @@ internal fun ProgressContent(
             ) {
                 ProgressHeader(window = null, onPreviousWindow, onNextWindow, onOpenSettings)
                 Spacer(Modifier.height(Spacing.xxxl))
-                NoNightsState(state, onAddMissingNight, onOpenSettings)
+                NoNightsState(state, onAddMissingNight, onOpenSettings, onOpenHealthConnectSetup)
                 Spacer(Modifier.height(Spacing.xxl))
                 WellnessDisclaimer()
             }
@@ -275,15 +278,17 @@ private fun PagerButton(enabled: Boolean, onClick: () -> Unit, description: Stri
 
 /**
  * The whole tab when no night has come in. When the last sync said why (Health Connect missing, sleep access off),
- * the fix comes first: Settings holds the data-source and Health Connect setup. Otherwise adding a night leads.
+ * the fix comes first: the Health Connect setup screen. Otherwise adding a night leads.
  */
 @Composable
 private fun NoNightsState(
     state: ProgressUiState.NoNights,
     onAddMissingNight: (LocalDate) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenHealthConnectSetup: () -> Unit,
 ) {
     val addNight = stringResource(R.string.progress_add_night)
+    val setUpHealthConnect = stringResource(R.string.progress_set_up_health_connect)
     val openSettings = stringResource(R.string.progress_open_settings)
     val addToday = { onAddMissingNight(state.today) }
     when (state.reason) {
@@ -301,8 +306,8 @@ private fun NoNightsState(
             icon = Icons.Rounded.HealthAndSafety,
             title = stringResource(R.string.progress_empty_hc_title),
             body = stringResource(R.string.progress_empty_hc_body),
-            primaryActionLabel = openSettings,
-            onPrimaryAction = onOpenSettings,
+            primaryActionLabel = setUpHealthConnect,
+            onPrimaryAction = onOpenHealthConnectSetup,
             secondaryActionLabel = addNight,
             onSecondaryAction = addToday,
         )
@@ -311,8 +316,8 @@ private fun NoNightsState(
             icon = Icons.Rounded.Lock,
             title = stringResource(R.string.progress_empty_permission_title),
             body = stringResource(R.string.progress_empty_permission_body),
-            primaryActionLabel = openSettings,
-            onPrimaryAction = onOpenSettings,
+            primaryActionLabel = setUpHealthConnect,
+            onPrimaryAction = onOpenHealthConnectSetup,
             secondaryActionLabel = addNight,
             onSecondaryAction = addToday,
         )

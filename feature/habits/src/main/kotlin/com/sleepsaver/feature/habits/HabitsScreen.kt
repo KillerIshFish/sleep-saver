@@ -54,6 +54,7 @@ import com.sleepsaver.core.ui.components.SectionHeader
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.WellnessDisclaimer
 import com.sleepsaver.core.ui.components.title
+import com.sleepsaver.core.ui.platform.rememberNotificationAccess
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import java.time.ZoneId

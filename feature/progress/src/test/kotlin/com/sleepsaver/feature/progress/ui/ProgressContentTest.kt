@@ -37,6 +37,7 @@ class ProgressContentTest {
     private val opened = mutableListOf<LocalDate>()
     private val added = mutableListOf<LocalDate>()
     private var settingsOpened = 0
+    private var setupOpened = 0
     private var previous = 0
     private var next = 0
     private var latest = 0
@@ -52,6 +53,7 @@ class ProgressContentTest {
                     onOpenNight = { opened += it },
                     onAddMissingNight = { added += it },
                     onOpenSettings = { settingsOpened++ },
+                    onOpenHealthConnectSetup = { setupOpened++ },
                 )
             }
         }
@@ -145,10 +147,10 @@ class ProgressContentTest {
         show(ProgressUiState.NoNights(today, NoNightsReason.HEALTH_CONNECT_UNAVAILABLE))
 
         compose.onNodeWithText("Health Connect isn't ready").assertIsDisplayed()
-        compose.onNodeWithText("Open settings").performClick()
+        compose.onNodeWithText("Set up Health Connect").performClick()
         compose.onNodeWithText("Add a night").performClick()
 
-        assertThat(settingsOpened).isEqualTo(1)
+        assertThat(setupOpened).isEqualTo(1)
         assertThat(added).containsExactly(today)
     }
 
@@ -157,9 +159,9 @@ class ProgressContentTest {
         show(ProgressUiState.NoNights(today, NoNightsReason.PERMISSION_DENIED))
 
         compose.onNodeWithText("Sleep access is off").assertIsDisplayed()
-        compose.onNodeWithText("Open settings").performClick()
+        compose.onNodeWithText("Set up Health Connect").performClick()
 
-        assertThat(settingsOpened).isEqualTo(1)
+        assertThat(setupOpened).isEqualTo(1)
     }
 
     @Test

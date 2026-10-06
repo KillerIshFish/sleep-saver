@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.ui.components.LoadingOrb
 import com.sleepsaver.core.ui.components.ScreenHeader
+import com.sleepsaver.core.ui.platform.rememberNotificationAccess
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import java.time.LocalDate
@@ -91,6 +92,7 @@ internal fun SleepScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val notifications = rememberNotificationAccess()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Health Connect may have been installed or permissions granted while we were away; a pending
     // "Sync now" (sent to Garmin Connect) syncs here too.
@@ -137,7 +139,10 @@ internal fun SleepScreen(
             onTryDemo = viewModel::onTryDemo,
             onUseSuggestedNeed = viewModel::onUseSuggestedNeed,
             onDismissNeedSuggestion = viewModel::onDismissNeedSuggestion,
-            onReminderChange = viewModel::onReminderChange,
+            onReminderChange = { type, on ->
+                viewModel.onReminderChange(type, on)
+                if (on) notifications.onReminderTurnedOn()
+            },
         )
     }
     SleepContent(state = state, actions = actions, modifier = modifier)

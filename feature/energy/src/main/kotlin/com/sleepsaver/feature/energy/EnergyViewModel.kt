@@ -1,8 +1,13 @@
 package com.sleepsaver.feature.energy
 
+import android.content.Intent
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.di.IoDispatcher
+import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
+import com.sleepsaver.core.data.healthconnect.garminSyncIntent
+import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
@@ -37,6 +42,8 @@ class EnergyViewModel @Inject constructor(
     settingsRepository: SettingsRepository,
     private val habitsRepository: HabitsRepository,
     private val syncRepository: SyncRepository,
+    private val healthConnect: HealthConnectGateway,
+    private val savedStateHandle: SavedStateHandle,
     timeProvider: TimeProvider,
     /** Writes and syncs run here: never database or Health Connect work on the main thread. */
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
@@ -72,9 +79,51 @@ class EnergyViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) { habitsRepository.setReminder(type, enabled) }
     }
 
-    /** "Sync now" while last night hasn't arrived. Ignored while a sync is already running. */
+    private val opensGarmin: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.syncOpensGarmin() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private var syncOnResume: Boolean
+        get() = savedStateHandle[KEY_SYNC_ON_RESUME] ?: false
+        set(value) {
+            savedStateHandle[KEY_SYNC_ON_RESUME] = value
+        }
+
+    /**
+     * "Sync now" while last night hasn't arrived. With Garmin as the source this returns the intent that opens
+     * Garmin Connect (so the watch syncs) and the Health Connect sync runs when the screen resumes; otherwise it
+     * syncs right away and returns null.
+     */
+    fun syncNowIntent(): Intent? {
+        if (!opensGarmin.value) {
+            syncNow()
+            return null
+        }
+        syncOnResume = true
+        return healthConnect.garminSyncIntent()
+    }
+
+    /** The intent from [syncNowIntent] couldn't be started: sync directly instead. */
+    fun onExternalLaunchFailed() {
+        syncOnResume = false
+        syncNow()
+    }
+
+    /** Back from Garmin Connect: run the sync "Sync now" left pending. */
+    fun onResume() {
+        if (syncOnResume) {
+            syncOnResume = false
+            syncNow()
+        }
+    }
+
+    /** Syncs Health Connect now. Ignored while a sync is already running. */
     fun syncNow() {
         if (syncRepository.state.value.isSyncing) return
         viewModelScope.launch(ioDispatcher) { syncRepository.sync(SyncTrigger.MANUAL) }
+    }
+
+    private companion object {
+        const val KEY_SYNC_ON_RESUME = "energy.syncOnResume"
     }
 }
