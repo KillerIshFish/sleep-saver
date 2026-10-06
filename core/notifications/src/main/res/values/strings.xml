@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Channels -->
+    <string name="channel_review_name">Morning review</string>
+    <string name="channel_review_description">Lets you know when last night has synced and is ready to check.</string>
+    <string name="channel_morning_light_name">Morning light</string>
+    <string name="channel_morning_light_description">A nudge to get daylight soon after you wake up.</string>
+    <string name="channel_cutoffs_name">Cutoffs</string>
+    <string name="channel_cutoffs_description">Last calls for caffeine, big meals, alcohol and hard workouts.</string>
+    <string name="channel_wind_down_name">Wind-down</string>
+    <string name="channel_wind_down_description">When to dim the lights and start your evening routine.</string>
+    <string name="channel_bedtime_name">Bedtime</string>
+    <string name="channel_bedtime_description">When your best window to fall asleep opens.</string>
+    <string name="channel_naps_name">Naps</string>
+    <string name="channel_naps_description">When your afternoon nap window opens.</string>
+    <string name="channel_sync_name">Sync</string>
+    <string name="channel_sync_description">Progress while sleep data is being imported.</string>
+
+    <!-- Habit reminders: title + one short line -->
+    <string name="reminder_morning_light_title">Time for daylight</string>
+    <string name="reminder_morning_light_body">A few minutes of outdoor light now sets your body clock for the day ahead.</string>
+    <string name="reminder_caffeine_title">Caffeine cutoff</string>
+    <string name="reminder_caffeine_body">Make this your last coffee or tea so it has worn off by bedtime.</string>
+    <string name="reminder_large_meal_title">Last big meal</string>
+    <string name="reminder_large_meal_body">Have your last large meal now so digestion has settled before bed.</string>
+    <string name="reminder_alcohol_title">Alcohol cutoff</string>
+    <string name="reminder_alcohol_body">Switch to something alcohol-free; a drink this late breaks up the second half of the night.</string>
+    <string name="reminder_exercise_title">Wrap up hard workouts</string>
+    <string name="reminder_exercise_body">Finish intense exercise now so your body has time to cool down before bed.</string>
+    <string name="reminder_dim_lights_title">Dim the lights</string>
+    <string name="reminder_dim_lights_body">Switch to low, warm light. It tells your body the evening has started.</string>
+    <string name="reminder_evening_routine_title">Start winding down</string>
+    <string name="reminder_evening_routine_body">Time for your evening routine. Slow the pace and put the bright screens away.</string>
+    <string name="reminder_bedtime_title">Your sleep window is open</string>
+    <string name="reminder_bedtime_body">This is your best stretch to fall asleep tonight. Head to bed when you can.</string>
+    <string name="reminder_nap_title">Nap window</string>
+    <string name="reminder_nap_body">If you need a nap, now is the time. Keep it to 20–30 minutes.</string>
+
+    <!-- Morning review -->
+    <string name="review_ready_title">Last night has synced</string>
+    <string name="review_ready_body">Take a few seconds to check it and see how your sleep debt moved.</string>
+    <string name="review_fallback_title">Check in on last night</string>
+    <string name="review_fallback_body">Confirm or fix last night so your sleep debt stays accurate.</string>
+</resources>
