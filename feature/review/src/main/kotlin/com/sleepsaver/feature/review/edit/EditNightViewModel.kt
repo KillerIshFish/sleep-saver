@@ -25,8 +25,10 @@ import javax.inject.Inject
 data class EditNightUiState(
     val wakeDate: LocalDate,
     val today: LocalDate,
-    /** null while the night loads. */
+    /** null while the night loads (or when it couldn't be read, see [loadFailed]). */
     val editor: NightEditorState? = null,
+    /** The night couldn't be read: the screen says so instead of offering an editor that might overwrite it. */
+    val loadFailed: Boolean = false,
     val saving: Boolean = false,
     /** The last save or revert didn't go through: the editor stays open with a note. */
     val saveFailed: Boolean = false,
@@ -50,8 +52,10 @@ class EditNightViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val editor = loadEditor(wakeDate, sleepRepository, settingsRepository, insightsRepository, timeProvider)
-            state.update { it.copy(editor = editor) }
+            val editor = runCatching {
+                loadEditor(wakeDate, sleepRepository, settingsRepository, insightsRepository, timeProvider)
+            }.getOrNull()
+            state.update { it.copy(editor = editor, loadFailed = editor == null) }
         }
     }
 

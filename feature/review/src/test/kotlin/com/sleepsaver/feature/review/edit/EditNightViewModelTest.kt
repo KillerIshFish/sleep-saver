@@ -14,7 +14,12 @@ import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.TestNight
 import com.sleepsaver.feature.review.TestNight.at
 import com.sleepsaver.feature.review.TestNight.wakeDate
+import com.sleepsaver.core.data.repository.SleepRepository
+import com.sleepsaver.core.domain.model.Night
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import java.io.IOException
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -171,6 +176,22 @@ class EditNightViewModelTest {
 
         vm.onAwakeChange(50)
         assertThat(vm.uiState.value.saveFailed).isFalse()
+    }
+
+    @Test
+    fun `a night that can't be read shows a calm error instead of an editor`() = runTest {
+        val broken = object : SleepRepository by sleep {
+            override fun night(wakeDate: LocalDate): Flow<Night?> = flow { throw IOException("database closed") }
+        }
+        val vm = EditNightViewModel(SavedStateHandle(mapOf("wakeDate" to wakeDate.toString())), broken, settings, insights, time)
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.loadFailed).isTrue()
+        assertThat(vm.uiState.value.editor).isNull()
+        vm.onDone()
+        advanceUntilIdle()
+        assertThat(sleep.savedOverrides).isEmpty()
+        assertThat(sleep.manualNights).isEmpty()
     }
 
     @Test

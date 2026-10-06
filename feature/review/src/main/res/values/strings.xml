@@ -68,6 +68,8 @@
     <!-- Edit night -->
     <string name="review_edit_title">Edit your night</string>
     <string name="review_add_title">Add a missing night</string>
+    <string name="review_load_failed_title">This night won’t open</string>
+    <string name="review_load_failed_body">Something went wrong reading it. Nothing was changed. Close this and try again in a moment.</string>
     <string name="review_total_sleep_time">Total sleep time</string>
     <!-- "7h 25m in bed · 35m awake" -->
     <string name="review_in_bed_awake">%1$s in bed · %2$s awake</string>
