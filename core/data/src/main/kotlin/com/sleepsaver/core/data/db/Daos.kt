@@ -87,6 +87,9 @@ interface AddedAwakeDao {
     @Insert
     suspend fun insert(entity: AddedAwakeEntity): Long
 
+    @Query("SELECT * FROM added_awake WHERE id = :id")
+    suspend fun get(id: Long): AddedAwakeEntity?
+
     @Query("DELETE FROM added_awake WHERE id = :id")
     suspend fun delete(id: Long)
 

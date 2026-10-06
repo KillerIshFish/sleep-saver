@@ -149,6 +149,28 @@ class SleepRepositoryImplTest {
     }
 
     @Test
+    fun `added awake time keeps an awake-minutes edit in step`() = runTest {
+        val repository = repository()
+        repository.saveOverride(NightOverride(date, awakeMinutes = 20, offset = ZoneOffset.UTC, updatedAt = time.now))
+
+        val awakeId = repository.addAwake(date, instant("2026-10-06T03:00:00Z"), instant("2026-10-06T03:15:00Z"))
+        assertThat(db.nightOverrideDao().get(date.toString())!!.awakeMinutes).isEqualTo(35)
+
+        repository.deleteAwake(awakeId)
+        assertThat(db.nightOverrideDao().get(date.toString())!!.awakeMinutes).isEqualTo(20)
+    }
+
+    @Test
+    fun `added awake time leaves an edit without awake minutes alone`() = runTest {
+        val repository = repository()
+        repository.saveOverride(NightOverride(date, napMinutes = 10, offset = ZoneOffset.UTC, updatedAt = time.now))
+
+        repository.addAwake(date, instant("2026-10-06T03:00:00Z"), instant("2026-10-06T03:15:00Z"))
+
+        assertThat(db.nightOverrideDao().get(date.toString())!!.awakeMinutes).isNull()
+    }
+
+    @Test
     fun `nap must end after it starts`() = runTest {
         val error = runCatching {
             repository().addNap(instant("2026-10-06T13:00:00Z"), instant("2026-10-06T13:00:00Z"), ZoneOffset.UTC)

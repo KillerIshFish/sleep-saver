@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -162,17 +163,42 @@ class SleepRepositoryImpl @Inject constructor(
 
     override suspend fun addAwake(wakeDate: LocalDate, start: Instant, end: Instant): Long {
         require(end.isAfter(start)) { "end must be after start" }
-        return addedAwakeDao.insert(
-            AddedAwakeEntity(
-                wakeDate = wakeDate.toString(),
-                startEpochMs = start.toEpochMilli(),
-                endEpochMs = end.toEpochMilli(),
-                createdAtEpochMs = timeProvider.now().toEpochMilli(),
+        return database.withTransaction {
+            val id = addedAwakeDao.insert(
+                AddedAwakeEntity(
+                    wakeDate = wakeDate.toString(),
+                    startEpochMs = start.toEpochMilli(),
+                    endEpochMs = end.toEpochMilli(),
+                    createdAtEpochMs = timeProvider.now().toEpochMilli(),
+                ),
+            )
+            shiftAwakeEdit(wakeDate, Duration.between(start, end))
+            id
+        }
+    }
+
+    override suspend fun deleteAwake(id: Long) {
+        database.withTransaction {
+            val row = addedAwakeDao.get(id) ?: return@withTransaction
+            addedAwakeDao.delete(id)
+            shiftAwakeEdit(LocalDate.parse(row.wakeDate), Duration.ofMillis(row.startEpochMs - row.endEpochMs))
+        }
+    }
+
+    /**
+     * An awake-minutes edit is the night's whole awake total, so it would hide awake time added (or removed) later by
+     * long-press. Keep it in step; without such an edit the added period counts on its own.
+     */
+    private suspend fun shiftAwakeEdit(wakeDate: LocalDate, by: Duration) {
+        val edit = overrideDao.get(wakeDate.toString()) ?: return
+        val minutes = edit.awakeMinutes ?: return
+        overrideDao.upsert(
+            edit.copy(
+                awakeMinutes = (minutes + Math.round(by.toMillis() / 60_000.0).toInt()).coerceAtLeast(0),
+                updatedAtEpochMs = timeProvider.now().toEpochMilli(),
             ),
         )
     }
-
-    override suspend fun deleteAwake(id: Long) = addedAwakeDao.delete(id)
 
     /** Demo mode reads only demo rows; otherwise demo rows (if any are left) are never mixed in. */
     private data class ActiveSource(val demo: Boolean, val selection: SourceSelection) {
