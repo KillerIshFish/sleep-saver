@@ -87,8 +87,9 @@ class DebtWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = DebtWidget()
 }
 
-private val TextPrimary = ColorProvider(R.color.widget_text_primary)
-private val TextSecondary = ColorProvider(R.color.widget_text_secondary)
+// Same values as @color/widget_text_* (used by the XML preview layout). The resource-id ColorProvider is restricted API.
+private val TextPrimary = ColorProvider(Color(0xFFF1F3F6))
+private val TextSecondary = ColorProvider(Color(0xFF9AA4B2))
 
 /** The smallest the widget gets (the 2x2 minimum; it can't be resized below that): status, debt and its label. */
 private val CompactSize = DpSize(110.dp, 110.dp)

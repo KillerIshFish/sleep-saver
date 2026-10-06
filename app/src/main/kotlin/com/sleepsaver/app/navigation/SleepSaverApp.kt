@@ -2,6 +2,7 @@ package com.sleepsaver.app.navigation
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -217,7 +218,7 @@ private fun NavHostController.navigateToTab(tab: TopLevel) {
  */
 @Composable
 private fun DeepLinkHandler(navController: NavHostController) {
-    val activity = LocalContext.current as? ComponentActivity ?: return
+    val activity = LocalActivity.current as? ComponentActivity ?: return
     LaunchedEffect(Unit) {
         activity.intent?.let { if (navController.openDeepLink(it)) activity.intent = Intent() }
     }

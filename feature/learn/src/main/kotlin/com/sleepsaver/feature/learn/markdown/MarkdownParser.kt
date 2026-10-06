@@ -119,7 +119,7 @@ object MarkdownParser {
 
     private enum class ListKind(val regex: Regex) { Bullet(BULLET), Ordered(ORDERED) }
 
-    private const val BOM = "﻿"
+    private const val BOM = "\uFEFF"
     private const val FENCE = "---"
 }
 

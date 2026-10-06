@@ -35,7 +35,7 @@ import kotlin.random.Random
 object SampleData {
     val zone: ZoneId = ZoneId.of("America/New_York")
     val now: Instant = ZonedDateTime.of(2026, 10, 6, 10, 20, 0, 0, zone).toInstant()
-    val today: LocalDate get() = LocalDate.ofInstant(now, zone)
+    val today: LocalDate get() = now.atZone(zone).toLocalDate()
     val settings = UserSleepSettings()
     val habits: List<HabitSettings> get() = HabitCatalog().defaultSettings()
 
@@ -99,7 +99,7 @@ object SampleData {
         zone: ZoneId = this.zone,
         settings: UserSleepSettings = this.settings,
         habits: List<HabitSettings> = this.habits,
-        nights: List<Night> = nights(LocalDate.ofInstant(now, zone), zone),
+        nights: List<Night> = nights(now.atZone(zone).toLocalDate(), zone),
     ): DailyInsights = InsightsEngine().compute(nights, settings, habits, now, zone)
 
     fun readyState(now: Instant = this.now, nights: List<Night> = nights()): InsightsState =
