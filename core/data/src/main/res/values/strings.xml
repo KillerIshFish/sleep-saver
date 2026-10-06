@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Default evening-routine activities, stored in the database when the routine grid is first shown. -->
+    <string name="routine_reading">Reading</string>
+    <string name="routine_stretching">Stretching</string>
+    <string name="routine_warm_shower">Warm shower</string>
+    <string name="routine_podcast">Podcast</string>
+    <string name="routine_journaling">Journaling</string>
+    <string name="routine_tv">TV</string>
+    <string name="routine_gaming">Gaming</string>
+</resources>

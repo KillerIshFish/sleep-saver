@@ -13,6 +13,15 @@ ksp {
     arg("room.generateKotlin", "true")
 }
 
+tasks.withType<Test>().configureEach {
+    // Robolectric's SDK 36 runtime reaches into JDK internals that newer JDKs (25+) no longer export.
+    jvmArgs(
+        "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--enable-native-access=ALL-UNNAMED",
+    )
+}
+
 dependencies {
     api(project(":core:domain"))
 
