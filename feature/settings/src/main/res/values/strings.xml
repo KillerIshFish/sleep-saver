@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_loading">Loading settings</string>
+
+    <!-- Groups -->
+    <string name="settings_group_sleep">Sleep</string>
+    <string name="settings_group_goals">Goals</string>
+    <string name="settings_group_data">Data</string>
+    <string name="settings_group_notifications">Notifications</string>
+    <string name="settings_group_display">Display</string>
+    <string name="settings_group_about">About</string>
+    <string name="settings_group_reset">Start over</string>
+
+    <!-- Shared dialog buttons -->
+    <string name="settings_save">Save</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_done">Done</string>
+
+    <!-- Sleep need -->
+    <string name="settings_sleep_need">Sleep need</string>
+    <string name="settings_sleep_need_body">Your nightly target. Sleep debt is measured against it.</string>
+    <string name="settings_sleep_need_dialog_body">How much sleep leaves you feeling rested. Most adults land somewhere between 7 and 9 hours.</string>
+    <!-- "Suggested: 8h 35m · medium confidence" -->
+    <string name="settings_need_suggestion">Suggested: %1$s · %2$s</string>
+    <plurals name="settings_need_suggestion_body">
+        <item quantity="one">From %1$d night you woke up on your own</item>
+        <item quantity="other">From %1$d nights you woke up on your own</item>
+    </plurals>
+    <!-- Chip in the sleep need dialog: "Use suggested 8h 35m" -->
+    <string name="settings_need_suggestion_chip">Use suggested %1$s</string>
+    <string name="settings_use">Use</string>
+    <string name="settings_confidence_low">low confidence</string>
+    <string name="settings_confidence_medium">medium confidence</string>
+    <string name="settings_confidence_high">high confidence</string>
+
+    <!-- Typical wake -->
+    <string name="settings_typical_wake">Typical wake time</string>
+    <string name="settings_typical_wake_caption">Used until there are enough nights to learn your rhythm</string>
+    <!-- "Now learned from your nights: 6:52 AM" -->
+    <string name="settings_typical_wake_learned">Now learned from your nights: %1$s</string>
+    <!-- Dialog body once the rhythm is learned: "Your nights now set your rhythm (about 6:52 AM). This time is only used if..." -->
+    <string name="settings_typical_wake_learned_body">Your recent nights now set your rhythm (about %1$s). This time is only a fallback for when there aren\'t enough nights.</string>
+
+    <!-- Streak -->
+    <string name="settings_streak">Streak threshold</string>
+    <string name="settings_streak_body">Days with sleep debt under this keep your streak going</string>
+    <string name="settings_streak_dialog_body">A day adds to your streak while your sleep debt stays below this amount.</string>
+
+    <!-- Debt levels -->
+    <string name="settings_debt_levels">Debt levels</string>
+    <!-- "Low below 2h · High from 5h" -->
+    <string name="settings_debt_levels_value">Low below %1$s · High from %2$s</string>
+    <string name="settings_debt_levels_dialog_body">Choose where Low ends and High begins. Everything in between counts as Moderate.</string>
+    <string name="settings_debt_low_below">Low below</string>
+    <string name="settings_debt_high_from">High from</string>
+    <!-- Legend under the preview bar: "Under 2h", "2h – 5h", "5h and up" -->
+    <string name="settings_debt_range_low">Under %1$s</string>
+    <string name="settings_debt_range_moderate">%1$s – %2$s</string>
+    <string name="settings_debt_range_high">%1$s and up</string>
+
+    <!-- Data source -->
+    <string name="settings_source">Data source</string>
+    <string name="settings_source_dialog_body">Pick the app whose sleep Sleep Saver reads from Health Connect.</string>
+    <string name="settings_source_dialog_demo">Demo data is on right now, so your choice applies once you turn it off.</string>
+    <string name="settings_source_garmin">Garmin Connect</string>
+    <string name="settings_source_all">All sources (duplicates removed)</string>
+    <string name="settings_source_all_short">All sources</string>
+    <string name="settings_source_default">Default</string>
+    <string name="settings_source_all_body">A night recorded by more than one app counts once</string>
+    <string name="settings_source_no_data">No sleep from this app yet</string>
+    <string name="settings_source_not_installed">No longer sending sleep</string>
+    <string name="settings_source_demo">Paused while demo data is on</string>
+
+    <!-- Demo -->
+    <string name="settings_demo">Use demo data</string>
+    <string name="settings_demo_body">Explore with 60 made-up nights. Your own data is kept aside.</string>
+    <string name="settings_demo_switching">Switching…</string>
+    <string name="settings_demo_off_title">Turn off demo data?</string>
+    <string name="settings_demo_off_body">Edits made in demo mode will be removed. Your own nights come back exactly as they were.</string>
+    <string name="settings_demo_off_confirm">Turn off</string>
+    <string name="settings_demo_off_keep">Keep demo</string>
+
+    <!-- Health Connect -->
+    <string name="settings_health_connect">Health Connect</string>
+    <string name="settings_hc_checking">Checking…</string>
+    <string name="settings_hc_connected">Connected · reading sleep</string>
+    <string name="settings_hc_permission">Sleep access is off. Tap to turn it on.</string>
+    <string name="settings_hc_not_installed">Not installed. Tap to set it up.</string>
+    <string name="settings_hc_update">Needs an update. Tap to fix.</string>
+    <string name="settings_hc_not_supported">Not available on this phone</string>
+
+    <!-- Sync -->
+    <!-- "Last synced 10:20 AM" -->
+    <string name="settings_last_synced">Last synced %1$s</string>
+    <!-- "Last synced yesterday, 10:20 AM" -->
+    <string name="settings_last_synced_yesterday">Last synced yesterday, %1$s</string>
+    <!-- "Last synced Oct 3, 10:20 AM" -->
+    <string name="settings_last_synced_date">Last synced %1$s, %2$s</string>
+    <string name="settings_never_synced">Not synced yet</string>
+    <string name="settings_sync_now">Sync now</string>
+    <string name="settings_syncing">Syncing…</string>
+    <string name="settings_sync_up_to_date">You\'re up to date</string>
+    <plurals name="settings_sync_updated">
+        <item quantity="one">%1$d sleep session updated</item>
+        <item quantity="other">%1$d sleep sessions updated</item>
+    </plurals>
+    <string name="settings_sync_error_not_installed">Health Connect isn\'t installed</string>
+    <string name="settings_sync_error_update">Health Connect needs an update first</string>
+    <string name="settings_sync_error_permission">Sleep access is turned off in Health Connect</string>
+    <string name="settings_sync_error_rate_limited">Health Connect asked for a pause. Try again in a few minutes.</string>
+    <string name="settings_sync_error_background">Couldn\'t read in the background. Syncing now usually fixes it.</string>
+    <string name="settings_sync_error_unknown">Sync didn\'t finish. Try again in a moment.</string>
+
+    <!-- Export -->
+    <string name="settings_export_csv">Export as CSV</string>
+    <string name="settings_export_csv_body">One row per night, ready for a spreadsheet</string>
+    <string name="settings_export_json">Export as JSON</string>
+    <string name="settings_export_json_body">A full copy: raw sessions, edits, habits and settings</string>
+    <string name="settings_exporting">Saving…</string>
+    <string name="settings_exported_csv">Your nights were saved as CSV</string>
+    <string name="settings_exported_json">Your data was saved as JSON</string>
+    <string name="settings_export_failed">Export didn\'t finish, so nothing was saved</string>
+    <string name="settings_export_file_csv">sleep-saver-nights-%1$s.csv</string>
+    <string name="settings_export_file_json">sleep-saver-data-%1$s.json</string>
+
+    <!-- Privacy -->
+    <string name="settings_privacy">Privacy policy</string>
+    <string name="settings_privacy_body">What Sleep Saver reads, and why</string>
+
+    <!-- Notifications -->
+    <string name="settings_morning_review">Morning review</string>
+    <string name="settings_morning_review_body">A short check-in once last night\'s sleep arrives</string>
+    <string name="settings_habit_reminders">Habit reminders</string>
+    <string name="settings_habit_reminders_body">Choose which habits give you a nudge</string>
+    <string name="settings_system_notifications">System notification settings</string>
+    <string name="settings_system_notifications_body">Sounds, vibration and categories</string>
+    <string name="settings_notifications_off">Notifications are off</string>
+    <string name="settings_notifications_off_body">Reminders and the morning review can\'t reach you until you allow them.</string>
+    <string name="settings_notifications_allow">Allow notifications</string>
+    <string name="settings_notifications_open_settings">Open settings</string>
+
+    <!-- Display -->
+    <string name="settings_time_format">Time format</string>
+    <!-- "Times look like 10:20 AM" -->
+    <string name="settings_time_format_example">Times look like %1$s</string>
+    <string name="settings_time_format_system">System</string>
+    <string name="settings_time_format_12">12-hour</string>
+    <string name="settings_time_format_24">24-hour</string>
+
+    <!-- About -->
+    <string name="settings_app_name">Sleep Saver</string>
+    <!-- "Version 1.0.0 (1)" -->
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_private_title">Private by design</string>
+    <string name="settings_on_device">All data stays on this phone. No account, no servers, no analytics.</string>
+
+    <!-- Reset -->
+    <string name="settings_reset">Reset all data</string>
+    <string name="settings_reset_body">Erase everything Sleep Saver keeps and set it up again</string>
+    <string name="settings_resetting">Erasing…</string>
+    <string name="settings_reset_title">Reset all data?</string>
+    <string name="settings_reset_dialog_body">This permanently erases what Sleep Saver keeps on this phone:</string>
+    <string name="settings_reset_item_nights">Nights, naps and every edit you made</string>
+    <string name="settings_reset_item_habits">Habits, routines and reminders</string>
+    <string name="settings_reset_item_settings">Sleep need, goals and preferences</string>
+    <string name="settings_reset_untouched">Health Connect and Garmin Connect keep their own copy and aren\'t touched. This can\'t be undone.</string>
+    <string name="settings_reset_confirm">Erase everything</string>
+
+    <!-- Snackbars -->
+    <string name="settings_demo_failed">Couldn\'t switch demo data. Try again.</string>
+    <string name="settings_reset_failed">Reset didn\'t finish. Try again.</string>
+    <string name="settings_no_settings_app">Couldn\'t open the system settings</string>
+</resources>
