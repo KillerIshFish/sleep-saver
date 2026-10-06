@@ -148,4 +148,4 @@ class HabitsNavigationTest {
 }
 
 @kotlinx.serialization.Serializable
-private data object HomeRoute
+internal data object HomeRoute

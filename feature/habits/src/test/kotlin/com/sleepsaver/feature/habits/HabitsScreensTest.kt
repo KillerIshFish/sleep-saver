@@ -141,12 +141,40 @@ class HabitsScreensTest {
         compose.onNodeWithText("Stretching").performClick()
         compose.onNodeWithText("Reading").performClick()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Custom"))
+        // The form focuses its text field, and a blinking cursor never lets the clock settle: step it by hand.
+        compose.mainClock.autoAdvance = false
         compose.onNodeWithText("Custom").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Add your own").assertIsDisplayed()
         compose.onNodeWithText("Add").assertIsNotEnabled()
 
         assertThat(toggled).containsExactly(2L to true, 1L to false).inOrder()
         assertThat(added).isEmpty()
+    }
+
+    @Test
+    fun `the custom form adds the label with the picked emoji`() {
+        val added = mutableListOf<Pair<String, String>>()
+        var cancelled = false
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            SleepSaverTheme {
+                CustomActivityForm(
+                    onCancel = { cancelled = true },
+                    onAdd = { label, emoji -> added += label to emoji },
+                    initialLabel = "Herbal tea",
+                    autoFocus = false,
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(500)
+
+        compose.onNodeWithText("🍵").performClick()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithText("Add").assertIsEnabled().performClick()
+
+        assertThat(added).containsExactly("Herbal tea" to "🍵")
+        assertThat(cancelled).isFalse()
     }
 
     @Test

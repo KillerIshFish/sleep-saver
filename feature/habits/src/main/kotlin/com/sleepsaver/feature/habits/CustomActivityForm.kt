@@ -22,13 +22,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -57,11 +61,15 @@ internal fun CustomActivityForm(
     modifier: Modifier = Modifier,
     initialLabel: String = "",
     initialEmoji: String = SuggestedEmoji.first(),
+    autoFocus: Boolean = true,
 ) {
     var label by rememberSaveable { mutableStateOf(initialLabel) }
     var emoji by rememberSaveable { mutableStateOf(initialEmoji) }
     val canAdd = label.isNotBlank()
     val submit = { if (canAdd) onAdd(label.trim(), emoji) }
+    // The name is what people come here to type: focus it so the keyboard is ready.
+    val labelFocus = remember { FocusRequester() }
+    LaunchedEffect(autoFocus) { if (autoFocus) labelFocus.requestFocus() }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -101,7 +109,9 @@ internal fun CustomActivityForm(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { submit() }),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(labelFocus),
                 )
             }
             FlowRow(

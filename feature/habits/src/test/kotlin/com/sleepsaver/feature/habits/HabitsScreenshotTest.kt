@@ -178,11 +178,11 @@ class HabitsScreenshotTest : ScreenshotTest() {
 
     @Test
     fun customForm() = captureComponent("evening_routine_custom_form") {
-        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> }, initialLabel = "Herbal tea", initialEmoji = "🍵")
+        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> }, initialLabel = "Herbal tea", initialEmoji = "🍵", autoFocus = false)
     }
 
     @Test
     fun customFormEmpty() = captureComponent("evening_routine_custom_form_empty") {
-        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> })
+        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> }, autoFocus = false)
     }
 }

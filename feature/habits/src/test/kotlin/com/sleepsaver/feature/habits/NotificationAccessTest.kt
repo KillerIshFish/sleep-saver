@@ -52,7 +52,8 @@ class NotificationAccessTest {
 
         val requested = shadowOf(activity).lastRequestedPermission
         assertThat(requested.requestedPermissions.toList()).containsExactly(Manifest.permission.POST_NOTIFICATIONS)
-        assertThat(shadowOf(activity).nextStartedActivity).isNull()
+        // The prompt itself is an activity; the settings page must not open on top of it.
+        assertThat(shadowOf(activity).nextStartedActivity?.action).isNotEqualTo(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
         assertThat(allowed()).isFalse()
     }
 
