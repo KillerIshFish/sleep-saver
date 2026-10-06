@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Read-only Health Connect access. Sleep is required; the rest is optional. Nothing is ever written. -->
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <queries>
+        <!-- Health Connect app (Android 9–13) and Garmin Connect: install checks and launch intents. -->
+        <package android:name="com.google.android.apps.healthdata" />
+        <package android:name="com.garmin.android.apps.connectmobile" />
+        <!-- Play Store, to open the install/update pages in the app rather than the browser. -->
+        <package android:name="com.android.vending" />
+    </queries>
+</manifest>
