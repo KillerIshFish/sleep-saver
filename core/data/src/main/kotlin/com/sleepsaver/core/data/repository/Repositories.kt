@@ -163,6 +163,9 @@ interface SyncRepository {
 
     /** Start the retry chain while last night is missing (15/30/60 min… until SleepConfig.waitingGiveUpAt). */
     fun startWaitingRetries()
+
+    /** Forget the changes token and sync timestamps (used by "Reset all data"). */
+    suspend fun resetSyncState()
 }
 
 /** Switches demo mode: loads 60 synthetic nights, or clears them and any edits made while in demo mode. */
