@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debt gauge -->
+    <string name="ss_debt_gauge_label">hrs sleep debt</string>
+    <!-- Spoken by screen readers: "3.7 hours of sleep debt, Moderate". -->
+    <string name="ss_debt_gauge_description">%1$s hours of sleep debt, %2$s</string>
+
+    <!-- Debt status -->
+    <string name="ss_debt_status_low">Low</string>
+    <string name="ss_debt_status_moderate">Moderate</string>
+    <string name="ss_debt_status_high">High</string>
+
+    <!-- Streak and change -->
+    <plurals name="ss_steady_streak">
+        <item quantity="one">day steady streak</item>
+        <item quantity="other">days steady streak</item>
+    </plurals>
+    <string name="ss_change_since_yesterday">since yesterday</string>
+
+    <!-- Phase cards -->
+    <string name="ss_phase_now">Now</string>
+
+    <!-- Phases -->
+    <string name="ss_phase_grogginess">Grogginess</string>
+    <string name="ss_phase_morning_peak">Morning peak</string>
+    <string name="ss_phase_afternoon_dip">Afternoon dip</string>
+    <string name="ss_phase_evening_peak">Evening peak</string>
+    <string name="ss_phase_wind_down">Wind-down</string>
+    <string name="ss_phase_melatonin_window">Melatonin window</string>
+
+    <string name="ss_phase_grogginess_body">Your body is still shaking off sleep. Go easy on hard decisions.</string>
+    <string name="ss_phase_morning_peak_body">Alert and clear-headed. A good slot for focused work.</string>
+    <string name="ss_phase_afternoon_dip_body">Energy naturally sags. Fine for light tasks, a walk or a short nap.</string>
+    <string name="ss_phase_evening_peak_body">A second wind. Good for exercise, chores or social plans.</string>
+    <string name="ss_phase_wind_down_body">Lower the lights and slow down so sleepiness can build.</string>
+    <string name="ss_phase_melatonin_window_body">Your best window to fall asleep easily.</string>
+
+    <!-- Habits -->
+    <string name="ss_habit_morning_light">Morning light</string>
+    <string name="ss_habit_caffeine_cutoff">Caffeine cutoff</string>
+    <string name="ss_habit_large_meal_cutoff">Last big meal</string>
+    <string name="ss_habit_alcohol_cutoff">Alcohol cutoff</string>
+    <string name="ss_habit_exercise_cutoff">Hard workout cutoff</string>
+    <string name="ss_habit_dim_lights">Dim the lights</string>
+    <string name="ss_habit_evening_routine">Evening routine</string>
+    <string name="ss_habit_bedtime">Bedtime</string>
+    <string name="ss_habit_nap_window">Nap window</string>
+
+    <string name="ss_habit_morning_light_body">Get daylight in your eyes soon after waking to set your body clock.</string>
+    <string name="ss_habit_caffeine_cutoff_body">Caffeine after this can still be working when you try to sleep.</string>
+    <string name="ss_habit_large_meal_cutoff_body">Finish heavy meals by now so digestion settles before bed.</string>
+    <string name="ss_habit_alcohol_cutoff_body">Drinks close to bed make sleep lighter and more broken.</string>
+    <string name="ss_habit_exercise_cutoff_body">Keep intense workouts before this so your body can cool down.</string>
+    <string name="ss_habit_dim_lights_body">Turn down lights and screens to help sleepiness arrive.</string>
+    <string name="ss_habit_evening_routine_body">Start the calming activities you picked for tonight.</string>
+    <string name="ss_habit_bedtime_body">Head to bed now to catch your easiest window for falling asleep.</string>
+    <string name="ss_habit_nap_window_body">If you need a nap, take it now and keep it under 30 minutes.</string>
+
+    <!-- Controls -->
+    <string name="ss_decrease">Decrease</string>
+    <string name="ss_increase">Increase</string>
+    <plurals name="ss_time_earlier">
+        <item quantity="one">%1$d minute earlier</item>
+        <item quantity="other">%1$d minutes earlier</item>
+    </plurals>
+    <plurals name="ss_time_later">
+        <item quantity="one">%1$d minute later</item>
+        <item quantity="other">%1$d minutes later</item>
+    </plurals>
+    <string name="ss_loading">Loading</string>
+
+    <string name="ss_wellness_disclaimer">Sleep Saver is a wellness tool, not medical advice.</string>
+</resources>
