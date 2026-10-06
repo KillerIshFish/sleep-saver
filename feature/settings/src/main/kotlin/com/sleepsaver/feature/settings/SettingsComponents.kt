@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,6 +52,7 @@ import com.sleepsaver.core.ui.components.PrimaryButton
 import com.sleepsaver.core.ui.components.SecondaryButton
 import com.sleepsaver.core.ui.components.SectionHeader
 import com.sleepsaver.core.ui.components.SleepSaverCard
+import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 
@@ -87,10 +89,14 @@ internal fun RowDivider() {
     )
 }
 
+/** A short text action at the end of a row ("Sync now", "Allow"). */
+internal class RowAction(val label: String, val onClick: () -> Unit)
+
 /**
  * One settings row built on [IconListItem]. Tappable edge to edge when [onClick] is set; dimmed and inert
- * when not [enabled]. A [value] ("8h", "7:00 AM") sits at the end with a chevron; with very large text it
- * moves under the title instead, so the title and description keep the row's width.
+ * when not [enabled]. A [value] ("8h", "7:00 AM") sits at the end with a chevron, an [action] as an accent
+ * text button; with very large text both move under the text instead, so the title and description keep the
+ * row's width. [trailing] (a spinner, an icon) wins over both.
  */
 @Composable
 internal fun SettingsRow(
@@ -99,12 +105,15 @@ internal fun SettingsRow(
     modifier: Modifier = Modifier,
     supporting: String? = null,
     value: String? = null,
+    action: RowAction? = null,
     tint: Color = MaterialTheme.colorScheme.primary,
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val stackValue = value != null && LocalDensity.current.fontScale >= StackedValueFontScale
+    val largeText = LocalDensity.current.fontScale >= StackedValueFontScale
+    val stackValue = value != null && largeText && trailing == null
+    val actionBelow = action != null && largeText && trailing == null
     Box(
         modifier
             .fillMaxWidth()
@@ -117,13 +126,31 @@ internal fun SettingsRow(
         if (stackValue) {
             StackedValueItem(icon = icon, title = title, value = value.orEmpty(), supporting = supporting, tint = tint)
         } else {
-            IconListItem(
-                icon = icon,
-                title = title,
-                supporting = supporting,
-                tint = tint,
-                trailing = trailing ?: value?.let { v -> @Composable { ValueChevron(v) } },
-            )
+            Column {
+                IconListItem(
+                    icon = icon,
+                    title = title,
+                    supporting = supporting,
+                    tint = tint,
+                    trailing = trailing
+                        ?: action?.takeUnless { actionBelow }?.let { a ->
+                            @Composable {
+                                // Shifted by its own inner padding so the label ends where the chevrons do.
+                                TextLinkButton(a.label, onClick = a.onClick, enabled = enabled, modifier = Modifier.offset(x = 10.dp))
+                            }
+                        }
+                        ?: value?.let { v -> @Composable { ValueChevron(v) } },
+                )
+                if (actionBelow && action != null) {
+                    // Under the text, its label lined up with the title (the button has 12 dp of inner padding).
+                    TextLinkButton(
+                        action.label,
+                        onClick = action.onClick,
+                        enabled = enabled,
+                        modifier = Modifier.padding(start = RowTextStart - RowPadding - 12.dp),
+                    )
+                }
+            }
         }
     }
 }

@@ -353,19 +353,14 @@ private fun DataGroup(
 @Composable
 private fun HealthConnectRow(access: HealthConnectAccess, onOpen: () -> Unit) {
     val fixLabel = access.fixLabelRes?.let { stringResource(it) }
+    val chevron: @Composable () -> Unit = { ValueChevron() }
     SettingsRow(
         icon = Icons.Rounded.MonitorHeart,
         title = stringResource(R.string.settings_health_connect),
         supporting = stringResource(access.textRes),
         onClick = onOpen,
-        trailing = {
-            if (fixLabel != null) {
-                // Shifted by its own inner padding so the label ends where the chevrons do.
-                TextLinkButton(fixLabel, onClick = onOpen, modifier = Modifier.offset(x = 10.dp))
-            } else {
-                ValueChevron()
-            }
-        },
+        action = fixLabel?.let { RowAction(it, onOpen) },
+        trailing = chevron.takeIf { fixLabel == null },
     )
 }
 
@@ -383,28 +378,15 @@ private fun SyncRow(sync: SyncUi, state: SettingsUiState, onSyncNow: () -> Unit)
         sync.lastError != null -> stringResource(sync.lastError.textRes)
         else -> null
     }
-    val syncTrailing: @Composable () -> Unit = { SyncTrailing(sync.inProgress, onSyncNow) }
+    val progress: @Composable () -> Unit = { RowProgress() }
     SettingsRow(
         icon = Icons.Rounded.Sync,
         title = lastSyncedText(sync, state),
         supporting = feedback,
         // Nothing syncs while demo nights stand in for the real ones.
-        trailing = syncTrailing.takeUnless { state.demoMode },
+        action = RowAction(stringResource(R.string.settings_sync_now), onSyncNow).takeUnless { state.demoMode || sync.inProgress },
+        trailing = progress.takeIf { sync.inProgress && !state.demoMode },
     )
-}
-
-@Composable
-private fun SyncTrailing(inProgress: Boolean, onSyncNow: () -> Unit) {
-    if (inProgress) {
-        RowProgress()
-    } else {
-        // Shifted by its own inner padding so the label ends where the chevrons do.
-        TextLinkButton(
-            stringResource(R.string.settings_sync_now),
-            onClick = onSyncNow,
-            modifier = Modifier.offset(x = 10.dp),
-        )
-    }
 }
 
 @Composable
