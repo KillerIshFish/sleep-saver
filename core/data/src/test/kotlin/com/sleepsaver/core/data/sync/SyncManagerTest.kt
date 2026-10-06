@@ -324,7 +324,19 @@ class SyncManagerTest {
         assertThat(manager.state.value.lastError).isNull()
         assertThat(fx.store.current().lastError).isNull()
 
-        // A foreground run, or one with background reads granted, really was denied.
+        // So is a foreground run the user left before it finished.
+        fx.foreground = false
+        assertThat(manager.sync(SyncTrigger.APP_OPEN).error).isEqualTo(SyncError.BACKGROUND_NOT_ALLOWED)
+        assertThat(manager.importHistory().error).isEqualTo(SyncError.BACKGROUND_NOT_ALLOWED)
+        assertThat(manager.state.value.lastError).isNull()
+
+        // Without sleep access it is a denial, background or not.
+        fx.gateway.granted = emptySet()
+        assertThat(manager.sync(SyncTrigger.PERIODIC).error).isEqualTo(SyncError.PERMISSION_DENIED)
+        fx.gateway.granted = setOf(HealthConnectPermissions.SLEEP)
+        fx.foreground = true
+
+        // A visible foreground run, or one with background reads granted, really was denied.
         assertThat(manager.sync(SyncTrigger.APP_OPEN).error).isEqualTo(SyncError.PERMISSION_DENIED)
         fx.gateway.granted = setOf(HealthConnectPermissions.SLEEP, HealthConnectPermissions.BACKGROUND)
         assertThat(manager.sync(SyncTrigger.PERIODIC).error).isEqualTo(SyncError.PERMISSION_DENIED)

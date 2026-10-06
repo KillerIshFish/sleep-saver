@@ -389,11 +389,12 @@ class SyncManager @Inject constructor(
         this == SyncTrigger.APP_OPEN || this == SyncTrigger.MANUAL || this == SyncTrigger.ONBOARDING
 
     /**
-     * A background run that started while the app was visible may continue after it was hidden: Health Connect then
-     * refuses the reads with a SecurityException. Without the background permission that is expected, not a denial.
+     * A run that started while the app was visible may continue after it was hidden (any background run, or a
+     * foreground one the user left): Health Connect then refuses the reads with a SecurityException. Without the
+     * background permission that is expected, not a denial; with sleep access itself gone it is a real one.
      */
     private suspend fun classify(e: Exception, trigger: SyncTrigger): SyncError {
-        if (e is SecurityException && trigger.isBackground()) {
+        if (e is SecurityException && (trigger.isBackground() || !appVisibility.isInForeground())) {
             val permissions = catchingOrNull { gateway.permissionState() } ?: runPermissions
             if (permissions == null || (permissions.sleepGranted && !permissions.backgroundGranted)) {
                 return SyncError.BACKGROUND_NOT_ALLOWED
