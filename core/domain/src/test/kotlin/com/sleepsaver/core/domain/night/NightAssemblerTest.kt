@@ -175,6 +175,23 @@ class NightAssemblerTest {
         }
 
         @Test
+        fun `the cutoff is exclusive`() {
+            assertThat(assembler.wakeDateOf(mainSession(end = dt(day, "13:59")))).isEqualTo(day)
+            assertThat(assembler.wakeDateOf(mainSession(end = dt(day, "14:00")))).isEqualTo(day)
+            assertThat(assembler.wakeDateOf(mainSession(start = dt(day, "14:00"), end = dt(day, "22:00")))).isEqualTo(next)
+            assertThat(assembler.wakeDateOf(mainSession(start = dt(day, "13:59"), end = dt(day, "22:00")))).isEqualTo(day)
+        }
+
+        @Test
+        fun `wake date uses the recorded offsets, not UTC`() {
+            // 10:00–13:30 in UTC-4 is 14:00–17:30 UTC, which would read as an evening sleep belonging to `next`.
+            val session = Fx.session("s", dt(day, "10:00"), dt(day, "13:30"), startOffset = ZoneOffset.ofHours(-4))
+
+            assertThat(assembler.isNap(session)).isFalse()
+            assertThat(assembler.wakeDateOf(session)).isEqualTo(day)
+        }
+
+        @Test
         fun `evening doze becomes an extra segment of tonight`() {
             val doze = mainSession("doze", dt(prev, "20:00"), dt(prev, "20:40"))
             val night = assemble(doze, mainSession()).single()
@@ -296,6 +313,43 @@ class NightAssemblerTest {
 
             assertThat(night.naps.map { it.sessionIds.single() }).containsExactly("early", "late").inOrder()
             assertThat(night.napSleep).isEqualTo(min(50))
+        }
+
+        @Test
+        fun `a nap inside a late main sleep is not counted twice`() {
+            val owl = mainSession("owl", dt(day, "03:00"), dt(day, "11:00"))
+            val inside = napSession("inside", day, "10:00", "10:40")
+            val manual = ManualNap(1, at(day, "10:30"), at(day, "11:30"), Fx.UTC)
+
+            val night = assemble(owl, inside, manualNaps = listOf(manual)).single()
+
+            assertThat(night.naps).hasSize(2)
+            assertThat(night.mainSleep).isEqualTo(hm(8))
+            assertThat(night.napSleep).isEqualTo(min(30))
+            assertThat(night.totalSleep).isEqualTo(hm(8, 30))
+        }
+
+        @Test
+        fun `nap time inside an awake stretch of the main sleep still counts`() {
+            val owl = mainSession("owl", dt(day, "03:00"), dt(day, "11:00"), stages = listOf(st("09:30", "10:30", AWAKE)))
+            val nap = napSession("nap", day, "09:45", "10:15")
+
+            val night = assemble(owl, nap).single()
+
+            assertThat(night.mainSleep).isEqualTo(hm(7))
+            assertThat(night.napSleep).isEqualTo(min(30))
+        }
+
+        @Test
+        fun `moving woke-up over a nap does not count the nap twice`() {
+            val owl = mainSession("owl", dt(day, "03:00"), dt(day, "09:30"))
+            val nap = napSession("nap", day, "10:00", "11:00")
+
+            val night = assemble(owl, nap, overrides = listOf(override(wokeUp = at(day, "11:00")))).single()
+
+            assertThat(night.mainSleep).isEqualTo(hm(8))
+            assertThat(night.napSleep).isEqualTo(Duration.ZERO)
+            assertThat(night.totalSleep).isEqualTo(hm(8))
         }
     }
 
@@ -571,6 +625,18 @@ class NightAssemblerTest {
             assertThat(night.origin).isEqualTo(Fx.OTHER)
             assertThat(night.mainSleep).isEqualTo(hm(8))
         }
+
+        @Test
+        fun `a slightly overlapping session from another app extends the night without double counting`() {
+            val other = mainSession("other", dt(day, "06:30"), dt(day, "08:30"), origin = Fx.OTHER)
+
+            val night = assemble(mainSession(), other).single()
+
+            assertThat(night.main!!.sessionIds).containsExactly("main", "other").inOrder()
+            assertThat(night.origin).isEqualTo(Fx.GARMIN)
+            assertThat(night.mainSleep).isEqualTo(hm(9, 30))
+            assertThat(night.interruptions).isEmpty()
+        }
     }
 
     @Nested
@@ -830,8 +896,64 @@ class NightAssemblerTest {
             assertThat(night.extraSegments).isEmpty()
             assertThat(night.extraSleep).isEqualTo(Duration.ZERO)
             assertThat(night.fellAsleep).isEqualTo(at(prev, "20:00"))
-            assertThat(night.mainSleep).isEqualTo(hm(11))
-            assertThat(night.totalSleep).isEqualTo(hm(11))
+            assertThat(night.main!!.sessionIds).containsExactly("doze", "main").inOrder()
+            assertThat(night.awakeInMain).isEqualTo(hm(2))
+            assertThat(night.mainSleep).isEqualTo(hm(9))
+            assertThat(night.totalSleep).isEqualTo(hm(9))
+            assertThat(night.interruptions)
+                .containsExactly(AwakePeriod(at(prev, "21:00"), at(prev, "23:00"), AwakeKind.GAP))
+        }
+
+        @Test
+        fun `moving woke-up to the end of a later extra segment keeps the gap awake`() {
+            val first = mainSession("first", dt(prev, "23:00"), dt(day, "03:00"))
+            val second = mainSession("second", dt(day, "04:15"), dt(day, "07:00"))
+            assertThat(assemble(first, second).single().totalSleep).isEqualTo(hm(6, 45))
+
+            val night = assemble(first, second, overrides = listOf(override(wokeUp = at(day, "07:00")))).single()
+
+            assertThat(night.extraSegments).isEmpty()
+            assertThat(night.main!!.sessionIds).containsExactly("first", "second").inOrder()
+            assertThat(night.wokeUp).isEqualTo(at(day, "07:00"))
+            assertThat(night.awakeInMain).isEqualTo(min(75))
+            assertThat(night.mainSleep).isEqualTo(hm(6, 45))
+            assertThat(night.totalSleep).isEqualTo(hm(6, 45))
+            assertThat(night.interruptions)
+                .containsExactly(AwakePeriod(at(day, "03:00"), at(day, "04:15"), AwakeKind.GAP))
+        }
+
+        @Test
+        fun `an absorbed extra segment keeps its awake time and stages`() {
+            val doze = mainSession(
+                "doze", dt(prev, "20:00"), dt(prev, "21:00"),
+                stages = listOf(st("20:00", "20:20", AWAKE), st("20:20", "21:00", DEEP)),
+            )
+            val main = mainSession(stages = listOf(st("23:00", "07:00", LIGHT)))
+
+            val night = assemble(doze, main, overrides = listOf(override(fellAsleep = at(prev, "20:00")))).single()
+
+            assertThat(night.awakeInMain).isEqualTo(hm(2, 20))
+            assertThat(night.mainSleep).isEqualTo(hm(8, 40))
+            assertThat(night.stageTotals).isEqualTo(
+                StageTotals(deep = min(40), light = hm(8), rem = Duration.ZERO, awake = min(20), unclassified = Duration.ZERO),
+            )
+            assertThat(night.main!!.stages.map { it.type }).containsExactly(AWAKE, DEEP, LIGHT).inOrder()
+            assertThat(night.interruptions).containsExactly(
+                AwakePeriod(at(prev, "20:00"), at(prev, "20:20"), AwakeKind.STAGE),
+                AwakePeriod(at(prev, "21:00"), at(prev, "23:00"), AwakeKind.GAP),
+            ).inOrder()
+        }
+
+        @Test
+        fun `a partly absorbed extra segment only counts inside the window`() {
+            val doze = mainSession("doze", dt(prev, "20:00"), dt(prev, "21:00"))
+
+            val night = assemble(doze, mainSession(), overrides = listOf(override(fellAsleep = at(prev, "20:30")))).single()
+
+            assertThat(night.extraSegments).isEmpty()
+            assertThat(night.fellAsleep).isEqualTo(at(prev, "20:30"))
+            assertThat(night.mainSleep).isEqualTo(hm(8, 30))
+            assertThat(night.awakeInMain).isEqualTo(hm(2))
         }
 
         @Test
@@ -904,6 +1026,25 @@ class NightAssemblerTest {
             assertThat(night.wakeDate).isEqualTo(wake)
             assertThat(night.mainSleep).isEqualTo(hm(7))
             assertThat(localTime(night.wokeUp, night.wokeUpOffset)).isEqualTo(dt(wake, "07:00"))
+        }
+
+        @Test
+        fun `fragments across the fall-back hour are merged by elapsed time`() {
+            val wake = LocalDate.of(2026, 11, 1)
+            val est = ZoneOffset.ofHours(-5)
+            // 01:30 EDT is 05:30 UTC; 01:15 EST is 06:15 UTC, so the clock goes back but 45 min pass.
+            val a = Fx.sessionInZone("a", dt(wake.minusDays(1), "23:00"), dt(wake, "01:30"), Fx.NEW_YORK)
+            val b = Fx.session("b", dt(wake, "01:15"), dt(wake, "07:00"), startOffset = est)
+            assertThat(a.endOffset).isEqualTo(ZoneOffset.ofHours(-4))
+
+            val night = assemble(b, a).single()
+
+            assertThat(night.wakeDate).isEqualTo(wake)
+            assertThat(night.main!!.sessionIds).containsExactly("a", "b").inOrder()
+            assertThat(night.interruptions.single().kind).isEqualTo(AwakeKind.GAP)
+            assertThat(night.interruptions.single().duration).isEqualTo(min(45))
+            assertThat(night.timeInBed).isEqualTo(hm(9))
+            assertThat(night.mainSleep).isEqualTo(hm(8, 15))
         }
 
         @Test

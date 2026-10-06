@@ -40,8 +40,11 @@ import java.time.LocalDateTime
  *  - Main window = [fellAsleep ?: main.start, wokeUp ?: main.end] (an inverted override window is ignored);
  *    stages and awake periods are clipped to it, [AddedAwake] is added (also without an override row),
  *    awakeInMain = awakeMinutes ?: union of the awake periods, mainSleep = max(0, window − awakeInMain).
- *    EXTRA blocks overlapping the window are dropped (absorbed into main).
- *  - napSleep = napMinutes ?: union of the asleep time of detected and manual naps.
+ *    EXTRA blocks overlapping the window are absorbed into main like fragments: their stages and awake periods
+ *    move into main and the stretch between them and main is a GAP, so moving an endpoint over an extra
+ *    segment never turns recorded awake time into sleep.
+ *  - napSleep = napMinutes ?: union of the asleep time of detected and manual naps, minus time already
+ *    counted as asleep in main or an extra segment.
  *  - [StageTotals] cover asleep time only for deep/light/rem/unclassified (DEEP > REM > LIGHT where stages
  *    overlap); `awake` is the awake-type stage time in the window. Null when main has no stages.
  *  - Dates with only naps or only an override still produce a [Night] (with main == null unless it's a
@@ -113,22 +116,24 @@ class NightAssembler(private val config: SleepConfig = SleepConfig.DEFAULT) {
         added: List<AddedAwake>,
     ): Night {
         val rawMain = clusters.maxWithOrNull(compareBy<SleepBlock> { it.asleep }.thenBy { it.end })
+        val others = clusters.filter { it !== rawMain }
         val addedPeriods = added.map { AwakePeriod(it.start, it.end, AwakeKind.ADDED) }
         val main = when {
-            rawMain != null -> effectiveMain(rawMain, override, addedPeriods)
+            rawMain != null -> effectiveMain(rawMain, others, override, addedPeriods)
             override?.isManualNight == true -> manualMain(date, override, addedPeriods)
             else -> null
         }
         val block = main?.block
-        val extras = clusters
-            .filter { it !== rawMain }
+        val extras = others
             .map { it.copy(kind = BlockKind.EXTRA) }
             .filter { block == null || it.end <= block.start || it.start >= block.end }
         val sortedNaps = naps.sortedWith(compareBy({ it.start }, { it.end }))
 
         val mainSleep = block?.asleep ?: Duration.ZERO
         val extraSleep = extras.fold(Duration.ZERO) { acc, extra -> acc + extra.asleep }
-        val napSleep = override?.napMinutes?.let(::minutes) ?: union(sortedNaps.flatMap(::asleepSpans)).total()
+        val nightSpans = union((listOfNotNull(block) + extras).flatMap(::asleepSpans))
+        val napSleep = override?.napMinutes?.let(::minutes)
+            ?: subtract(union(sortedNaps.flatMap(::asleepSpans)), nightSpans).total()
         return Night(
             wakeDate = date,
             main = block,
@@ -216,13 +221,26 @@ class NightAssembler(private val config: SleepConfig = SleepConfig.DEFAULT) {
 
     private class MainSleep(val block: SleepBlock, val awake: Duration)
 
-    private fun effectiveMain(raw: SleepBlock, override: NightOverride?, added: List<AwakePeriod>): MainSleep {
+    /**
+     * Applies the override window to [raw]. Clusters among [others] that overlap the window are merged in like
+     * fragments: their stages and awake periods are kept and the stretch between them and [raw] is a GAP.
+     */
+    private fun effectiveMain(
+        raw: SleepBlock,
+        others: List<SleepBlock>,
+        override: NightOverride?,
+        added: List<AwakePeriod>,
+    ): MainSleep {
         val start = override?.fellAsleep ?: raw.start
         val end = override?.wokeUp ?: raw.end
         val valid = end > start
         val windowStart = if (valid) start else raw.start
         val windowEnd = if (valid) end else raw.end
-        val periods = (raw.awakePeriods + added).mapNotNull { it.clipTo(windowStart, windowEnd) }.sortedWith(periodOrder)
+        val parts = (others.filter { it.end > windowStart && it.start < windowEnd } + raw).sortedBy { it.start }
+        val gaps = parts.zipWithNext { a, b -> AwakePeriod(a.end, b.start, AwakeKind.GAP) }
+        val periods = (parts.flatMap { it.awakePeriods } + gaps + added)
+            .mapNotNull { it.clipTo(windowStart, windowEnd) }
+            .sortedWith(periodOrder)
         val awake = override?.awakeMinutes?.let(::minutes) ?: union(periods.map(::spanOf)).total()
         val block = raw.copy(
             start = windowStart,
@@ -231,7 +249,8 @@ class NightAssembler(private val config: SleepConfig = SleepConfig.DEFAULT) {
             endOffset = override?.takeIf { valid && it.wokeUp != null }?.offset ?: raw.endOffset,
             asleep = asleepIn(windowStart, windowEnd, awake),
             awakePeriods = periods,
-            stages = raw.stages.mapNotNull { it.clipTo(windowStart, windowEnd) },
+            stages = parts.flatMap { it.stages }.mapNotNull { it.clipTo(windowStart, windowEnd) },
+            sessionIds = parts.flatMap { it.sessionIds },
         )
         return MainSleep(block, awake)
     }
