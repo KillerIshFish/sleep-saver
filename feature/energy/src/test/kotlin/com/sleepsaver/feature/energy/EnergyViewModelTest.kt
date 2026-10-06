@@ -47,13 +47,15 @@ class EnergyViewModelTest {
     private val sync = FakeSyncRepository()
     private val time = FakeTimeProvider(SampleData.now)
 
+    private val dispatcher = UnconfinedTestDispatcher()
+
     @Before
-    fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
+    fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = EnergyViewModel(insights, sleep, settings, habits, sync, time)
+    private fun viewModel() = EnergyViewModel(insights, sleep, settings, habits, sync, time, dispatcher)
 
     @Test
     fun `starts loading`() = runTest {

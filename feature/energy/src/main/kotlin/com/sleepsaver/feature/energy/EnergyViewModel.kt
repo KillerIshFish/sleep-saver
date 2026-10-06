@@ -2,6 +2,7 @@ package com.sleepsaver.feature.energy
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sleepsaver.core.data.di.IoDispatcher
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
@@ -12,6 +13,7 @@ import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.HabitType
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -36,6 +38,8 @@ class EnergyViewModel @Inject constructor(
     private val habitsRepository: HabitsRepository,
     private val syncRepository: SyncRepository,
     timeProvider: TimeProvider,
+    /** Writes and syncs run here: never database or Health Connect work on the main thread. */
+    @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val sources = combine(
@@ -61,16 +65,16 @@ class EnergyViewModel @Inject constructor(
     /** Long-press on last night's block: subtracts [start]..[end] from that night's sleep. */
     fun addAwake(wakeDate: LocalDate, start: Instant, end: Instant) {
         if (!end.isAfter(start)) return
-        viewModelScope.launch { sleepRepository.addAwake(wakeDate, start, end) }
+        viewModelScope.launch(ioDispatcher) { sleepRepository.addAwake(wakeDate, start, end) }
     }
 
     fun setReminder(type: HabitType, enabled: Boolean) {
-        viewModelScope.launch { habitsRepository.setReminder(type, enabled) }
+        viewModelScope.launch(ioDispatcher) { habitsRepository.setReminder(type, enabled) }
     }
 
     /** "Sync now" while last night hasn't arrived. Ignored while a sync is already running. */
     fun syncNow() {
         if (syncRepository.state.value.isSyncing) return
-        viewModelScope.launch { syncRepository.sync(SyncTrigger.MANUAL) }
+        viewModelScope.launch(ioDispatcher) { syncRepository.sync(SyncTrigger.MANUAL) }
     }
 }
