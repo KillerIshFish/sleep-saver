@@ -107,7 +107,7 @@ internal fun SleepScreen(
     val openHealthConnectSetup by rememberUpdatedState(onOpenHealthConnectSetup)
 
     val actions = remember(viewModel, context, lifecycle) {
-        /** Leaving the app: a second tap while the first launch is under way would open it twice. */
+        // Leaving the app: a second tap while the first launch is under way would open it twice.
         fun ifResumed(block: () -> Unit) {
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) block()
         }
