@@ -100,7 +100,8 @@ class OnboardingViewModel @Inject constructor(
 
     private val sources = combine(
         sleepRepository.nights.catch { emit(emptyList()) },
-        insightsRepository.state.catch { emit(InsightsState.NoNights) },
+        // StateFlows never fail; the other three are database/DataStore flows that can.
+        insightsRepository.state,
         habitsRepository.habitSettings.catch { emit(HabitCatalog().defaultSettings()) },
         settingsRepository.settings.catch { emit(AppSettings()) },
         ::Sources,
@@ -109,7 +110,7 @@ class OnboardingViewModel @Inject constructor(
     val uiState: StateFlow<OnboardingUiState> = combine(
         local,
         connection.state,
-        syncRepository.state.catch { emit(SyncState()) },
+        syncRepository.state,
         sources,
     ) { local, connection, sync, sources ->
         OnboardingUiState(
