@@ -388,7 +388,7 @@ private fun SyncRow(sync: SyncUi, state: SettingsUiState, onSyncNow: () -> Unit)
         title = lastSyncedText(sync, state),
         supporting = feedback,
         // Nothing syncs while demo nights stand in for the real ones.
-        trailing = if (state.demoMode) null else ({ SyncTrailing(sync.inProgress, onSyncNow) }),
+        trailing = if (state.demoMode) null else @Composable { SyncTrailing(sync.inProgress, onSyncNow) },
     )
 }
 

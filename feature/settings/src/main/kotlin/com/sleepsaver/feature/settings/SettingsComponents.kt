@@ -122,7 +122,7 @@ internal fun SettingsRow(
                 title = title,
                 supporting = supporting,
                 tint = tint,
-                trailing = trailing ?: value?.let { { ValueChevron(it) } },
+                trailing = trailing ?: value?.let { v -> @Composable { ValueChevron(v) } },
             )
         }
     }
