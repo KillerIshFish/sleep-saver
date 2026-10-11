@@ -10,11 +10,13 @@ import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.OneOffs
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -98,14 +100,22 @@ sealed interface WeekPlanSummary {
 
     /** Alarm days wake at different times. */
     data object Varied : WeekPlanSummary
+
+    /** The plan has alarms, but "Pause alarms" covers [today]: they are off until [until] (inclusive). */
+    data class Paused(val until: LocalDate) : WeekPlanSummary
 }
 
-/** Sums up the weekly plan's alarm days (mode on and a set time); one-offs and pauses aren't part of it. */
-internal fun weekPlanSummary(plan: WeekPlan): WeekPlanSummary {
+/**
+ * Sums up the weekly plan's alarm days (mode on and a set time). Single-date one-offs aren't part of it; a pause that
+ * covers [today] is, so a paused week doesn't read "Weekdays · 6:30 AM".
+ */
+internal fun weekPlanSummary(plan: WeekPlan, oneOffs: OneOffs = OneOffs(), today: LocalDate? = null): WeekPlanSummary {
     val alarmDays = plan.days
         .filter { it.morning.alarm.mode != AlarmMode.OFF }
         .mapNotNull { day -> day.morning.wakeTime?.let { day.day to it } }
     val times = alarmDays.map { it.second }.distinct()
+    val pause = oneOffs.pause
+    if (times.isNotEmpty() && pause != null && today != null && pause.covers(today)) return WeekPlanSummary.Paused(pause.until)
     return when (times.size) {
         0 -> WeekPlanSummary.NoAlarms
         1 -> WeekPlanSummary.OneTime(alarmDays.mapTo(LinkedHashSet()) { it.first }, times.single())
@@ -118,7 +128,7 @@ internal fun weekPlanSummary(plan: WeekPlan): WeekPlanSummary {
  * blocking problems Alarm check would list, and the problem that stopped the last "Test ring" tap (with its fix).
  */
 @Immutable
-data class AlarmsStatus(
+internal data class AlarmsStatus(
     val issues: Int = 0,
     val testRingBlocker: AlarmBlocker? = null,
 )

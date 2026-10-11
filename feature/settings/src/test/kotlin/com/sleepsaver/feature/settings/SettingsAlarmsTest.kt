@@ -4,11 +4,14 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.AlarmSettings
 import com.sleepsaver.core.domain.schedule.MorningPlan
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.PlanPause
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import org.junit.Test
 import java.time.DayOfWeek
+import java.time.LocalDate
 import java.time.LocalTime
 
 /** The Week plan row's summary and the order the test ring checks the phone's alarm settings in. */
@@ -36,6 +39,18 @@ class SettingsAlarmsTest {
         val plan = PlanSamples.weekPlan().morning(DayOfWeek.SATURDAY, LocalTime.of(8, 30), AlarmMode.FIXED)
 
         assertThat(weekPlanSummary(plan)).isEqualTo(WeekPlanSummary.Varied)
+    }
+
+    @Test
+    fun `a pause that covers today reads as paused, and ends with it`() {
+        val today = LocalDate.of(2026, 10, 6)
+        val pause = OneOffs(pause = PlanPause(today, today.plusDays(3)))
+
+        assertThat(weekPlanSummary(PlanSamples.weekPlan(), pause, today)).isEqualTo(WeekPlanSummary.Paused(today.plusDays(3)))
+        assertThat(weekPlanSummary(PlanSamples.weekPlan(), pause, today.plusDays(4)))
+            .isEqualTo(WeekPlanSummary.OneTime(weekdays, LocalTime.of(6, 45)))
+        // Nothing to pause: still no alarms.
+        assertThat(weekPlanSummary(WeekPlan.DEFAULT, pause, today)).isEqualTo(WeekPlanSummary.NoAlarms)
     }
 
     @Test

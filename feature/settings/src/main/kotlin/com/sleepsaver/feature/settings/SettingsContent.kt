@@ -97,6 +97,7 @@ import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
+import java.time.LocalDate
 import java.time.LocalTime
 
 /** The screen's groups, in order. Each is one list item, right after the title. */
@@ -285,7 +286,7 @@ private fun SleepGroup(
         SettingsRow(
             icon = Icons.Rounded.CalendarMonth,
             title = stringResource(R.string.settings_week_plan),
-            supporting = state.weekPlan?.let { weekPlanText(it) },
+            supporting = state.weekPlan?.let { weekPlanText(it, state.now.atZone(state.zone).toLocalDate()) },
             onClick = actions::onOpenWeekPlan,
             trailing = { ValueChevron() },
         )
@@ -320,11 +321,12 @@ private fun SleepGroup(
     }
 }
 
-/** "Weekdays · 6:30 AM", "Different times through the week" or "No alarms set". */
+/** "Weekdays · 6:30 AM", "Different times through the week", "Alarms paused until Fri, Oct 9" or "No alarms set". */
 @Composable
-private fun weekPlanText(summary: WeekPlanSummary): String = when (summary) {
+private fun weekPlanText(summary: WeekPlanSummary, today: LocalDate): String = when (summary) {
     WeekPlanSummary.NoAlarms -> stringResource(R.string.settings_week_plan_none)
     WeekPlanSummary.Varied -> stringResource(R.string.settings_week_plan_varied)
+    is WeekPlanSummary.Paused -> stringResource(R.string.settings_week_plan_paused, formatShortDate(summary.until, today))
     is WeekPlanSummary.OneTime ->
         stringResource(R.string.settings_week_plan_one_time, formatDays(summary.days), clockTime(summary.time))
 }

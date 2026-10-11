@@ -137,7 +137,12 @@ class SettingsViewModel @Inject constructor(
 
     /** The week plan, the usual times and the pending test ring. A plan that can't be read shows no summary. */
     private val plan = combine(
-        scheduleRepository.weekPlan.map(::weekPlanSummary).catch<WeekPlanSummary?> { emit(null) },
+        combine(
+            scheduleRepository.weekPlan,
+            scheduleRepository.oneOffs,
+            clock.map { it.atZone(timeProvider.zone()).toLocalDate() }.distinctUntilChanged(),
+            ::weekPlanSummary,
+        ).catch<WeekPlanSummary?> { emit(null) },
         usual,
         nightController.state.map { it.testPendingAt }.distinctUntilChanged(),
     ) { summary, times, testRingAt -> PlanBits(summary, times, testRingAt) }

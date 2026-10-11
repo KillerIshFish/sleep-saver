@@ -41,6 +41,7 @@
     <string name="settings_week_plan_one_time">%1$s · %2$s</string>
     <string name="settings_week_plan_varied">Different times through the week</string>
     <string name="settings_week_plan_none">No alarms set</string>
+    <string name="settings_week_plan_paused">Alarms paused until %1$s</string>
 
     <!-- Wake time and bedtime -->
     <string name="settings_wake_time">Wake time</string>
