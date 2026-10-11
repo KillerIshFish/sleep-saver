@@ -7,3 +7,8 @@ plugins {
 android {
     namespace = "com.sleepsaver.feature.tonight"
 }
+
+dependencies {
+    // RingingActivity: ComponentActivity, setContent, enableEdgeToEdge and BackHandler.
+    implementation(libs.androidx.activity.compose)
+}
