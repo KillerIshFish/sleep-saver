@@ -14,6 +14,7 @@ import com.sleepsaver.core.data.hooks.TimeProvider
 import dagger.hilt.android.components.ServiceComponent
 import dagger.hilt.android.internal.builders.ServiceComponentBuilder
 import dagger.hilt.android.internal.managers.ServiceComponentManager
+import dagger.hilt.internal.GeneratedComponent
 import dagger.hilt.internal.GeneratedComponentManager
 import kotlinx.coroutines.CoroutineScope
 
@@ -32,6 +33,7 @@ class TestAlarmApp : Application(), GeneratedComponentManager<Any> {
 
 /** The "application component": the entry point and the service component builder. */
 internal class TestComponent(private val graph: AlarmTestGraph) :
+    GeneratedComponent,
     AlarmEntryPoint,
     ServiceComponentManager.ServiceComponentBuilderEntryPoint {
     override fun coordinator(): AlarmCoordinator = graph.coordinator
@@ -49,6 +51,7 @@ internal class TestComponent(private val graph: AlarmTestGraph) :
 
 /** Injects the two services the way Hilt would. */
 internal class TestServiceComponent(private val graph: AlarmTestGraph) :
+    GeneratedComponent,
     ServiceComponent,
     AlarmRingService_GeneratedInjector,
     NightService_GeneratedInjector {

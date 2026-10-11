@@ -43,8 +43,8 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
      * In this order:
      *  1. [zone] given: `armed` and `upcoming` are re-resolved from their date + local time (a zone change).
      *  2. `ringing` with no live ring service: within ringTimeout it resumes (RESUME on RING_EXTRA at
-     *     now + catchUpDelay); later it is TIMED_OUT (MISSED for the backup), handled, and a planned ring gets its one
-     *     backup ring.
+     *     now + catchUpDelay), except a fallback ring (no service could start), which waits on its notification;
+     *     later it is TIMED_OUT (MISSED for the backup), handled, and a planned ring gets its one backup ring.
      *  3. `extra` / `catnap`: a future ring is re-asserted; one passed by at most missedGrace rings now (a planned one
      *     later than extraMatchTolerance reads CATCH_UP); an older one is dropped, a planned one as MISSED + handled.
      *  4. `armed` with a past target: when its id isn't excluded (handled, sounding, or a pending planned ring) it
@@ -58,11 +58,13 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
         val logs = mutableListOf<Pair<Long, Instant>>()
         val plays = mutableListOf<Pair<Long, Instant>>()
 
-        // 2. A ring whose service died.
+        // 2. A ring whose service died (a fallback ring never had one: it waits on notification 303 until its timeout).
         val ringing = m.ringing
         if (ringing != null && !ringServiceRunning) {
             val timeoutAt = ringing.since + cfg.ringTimeout
-            if (now < timeoutAt) {
+            if (now < timeoutAt && ringing.fallback) {
+                // Stop and Snooze on notification 303 answer it from the mirror.
+            } else if (now < timeoutAt) {
                 val at = now + cfg.catchUpDelay
                 val resume = MirroredExtra(
                     trigger = ExtraTrigger.RESUME.name,

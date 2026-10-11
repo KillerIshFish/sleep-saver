@@ -18,7 +18,13 @@ import com.sleepsaver.core.alarm.ring.RingOutputs
 import com.sleepsaver.core.alarm.ring.RingSound
 import com.sleepsaver.core.alarm.ring.RingVibration
 import com.sleepsaver.core.data.hooks.ReminderPlanner
+import com.sleepsaver.core.data.repository.AlarmPlan
+import com.sleepsaver.core.data.repository.JournalRepository
+import com.sleepsaver.core.data.repository.NightLogRepository
+import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.data.repository.SettingsRepository
+import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.testing.FakeJournalRepository
@@ -42,7 +48,7 @@ import java.time.ZonedDateTime
  * lazies count resolutions and can be set to throw (a locked user).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class AlarmTestGraph(val context: Application, schedule: ScheduleRepository? = null) {
+internal class AlarmTestGraph(val context: Application) {
     val time = FakeTimeProvider(now = START, zone = ZONE)
     val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher())
 
@@ -54,12 +60,21 @@ internal class AlarmTestGraph(val context: Application, schedule: ScheduleReposi
     val sync = FakeSyncRepository()
     val planner = CountingPlanner()
 
-    val scheduleLazy = TestLazy { schedule ?: fakeSchedule }
-    val nightLogLazy = TestLazy { nightLog }
-    val journalLazy = TestLazy { journal }
-    val patternsLazy = TestLazy { patterns }
-    val settingsLazy = TestLazy { settings }
-    val syncLazy = TestLazy { sync }
+    /** Runs inside each computeAlarmPlan (with its call number, from 1): a write landing during a reschedule's compute. */
+    var onComputeAlarmPlan: ((Int) -> Unit)? = null
+    private val schedule = object : ScheduleRepository by fakeSchedule {
+        override suspend fun computeAlarmPlan(now: Instant, exclude: Set<String>): AlarmPlan {
+            onComputeAlarmPlan?.invoke(fakeSchedule.alarmPlanCalls.size + 1)
+            return fakeSchedule.computeAlarmPlan(now, exclude)
+        }
+    }
+
+    val scheduleLazy = TestLazy<ScheduleRepository> { schedule }
+    val nightLogLazy = TestLazy<NightLogRepository> { nightLog }
+    val journalLazy = TestLazy<JournalRepository> { journal }
+    val patternsLazy = TestLazy<PatternsRepository> { patterns }
+    val settingsLazy = TestLazy<SettingsRepository> { settings }
+    val syncLazy = TestLazy<SyncRepository> { sync }
     val plannerLazy = TestLazy<ReminderPlanner> { planner }
     private val repositoryLazies = listOf(scheduleLazy, nightLogLazy, journalLazy, patternsLazy, settingsLazy, syncLazy, plannerLazy)
 
@@ -76,6 +91,9 @@ internal class AlarmTestGraph(val context: Application, schedule: ScheduleReposi
 
     /** Every repository Lazy throws on get() (the user is locked: credential-encrypted storage is off limits). */
     fun lockRepositories() = repositoryLazies.forEach { it.failing = true }
+
+    /** The first unlock: repositories may be resolved again. */
+    fun unlockRepositories() = repositoryLazies.forEach { it.failing = false }
 
     /** How often any repository Lazy was resolved. */
     val repositoryResolutions: Int get() = repositoryLazies.sumOf { it.resolutions }

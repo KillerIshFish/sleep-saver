@@ -70,6 +70,7 @@ class ReminderPlannerImplTest {
     @Before
     fun setUp() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true) // Robolectric's default is false
         insights.schedules[tomorrow] = schedule(tomorrow)
         habitsByDate[tomorrow] = listOf(habit(HabitType.MORNING_LIGHT, at(tomorrow, "07:20")))
         insights.state.value = InsightsState.Ready(insights(time.now, todayHabits))

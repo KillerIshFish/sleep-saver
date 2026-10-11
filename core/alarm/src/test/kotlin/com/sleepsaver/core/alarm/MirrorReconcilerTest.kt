@@ -120,6 +120,21 @@ class MirrorReconcilerTest {
     }
 
     @Test
+    fun `a fallback ring (no service could start) waits on its notification, then times out`() {
+        val fallback = ringing(today, at("06:30")).copy(fallback = true)
+
+        val waiting = reconciler.reconcile(base.copy(ringing = fallback), at("06:33"), ringServiceRunning = false, nightServiceRunning = false)
+        val over = reconciler.reconcile(base.copy(ringing = fallback), at("06:41"), ringServiceRunning = false, nightServiceRunning = false)
+
+        assertThat(waiting.state.ringing).isEqualTo(fallback)
+        assertThat(waiting.state.extra).isNull()
+        assertThat(waiting.state.pendingEvents).isEmpty()
+        assertThat(over.state.ringing).isNull()
+        assertThat(over.state.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+        assertThat(over.state.pendingEvents.single().outcome).isEqualTo(RingOutcome.TIMED_OUT.name)
+    }
+
+    @Test
     fun `with the ring service running, its own ring gets no catch-up and no event`() {
         val r = reconciler.reconcile(base.copy(ringing = ringing(today, at("06:30"))), at("06:31"), ringServiceRunning = true, nightServiceRunning = false)
 

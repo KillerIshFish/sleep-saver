@@ -245,6 +245,15 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
         return MirrorUpdate(state, outcome, actions)
     }
 
+    /**
+     * T5's fallback: the ring started at [since] couldn't get a foreground service, so it stands only as notification
+     * 303. Marked so reconcile doesn't resume it every few seconds while the start keeps being refused.
+     */
+    fun markFallback(m: MirrorState, since: Instant): MirrorUpdate<Unit> {
+        val r = m.ringing?.takeIf { it.since == since } ?: return m.unchanged(Unit)
+        return MirrorUpdate(m.copy(ringing = r.copy(fallback = true)), Unit)
+    }
+
     /** How a planned ring at the wake time is logged: FIXED_TIME, or by tonight's sensing outcome. */
     fun plannedReason(alarm: MirroredAlarm): RingReason = when {
         alarm.alarmMode != AlarmMode.SURFACING -> RingReason.FIXED_TIME

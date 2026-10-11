@@ -4,11 +4,13 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Looper
 import android.os.UserManager
 import androidx.test.core.app.ApplicationProvider
 import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.AlarmChannels
+import com.sleepsaver.core.alarm.mirror.MirrorState
 import com.sleepsaver.core.alarm.mirror.MirroredAlarm
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.receiver.RingWakeLock
@@ -22,9 +24,12 @@ import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.AlarmSettings
 import com.sleepsaver.core.domain.schedule.WakeStyle
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.controller.ServiceController
 import org.robolectric.shadows.ShadowAlarmManager
 import java.time.Duration
 import java.time.Instant
@@ -48,6 +53,7 @@ internal abstract class AlarmRobolectricTest {
     @Before
     fun setUpGraph() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true) // Robolectric's default is false
         graph = AlarmTestGraph(context)
         TestAlarmApp.graph = graph
         AlarmChannels.ensure(context)
@@ -119,4 +125,49 @@ internal abstract class AlarmRobolectricTest {
     protected fun idleMain(duration: Duration = Duration.ZERO) {
         shadowOf(Looper.getMainLooper()).idleFor(duration)
     }
+
+    // ---------------------------------------------------------------- Shortcuts
+
+    /** The mirror as stored now. */
+    protected val m: MirrorState get() = graph.coordinator.read()
+
+    protected var now: Instant
+        get() = graph.time.now
+        set(value) {
+            graph.time.now = value
+        }
+
+    /** Moves the fake clock and the main looper (SystemClock, coroutine delays) on by [d]. */
+    protected fun advance(d: Duration) {
+        graph.time.now += d
+        idleMain(d)
+    }
+
+    protected fun reschedule() = runBlocking { graph.scheduler.reschedule() }
+
+    protected val startedServices: List<Intent> get() = shadowOf(context).allStartedServices
+
+    protected fun ringIntent(kind: String, occurrenceId: String? = null): Intent =
+        Intent(context, AlarmRingService::class.java)
+            .setAction(AlarmActions.ACTION_RING)
+            .putExtra(AlarmActions.EXTRA_KIND, kind)
+            .putExtra(AlarmActions.EXTRA_OCCURRENCE_ID, occurrenceId)
+
+    /** AlarmRingService created and started with a RING of [kind] (what AlarmReceiver starts). */
+    protected fun startRing(kind: String, occurrenceId: String? = null): ServiceController<AlarmRingService> =
+        Robolectric.buildService(AlarmRingService::class.java, ringIntent(kind, occurrenceId)).create().startCommand(0, 1)
+
+    /** Another start of the same service (a notification action or another ring). */
+    protected fun <S : android.app.Service> ServiceController<S>.send(intent: Intent): ServiceController<S> =
+        withIntent(intent).startCommand(0, ++startIds)
+
+    protected fun ringAction(action: String): Intent = Intent(context, AlarmRingService::class.java).setAction(action)
+
+    protected fun nightIntent(action: String, occurrenceId: String? = null): Intent =
+        Intent(context, NightService::class.java).setAction(action).apply { if (occurrenceId != null) putExtra(AlarmActions.EXTRA_OCCURRENCE_ID, occurrenceId) }
+
+    protected fun startNight(action: String, occurrenceId: String? = null): ServiceController<NightService> =
+        Robolectric.buildService(NightService::class.java, nightIntent(action, occurrenceId)).create().startCommand(0, 1)
+
+    private var startIds = 1
 }

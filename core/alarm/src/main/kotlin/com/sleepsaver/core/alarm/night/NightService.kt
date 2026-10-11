@@ -337,6 +337,7 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
                 return
             }
             wholeNight = WholeNight(night.anchorId, night.endsAt)
+            refreshNotification() // "Movement log on" (the foreground start above didn't know the reason yet)
             if (!active.source.wakeUp) {
                 val armedTarget = coordinator.read().armed?.target
                 val until = listOfNotNull(armedTarget?.plus(config.surfacing.wholeNightWakeLockMargin), night.endsAt).minOrNull() ?: night.endsAt

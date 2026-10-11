@@ -21,7 +21,7 @@ internal object AlarmText {
     private val h12: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
     private val h24: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm", Locale.US)
 
-    /** "6:30 AM" (no-break space before AM) or "06:30" → "6:30" in 24-hour style. */
+    /** "6:30 AM" (no-break space before AM), or "6:30" / "18:30" in 24-hour style. */
     fun clock(at: Instant, zone: ZoneId, use24h: Boolean): String = (if (use24h) h24 else h12).format(at.atZone(zone))
 
     /** The app's clock setting as a 24-hour flag (SYSTEM follows the phone). */

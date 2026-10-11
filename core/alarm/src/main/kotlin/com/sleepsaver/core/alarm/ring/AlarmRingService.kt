@@ -129,10 +129,13 @@ internal class AlarmRingService : Service() {
             startForegroundCompat(RingNotifications.ring(this, ringing, offer, time.zone(), use24h))
         } catch (e: Exception) {
             // No foreground service, no sound: the alarm still shows with Stop/Snooze (notification 303), and the
-            // mirror keeps the ring so those actions and the next reconcile (which resumes it) work.
+            // mirror keeps the ring (marked fallback) so those actions work and reconcile lets it time out.
             Log.w(TAG, "Ring service refused; showing the fallback notification", e)
+            coordinator.apply { m -> transitions.markFallback(m, ringing.since) }
             RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, time.zone(), use24h))
-            scheduler.get().flushEventsAsync()
+            val scheduler = scheduler.get()
+            if (ringing.isPlanned) scheduler.replanAfterRing()
+            scheduler.flushEventsAsync()
             stopSelf()
             return
         }

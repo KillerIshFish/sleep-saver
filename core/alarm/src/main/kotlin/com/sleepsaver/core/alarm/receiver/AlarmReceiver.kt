@@ -76,7 +76,12 @@ internal class AlarmReceiver : BroadcastReceiver() {
         val transitions = RingTransitions(SleepConfig.DEFAULT)
         val time = entry.time()
         val now = time.now()
-        val decision = entry.coordinator().apply { m -> transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null) }
+        val decision = entry.coordinator().apply { m ->
+            val update = transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null)
+            val started = update.value as? RingDecision.Start ?: return@apply update
+            val marked = transitions.markFallback(update.state, started.ringing.since).state
+            update.copy(state = marked, value = started.copy(ringing = marked.ringing ?: started.ringing))
+        }
         if (decision !is RingDecision.Start) return
         val use24h = entry.coordinator().read().use24h
         val offer = transitions.offer(decision.ringing, now)

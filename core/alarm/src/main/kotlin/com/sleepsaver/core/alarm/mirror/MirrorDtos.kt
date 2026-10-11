@@ -203,7 +203,8 @@ internal data class MirroredCatnap(
 
 /**
  * The ring that is sounding (or was, when the process died). [trigger] is ExtraTrigger.name, or PLAN / CATNAP for a
- * ring straight from RING_PLAN / RING_CATNAP.
+ * ring straight from RING_PLAN / RING_CATNAP. [fallback]: no ring service could start, so the ring stands only as
+ * notification 303 (Stop/Snooze work from the mirror); reconcile lets it time out instead of resuming it every 5 s.
  */
 @Serializable
 internal data class MirroredRinging(
@@ -218,6 +219,7 @@ internal data class MirroredRinging(
     val isBackup: Boolean,
     val expiresAtEpochMs: Long,
     val event: MirroredEvent? = null,
+    val fallback: Boolean = false,
 ) {
     val since: Instant get() = Instant.ofEpochMilli(sinceEpochMs)
     val kind: RingKind get() = enumOr(ringKind, RingKind.PLANNED)
