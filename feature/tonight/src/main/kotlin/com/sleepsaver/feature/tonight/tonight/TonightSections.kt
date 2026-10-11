@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ import com.sleepsaver.core.ui.components.icon
 import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDayLong
+import com.sleepsaver.core.ui.format.formatDayNarrow
 import com.sleepsaver.core.ui.format.formatDayShort
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.format.keepTimesTogether
@@ -500,11 +502,15 @@ private fun WeekStrip(state: TonightUiState.Ready, actions: TonightActions, modi
                         .semantics(mergeDescendants = true) {},
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // The narrow day ("T"), read out in full ("Tuesday").
+                    val dayName = formatDayLong(day.date.dayOfWeek)
                     Text(
-                        formatDayShort(day.date.dayOfWeek),
+                        formatDayNarrow(day.date.dayOfWeek),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (day.alarmOn) MaterialTheme.colorScheme.onSurface else secondary,
-                        modifier = Modifier.width(48.dp),
+                        modifier = Modifier
+                            .width(32.dp)
+                            .semantics { contentDescription = dayName },
                     )
                     Text(
                         day.time?.let { clockTime(it) } ?: stringResource(R.string.tonight_week_none),

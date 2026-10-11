@@ -79,7 +79,6 @@ import com.sleepsaver.core.ui.components.description
 import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDayLong
-import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
@@ -89,6 +88,7 @@ import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.DebtPreviewChip
 import com.sleepsaver.feature.tonight.GroupLabel
 import com.sleepsaver.feature.tonight.R
+import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.DayPlanNavigation
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import java.time.DayOfWeek
@@ -434,6 +434,7 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
     val snooze = alarm.snooze
     if (snooze.style == SnoozeStyle.NONE) return
     Spacer(Modifier.height(Spacing.cardGap))
+    val minuteLabel = stringResource(R.string.tonight_minutes_format)
     SleepSaverCard(card) {
         snooze.style.description()?.let { Caption(it) }
         if (snooze.style == SnoozeStyle.FIXED) {
@@ -444,6 +445,7 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
                 step = config.alarm.fixedSnoozeMin.toMinutes().toInt(),
                 min = config.alarm.fixedSnoozeMin.toMinutes().toInt(),
                 max = config.alarm.fixedSnoozeMax.toMinutes().toInt(),
+                format = { minuteLabel.format(it) },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
             CardTitle(stringResource(R.string.tonight_snooze_count))
@@ -460,7 +462,6 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
             )
         }
         CardTitle(stringResource(R.string.tonight_overrun_title))
-        val minuteLabel = stringResource(R.string.tonight_minutes_format)
         MinuteStepper(
             minutes = snooze.overrun.toMinutes().toInt(),
             onMinutesChange = { actions.onOverrun(Duration.ofMinutes(it.toLong())) },
@@ -519,7 +520,7 @@ private fun NightStepsCard(state: DayPlanUiState.Ready, actions: DayPlanActions,
             step = config.week.windDownStep.toMinutes().toInt(),
             min = (config.week.windDownMinLength + config.melatoninHalfWidth).toMinutes().toInt(),
             max = (config.week.windDownMaxLength + config.melatoninHalfWidth).toMinutes().toInt(),
-            format = { formatDuration(Duration.ofMinutes(it.toLong())) },
+            format = { formatHoursSpaced(Duration.ofMinutes(it.toLong())) },
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
         val from = state.shownBedtime?.minusMinutes(before.toLong())
