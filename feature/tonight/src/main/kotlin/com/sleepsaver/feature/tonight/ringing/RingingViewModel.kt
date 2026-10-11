@@ -104,6 +104,8 @@ internal class RingingViewModel @Inject constructor(
     fun onStop() {
         val ringing = nightController.state.value.ringing ?: (uiState.value as? RingingUiState.Sounding)?.ringing ?: return
         val wakeDate = ringing.wakeDate ?: ringing.target?.takeIf { ringing.kind == RingKind.PLANNED }?.atZone(ringing.zone)?.toLocalDate()
+        // A feel tapped after an earlier ring (this singleInstance screen can outlive a morning) was for that morning.
+        feel.value = null
         stopped.value = StoppedRing(ringing.kind, wakeDate, time.now())
         nightController.stopRinging()
     }
