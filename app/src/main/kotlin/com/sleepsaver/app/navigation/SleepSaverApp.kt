@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.AutoGraph
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Bolt
@@ -28,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +41,7 @@ import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -46,11 +51,11 @@ import com.sleepsaver.app.R
 import com.sleepsaver.feature.energy.navigation.EnergyRoute
 import com.sleepsaver.feature.energy.navigation.energyScreen
 import com.sleepsaver.feature.habits.navigation.habitsGraph
+import com.sleepsaver.feature.habits.navigation.navigateToHabitDetail
+import com.sleepsaver.feature.habits.navigation.navigateToHabits
 import com.sleepsaver.feature.learn.navigation.LearnRoute
 import com.sleepsaver.feature.learn.navigation.learnGraph
 import com.sleepsaver.feature.learn.navigation.navigateToArticle
-import com.sleepsaver.feature.habits.navigation.navigateToHabitDetail
-import com.sleepsaver.feature.habits.navigation.navigateToHabits
 import com.sleepsaver.feature.onboarding.navigation.OnboardingRoute
 import com.sleepsaver.feature.onboarding.navigation.navigateToHealthConnectSetup
 import com.sleepsaver.feature.onboarding.navigation.onboardingGraph
@@ -65,12 +70,25 @@ import com.sleepsaver.feature.settings.navigation.navigateToSettings
 import com.sleepsaver.feature.settings.navigation.settingsGraph
 import com.sleepsaver.feature.sleep.navigation.SleepRoute
 import com.sleepsaver.feature.sleep.navigation.sleepScreen
+import com.sleepsaver.feature.tonight.navigation.TonightRoute
+import com.sleepsaver.feature.tonight.navigation.navigateToAlarmCheck
+import com.sleepsaver.feature.tonight.navigation.navigateToDayPlan
+import com.sleepsaver.feature.tonight.navigation.navigateToNight
+import com.sleepsaver.feature.tonight.navigation.navigateToWeekPlan
+import com.sleepsaver.feature.tonight.navigation.tonightGraph
+import com.sleepsaver.feature.winddown.navigation.navigateToNightReset
+import com.sleepsaver.feature.winddown.navigation.navigateToNightSteps
+import com.sleepsaver.feature.winddown.navigation.navigateToRoutineEditor
+import com.sleepsaver.feature.winddown.navigation.nightStepsGraph
 import java.time.LocalDate
 import kotlin.reflect.KClass
 
-private enum class TopLevel(val route: Any, val icon: ImageVector, @StringRes val label: Int) {
+internal enum class TopLevel(val route: Any, val icon: ImageVector, @StringRes val label: Int) {
     SLEEP(SleepRoute, Icons.Outlined.Bedtime, R.string.nav_sleep),
     ENERGY(EnergyRoute, Icons.Outlined.Bolt, R.string.nav_energy),
+
+    /** Alarm, not NightsStay: that one is too close to Sleep's Bedtime icon. */
+    TONIGHT(TonightRoute, Icons.Outlined.Alarm, R.string.nav_tonight),
     PROGRESS(ProgressRoute, Icons.Outlined.AutoGraph, R.string.nav_progress),
     LEARN(LearnRoute, Icons.Outlined.Lightbulb, R.string.nav_learn),
     ;
@@ -78,11 +96,17 @@ private enum class TopLevel(val route: Any, val icon: ImageVector, @StringRes va
     val routeClass: KClass<*> get() = route::class
 }
 
+/**
+ * The app: five tabs (Sleep, Energy, Tonight, Progress, Learn) over one NavHost. Feature modules never know each other;
+ * every cross-feature step is a lambda wired here. [startInNight]: a cold launch during the night state (after Drop
+ * anchor) opens the no-clock Night screen once, over the home tab.
+ */
 @Composable
 fun SleepSaverApp(
     startWithOnboarding: Boolean,
     pendingReview: LocalDate?,
     onReviewShown: (LocalDate) -> Unit,
+    startInNight: Boolean = false,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -90,8 +114,17 @@ fun SleepSaverApp(
     val destination = backStackEntry?.destination
     val currentTab = TopLevel.entries.firstOrNull { destination.isOn(it.routeClass) }
 
-    // sleepsaver:// links from notifications and the widget.
+    // sleepsaver:// links from notifications, the alarm and the widget.
     DeepLinkHandler(navController)
+
+    // Opened at night: the Night screen, once (not again after rotation).
+    var nightShown by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(startInNight) {
+        if (startInNight && !startWithOnboarding && !nightShown) {
+            nightShown = true
+            navController.navigateToNight()
+        }
+    }
 
     // Offer the morning review once per session, when the user lands on the home tab.
     LaunchedEffect(pendingReview, currentTab) {
@@ -122,62 +155,90 @@ fun SleepSaverApp(
                 navController = navController,
                 startDestination = if (startWithOnboarding) OnboardingRoute else SleepRoute,
             ) {
-                onboardingGraph(
-                    onFinished = {
-                        navController.navigate(SleepRoute) {
-                            popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
-                        }
-                    },
-                    onBack = { navController.popBackStack() },
-                    onOpenPrivacyPolicy = openPrivacyPolicy,
-                )
-                sleepScreen(
-                    onOpenNight = navController::navigateToNightDetail,
-                    onOpenReview = navController::navigateToMorningReview,
-                    onAddNap = navController::navigateToAddNap,
-                    onAddMissingNight = navController::navigateToEditNight,
-                    onOpenHabits = navController::navigateToHabits,
-                    onOpenEnergy = { navController.navigateToTab(TopLevel.ENERGY) },
-                    onOpenSettings = navController::navigateToSettings,
-                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
-                )
-                energyScreen(
-                    onEditNight = navController::navigateToEditNight,
-                    onAddHabit = navController::navigateToHabits,
-                    onOpenHabit = navController::navigateToHabitDetail,
-                    onOpenSettings = navController::navigateToSettings,
-                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
-                )
-                progressScreen(
-                    onOpenNight = navController::navigateToNightDetail,
-                    onAddMissingNight = navController::navigateToEditNight,
-                    onOpenSettings = navController::navigateToSettings,
-                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
-                )
-                learnGraph(
-                    onOpenArticle = navController::navigateToArticle,
-                    onBack = { navController.popBackStack() },
-                )
-                reviewGraph(
-                    navController = navController,
-                    onOpenSettings = navController::navigateToSettings,
-                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
-                )
-                habitsGraph(navController)
-                settingsGraph(
-                    onBack = { navController.popBackStack() },
-                    onOpenHabits = navController::navigateToHabits,
-                    onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
-                    onOpenPrivacyPolicy = openPrivacyPolicy,
-                    onResetDone = {
-                        navController.navigate(OnboardingRoute) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
-                )
+                appGraph(navController, openPrivacyPolicy)
             }
         }
     }
+}
+
+/**
+ * Every feature's destinations and the cross-feature steps between them: Sleep → the Tonight tab; Tonight → Night
+ * steps, the routine editor (a day's or every evening's), Night reset, Settings and the morning review; Night steps →
+ * a day's plan and the Tonight tab; Settings → the Week plan and Alarm check; the Evening routine habit → the routine
+ * editor (every evening).
+ */
+internal fun NavGraphBuilder.appGraph(navController: NavHostController, openPrivacyPolicy: () -> Unit) {
+    val openTonight = { navController.navigateToTab(TopLevel.TONIGHT) }
+    onboardingGraph(
+        onFinished = {
+            navController.navigate(SleepRoute) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+            }
+        },
+        onBack = { navController.popBackStack() },
+        onOpenPrivacyPolicy = openPrivacyPolicy,
+    )
+    sleepScreen(
+        onOpenNight = navController::navigateToNightDetail,
+        onOpenReview = navController::navigateToMorningReview,
+        onAddNap = navController::navigateToAddNap,
+        onAddMissingNight = navController::navigateToEditNight,
+        onOpenHabits = navController::navigateToHabits,
+        onOpenEnergy = { navController.navigateToTab(TopLevel.ENERGY) },
+        onOpenSettings = navController::navigateToSettings,
+        onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
+        onOpenTonight = openTonight,
+    )
+    energyScreen(
+        onEditNight = navController::navigateToEditNight,
+        onAddHabit = navController::navigateToHabits,
+        onOpenHabit = navController::navigateToHabitDetail,
+        onOpenSettings = navController::navigateToSettings,
+        onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
+    )
+    tonightGraph(
+        navController = navController,
+        onOpenNightSteps = navController::navigateToNightSteps,
+        onOpenRoutineEditor = navController::navigateToRoutineEditor,
+        onOpenNightReset = navController::navigateToNightReset,
+        onOpenSettings = navController::navigateToSettings,
+        onOpenMorningReview = navController::navigateToMorningReview,
+    )
+    nightStepsGraph(
+        navController = navController,
+        onOpenDayPlan = navController::navigateToDayPlan,
+        onOpenTonight = openTonight,
+    )
+    progressScreen(
+        onOpenNight = navController::navigateToNightDetail,
+        onAddMissingNight = navController::navigateToEditNight,
+        onOpenSettings = navController::navigateToSettings,
+        onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
+    )
+    learnGraph(
+        onOpenArticle = navController::navigateToArticle,
+        onBack = { navController.popBackStack() },
+    )
+    reviewGraph(
+        navController = navController,
+        onOpenSettings = navController::navigateToSettings,
+        onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
+    )
+    // "Edit Night steps" on the Evening routine habit opens the one routine editor (every evening).
+    habitsGraph(navController, onOpenRoutineEditor = { navController.navigateToRoutineEditor(null) })
+    settingsGraph(
+        onBack = { navController.popBackStack() },
+        onOpenHabits = navController::navigateToHabits,
+        onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
+        onOpenPrivacyPolicy = openPrivacyPolicy,
+        onResetDone = {
+            navController.navigate(OnboardingRoute) {
+                popUpTo(0) { inclusive = true }
+            }
+        },
+        onOpenWeekPlan = navController::navigateToWeekPlan,
+        onOpenAlarmCheck = navController::navigateToAlarmCheck,
+    )
 }
 
 @Composable
@@ -204,7 +265,7 @@ private fun BottomBar(currentTab: TopLevel?, onSelect: (TopLevel) -> Unit) {
 private fun NavDestination?.isOn(route: KClass<*>): Boolean =
     this?.hierarchy?.any { it.hasRoute(route) } == true
 
-private fun NavHostController.navigateToTab(tab: TopLevel) {
+internal fun NavHostController.navigateToTab(tab: TopLevel) {
     navigate(tab.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
@@ -212,10 +273,7 @@ private fun NavHostController.navigateToTab(tab: TopLevel) {
     }
 }
 
-/**
- * Handles `sleepsaver://home`, `sleepsaver://energy` and `sleepsaver://review?wakeDate=YYYY-MM-DD`
- * for the launch intent and for intents delivered while the activity is running.
- */
+/** sleepsaver:// links ([openDeepLink]) for the launch intent and for intents delivered while the activity runs. */
 @Composable
 private fun DeepLinkHandler(navController: NavHostController) {
     val activity = LocalActivity.current as? ComponentActivity ?: return
@@ -229,13 +287,29 @@ private fun DeepLinkHandler(navController: NavHostController) {
     }
 }
 
-private fun NavHostController.openDeepLink(intent: Intent): Boolean {
+/**
+ * Opens a `sleepsaver://` link; false when [intent] isn't one this app knows.
+ *
+ * - `home`, `energy`, `progress`, `tonight`: that tab (the widget opens `home`; habit reminders `energy`; the alarm's
+ *   "show" intent and the bedtime reminder `tonight`).
+ * - `nightsteps`: tonight's Night steps (the wind-down and evening-routine reminders).
+ * - `night`: the no-clock Night screen (the night-state notification).
+ * - `weekplan`: the Week plan.
+ * - `alarmcheck`: Alarm check.
+ * - `review?wakeDate=YYYY-MM-DD`: that night's morning review (today without a valid date).
+ */
+internal fun NavHostController.openDeepLink(intent: Intent): Boolean {
     val uri = intent.data ?: return false
     if (uri.scheme != "sleepsaver") return false
     when (uri.host) {
         "home" -> navigateToTab(TopLevel.SLEEP)
         "energy" -> navigateToTab(TopLevel.ENERGY)
         "progress" -> navigateToTab(TopLevel.PROGRESS)
+        "tonight" -> navigateToTab(TopLevel.TONIGHT)
+        "nightsteps" -> navigateToNightSteps()
+        "night" -> navigateToNight()
+        "weekplan" -> navigateToWeekPlan()
+        "alarmcheck" -> navigateToAlarmCheck()
         "review" -> {
             val date = uri.getQueryParameter("wakeDate")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
             navigateToMorningReview(date ?: LocalDate.now())

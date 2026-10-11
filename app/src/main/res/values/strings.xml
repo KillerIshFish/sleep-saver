@@ -5,6 +5,7 @@
 
     <string name="nav_sleep">Sleep</string>
     <string name="nav_energy">Energy</string>
+    <string name="nav_tonight">Tonight</string>
     <string name="nav_progress">Progress</string>
     <string name="nav_learn">Learn</string>
 
