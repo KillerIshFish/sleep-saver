@@ -209,8 +209,34 @@ class MirrorReconcilerTest {
         val missed = r.state.pendingEvents.single()
         assertThat(missed.outcome).isEqualTo(RingOutcome.MISSED.name)
         assertThat(missed.occurrenceId).isEqualTo(today.occurrenceId)
+        // It never rang: Wake landing must not read it as "Rang 6:30 AM", and the tuner must not count it.
+        assertThat(missed.reason).isEqualTo(RingReason.NEVER_RANG.name)
+        assertThat(missed.toDomain().rang).isFalse()
+        assertThat(missed.firstRingEpochMs).isEqualTo(today.targetEpochMs)
         assertThat(r.state.handledIds).containsExactly(today.occurrenceId)
         assertThat(r.state.armed).isEqualTo(tomorrow)
+    }
+
+    @Test
+    fun `a restless trigger that never sounded and is past grace is recorded MISSED as never rang`() {
+        val trigger = MirroredExtra(
+            trigger = ExtraTrigger.SMART.name,
+            atEpochMs = at("06:12").toEpochMilli(),
+            ringKind = RingKind.PLANNED.name,
+            occurrenceId = today.occurrenceId,
+            snoozesUsed = 0,
+            reason = RingReason.RESTLESS.name,
+            alarm = today,
+            expiresAtEpochMs = at("06:22").toEpochMilli(),
+        )
+
+        val r = reconciler.reconcile(MirrorState(extra = trigger), at("09:00"), ringServiceRunning = false, nightServiceRunning = false)
+
+        val missed = r.state.pendingEvents.single()
+        assertThat(missed.outcome).isEqualTo(RingOutcome.MISSED.name)
+        assertThat(missed.reason).isEqualTo(RingReason.NEVER_RANG.name)
+        assertThat(missed.firstRingEpochMs).isEqualTo(at("06:12").toEpochMilli())
+        assertThat(r.state.handledIds).contains(today.occurrenceId)
     }
 
     @Test
@@ -229,6 +255,8 @@ class MirrorReconcilerTest {
         assertThat(r.state.extra).isNull()
         assertThat(r.actions).contains(AlarmAction.Cancel(PendingAlarm.RING_EXTRA))
         assertThat(r.state.pendingEvents.single().outcome).isEqualTo(RingOutcome.MISSED.name)
+        // It rang at 06:30 before the snooze: that ring stays on record.
+        assertThat(r.state.pendingEvents.single().toDomain().rang).isTrue()
         assertThat(r.state.handledIds).contains(today.occurrenceId)
     }
 

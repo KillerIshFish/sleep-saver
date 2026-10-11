@@ -41,7 +41,7 @@ class ZTuner(private val config: SleepConfig = SleepConfig.DEFAULT) {
             ?.plus(Duration.ofDays(surfacing.tuneCooldownDays))
         if (cooldownEnd != null && now.isBefore(cooldownEnd)) return null
         val recent = landings
-            .filter { it.event.mode == AlarmMode.SURFACING && it.hasStages }
+            .filter { it.event.mode == AlarmMode.SURFACING && it.event.rang && it.hasStages }
             .filter { current == null || it.event.firstRingAt.isAfter(current.changedAt) }
             .sortedWith(compareByDescending<WakeLanding> { it.event.wakeDate }.thenByDescending { it.event.firstRingAt })
             .take(surfacing.tuneRecentLandings)

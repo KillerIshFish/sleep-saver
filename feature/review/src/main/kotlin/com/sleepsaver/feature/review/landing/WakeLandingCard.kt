@@ -147,8 +147,8 @@ private fun RingReason.reasonRes(): Int? = when (this) {
     RingReason.SENSING_UNAVAILABLE -> R.string.review_landing_reason_sensing
     RingReason.FIXED_TIME -> R.string.review_landing_reason_fixed
     RingReason.CATCH_UP -> R.string.review_landing_reason_catch_up
-    // Not the first ring of a planned alarm: nothing to explain.
-    RingReason.SNOOZE_END, RingReason.CATNAP_END, RingReason.TEST, RingReason.BACKUP -> null
+    // Not the first ring of a planned alarm: nothing to explain. NEVER_RANG has no landing (WakeLandingCalculator).
+    RingReason.SNOOZE_END, RingReason.CATNAP_END, RingReason.TEST, RingReason.BACKUP, RingReason.NEVER_RANG -> null
 }
 
 @StringRes

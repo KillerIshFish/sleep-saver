@@ -268,6 +268,39 @@ internal class AlarmSchedulerImplTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `a restless trigger of an alarm switched off before it sounded is recorded CANCELLED as never rang`() {
+        plan(todayAlarm, tomorrowAlarm)
+        reschedule()
+        now = at(today, "06:12")
+        val armed = checkNotNull(m.armed).copy(sensingOutcome = SensingOutcome.RESTLESS.name)
+        graph.seed {
+            it.copy(
+                armed = armed,
+                extra = MirroredExtra(
+                    trigger = ExtraTrigger.SMART.name,
+                    atEpochMs = (now + Duration.ofSeconds(5)).toEpochMilli(),
+                    ringKind = RingKind.PLANNED.name,
+                    occurrenceId = armed.occurrenceId,
+                    snoozesUsed = 0,
+                    reason = RingReason.RESTLESS.name,
+                    alarm = armed,
+                    expiresAtEpochMs = (now + Duration.ofMinutes(10)).toEpochMilli(),
+                ),
+            )
+        }
+
+        plan(tomorrowAlarm) // the user turns today's alarm off before the trigger rings
+        reschedule()
+
+        assertThat(m.extra).isNull()
+        val event = graph.nightLog.eventsState.value.single()
+        assertThat(event.outcome).isEqualTo(RingOutcome.CANCELLED)
+        // No "Rang 6:12 AM · 18 min early" on Wake landing for a ring that never sounded.
+        assertThat(event.reason).isEqualTo(RingReason.NEVER_RANG)
+        assertThat(event.rang).isFalse()
+    }
+
+    @Test
     fun `the armed alarm carries the tuned trigger, tonight's onset, the prior and the clock format`() {
         val anchorAt = at(today.minusDays(1), "23:10")
         graph.nightLog.tuningState.value = AlarmTuning(2.75, TuningReason.RAISED_AFTER_DEEP_RINGS, anchorAt, todayAlarm.occurrence.offset)

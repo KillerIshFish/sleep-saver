@@ -147,6 +147,21 @@ class WakeLandingTest {
         assertThat(calculator.land(event(), night.copy(main = null))).isNull()
     }
 
+    @Test
+    fun `a planned alarm that never rang has no landing`() {
+        val night = Fx.stagedNight(date, morning(date))
+        // Recorded MISSED at its 06:30 wake time: the phone was off until long after it.
+        val missed = event(firstRingAt = "06:30", reason = RingReason.NEVER_RANG).copy(outcome = RingOutcome.MISSED)
+
+        assertThat(missed.rang).isFalse()
+        assertThat(calculator.land(missed, night)).isNull()
+        assertThat(calculator.land(missed.copy(outcome = RingOutcome.CANCELLED), night)).isNull()
+        // A ring that sounded but went unanswered (its backup timed out too) still lands.
+        val unanswered = event(firstRingAt = "06:30", reason = RingReason.DEADLINE).copy(outcome = RingOutcome.MISSED)
+        assertThat(unanswered.rang).isTrue()
+        assertThat(calculator.land(unanswered, night)).isNotNull()
+    }
+
     // ---------------------------------------------------------------- Time
 
     @Test

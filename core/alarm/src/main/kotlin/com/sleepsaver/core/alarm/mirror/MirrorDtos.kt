@@ -343,6 +343,14 @@ internal data class MirroredEvent(
                 sensingStartEpochMs = alarm.sensingStartEpochMs.takeIf { kind == RingKind.PLANNED },
                 offsetSec = alarm.offsetSec,
             )
+
+        /**
+         * The history of an occurrence that ends before its first ring (MISSED while the phone was off, or CANCELLED):
+         * reason NEVER_RANG, firstRingAt = [dueAt]. So Wake landing never reads it as "Rang 6:30 AM", and ZTuner never
+         * counts it.
+         */
+        fun neverRang(kind: RingKind, occurrenceId: String?, alarm: MirroredAlarm, dueAt: Instant): MirroredEvent =
+            firstRing(kind, occurrenceId, alarm, dueAt, RingReason.NEVER_RANG)
     }
 }
 
