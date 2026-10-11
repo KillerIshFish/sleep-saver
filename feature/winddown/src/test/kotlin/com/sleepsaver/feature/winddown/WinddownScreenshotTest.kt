@@ -260,8 +260,10 @@ class WinddownScreenshotTest : ScreenshotTest() {
         eyesClosed = eyesClosed,
         breath = RunPosition(index = 3, count = 24, cue = BreathPhase.OUT, length = Duration.ofSeconds(6)),
         nightState = nightState,
-        nextAlarm = PlanSamples.plannedAlarm(),
+        alarms = listOf(PlanSamples.plannedAlarm()),
         hush = HushChoice(color = HushColor.BROWN),
+        now = WinddownSamples.evening,
+        zone = PlanSamples.zone,
     )
 
     @Test

@@ -2,6 +2,7 @@ package com.sleepsaver.feature.winddown
 
 import com.sleepsaver.core.data.hooks.HushState
 import com.sleepsaver.core.data.hooks.NightController
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.ui.components.HushControlsActions
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.time.Duration
+import java.time.LocalDate
 
 /**
  * The Hush settings picked on a screen before Play. While Hush plays, its own state ([HushState]) is shown instead.
@@ -24,9 +26,16 @@ internal data class HushChoice(
 )
 
 /**
+ * The alarm "Until my window" waits for: the one that ends the night of [wakeDate], never a later one. Example: on a
+ * Friday night with no Saturday alarm, Monday's 6:30 doesn't count (Hush would play on through the weekend), so null.
+ */
+internal fun List<PlannedAlarm>.endingNightOf(wakeDate: LocalDate): PlannedAlarm? = firstOrNull { it.occurrence.date == wakeDate }
+
+/**
  * What [com.sleepsaver.core.ui.components.HushControls] shows: Hush's own settings while it [playing], else the
- * screen's [choice]. "Until my window" falls back to the default timer when no alarm is armed
- * ([untilWindowAvailable] false). The media-volume line is filled in by the screen (it reads the phone's volume).
+ * screen's [choice]. "Until my window" falls back to the default timer when this night has no alarm
+ * ([untilWindowAvailable] false, see [endingNightOf]). The media-volume line is filled in by the screen (it reads the
+ * phone's volume).
  */
 internal fun hushControlsState(
     choice: HushChoice,

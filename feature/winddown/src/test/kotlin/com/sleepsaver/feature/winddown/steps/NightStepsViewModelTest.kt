@@ -14,6 +14,7 @@ import com.sleepsaver.core.domain.patterns.PatternLabel
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeJournalRepository
 import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeNightLogRepository
 import com.sleepsaver.core.testing.FakeNightStepsRepository
 import com.sleepsaver.core.testing.FakePatternsRepository
 import com.sleepsaver.core.testing.FakeScheduleRepository
@@ -76,6 +77,7 @@ class NightStepsViewModelTest {
             patterns = patterns,
             schedule = schedule,
             insights = FakeInsightsRepository(),
+            nightLog = FakeNightLogRepository(),
             nightController = nightController,
             time = time,
             writer = writer(),

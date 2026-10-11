@@ -34,9 +34,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
+import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.ui.components.HushControls
 import com.sleepsaver.core.ui.components.HushControlsActions
 import com.sleepsaver.core.ui.components.HushControlsState
@@ -54,6 +56,7 @@ import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
 import com.sleepsaver.feature.winddown.R
 import com.sleepsaver.feature.winddown.WinddownSurface
+import com.sleepsaver.feature.winddown.endingNightOf
 import com.sleepsaver.feature.winddown.hushControlsState
 import com.sleepsaver.feature.winddown.tools.BreathPhase
 import com.sleepsaver.feature.winddown.tools.BreathingVisual
@@ -72,6 +75,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 
 // ---------------------------------------------------------------- State
@@ -88,20 +93,30 @@ internal data class NightResetUiState(
     val hush: HushControlsState,
 )
 
+/**
+ * "Until my window" waits only for the alarm of this night: the one on the wake date of [now]
+ * ([NightRules.wakeDateOf], the date Hush plays are logged under). Among [alarms], one days away never counts.
+ */
 internal fun nightResetUiState(
     stage: ResetStage,
     eyesClosed: Boolean,
     breath: RunPosition<BreathPhase>?,
     nightState: NightState,
-    nextAlarm: PlannedAlarm?,
+    alarms: List<PlannedAlarm>,
     hush: HushChoice,
+    now: Instant,
+    zone: ZoneId,
     config: SleepConfig = SleepConfig.DEFAULT,
-) = NightResetUiState(
-    stage = stage,
-    eyesClosed = eyesClosed,
-    breath = breath,
-    hush = hushControlsState(hush, nightState.hush, untilWindowAvailable = nextAlarm != null, night = true, config = config),
-)
+): NightResetUiState {
+    val wakeDate = NightRules.wakeDateOf(now, zone.rules.getOffset(now), config)
+    val untilWindow = alarms.endingNightOf(wakeDate) != null
+    return NightResetUiState(
+        stage = stage,
+        eyesClosed = eyesClosed,
+        breath = breath,
+        hush = hushControlsState(hush, nightState.hush, untilWindowAvailable = untilWindow, night = true, config = config),
+    )
+}
 
 /**
  * Night reset, the can't-sleep flow: `steps.nightResetBreathing` (2 min) of Slow tide at the default pace with
@@ -111,6 +126,7 @@ internal fun nightResetUiState(
 internal class NightResetViewModel @Inject constructor(
     nightController: NightController,
     schedule: ScheduleRepository,
+    private val time: TimeProvider,
     haptics: Haptics,
     clock: GuidedClock,
 ) : ViewModel() {
@@ -132,9 +148,9 @@ internal class NightResetViewModel @Inject constructor(
         },
     )
 
-    private val nextAlarm = schedule.nextAlarm.catch {
-        Log.w(LOG_TAG, "Next alarm failed", it)
-        emit(null)
+    private val alarms = schedule.upcomingAlarms.catch {
+        Log.w(LOG_TAG, "Upcoming alarms failed", it)
+        emit(emptyList())
     }
 
     private val hushPicker = HushPicker(
@@ -148,12 +164,18 @@ internal class NightResetViewModel @Inject constructor(
 
     private val breathing = combine(stage, eyesClosed, breath) { stage, eyesClosed, breath -> Triple(stage, eyesClosed, breath) }
 
-    val uiState: StateFlow<NightResetUiState> = combine(breathing, nightController.state, nextAlarm, hushPicker.choice) { (stage, eyes, breath), night, alarm, hush ->
-        nightResetUiState(stage, eyes, breath, night, alarm, hush, config)
+    val uiState: StateFlow<NightResetUiState> = combine(
+        breathing,
+        nightController.state,
+        alarms,
+        hushPicker.choice,
+        time.minuteTicks,
+    ) { (stage, eyes, breath), night, alarms, hush, now ->
+        nightResetUiState(stage, eyes, breath, night, alarms, hush, now, time.zone(), config)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        nightResetUiState(stage.value, eyesClosed.value, null, nightController.state.value, null, hushPicker.choice.value, config),
+        nightResetUiState(stage.value, eyesClosed.value, null, nightController.state.value, emptyList(), hushPicker.choice.value, time.now(), time.zone(), config),
     )
 
     init {

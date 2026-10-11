@@ -121,7 +121,7 @@ internal object WinddownSamples {
         effects = effects,
         marks = marks,
         week = week,
-        nextAlarm = PlanSamples.plannedAlarm(),
+        alarms = listOf(PlanSamples.plannedAlarm()),
         schedule = null,
         nightState = nightState,
         hush = HushChoice(),
