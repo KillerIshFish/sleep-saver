@@ -515,6 +515,14 @@ interface MovementLogDao {
     @Query("UPDATE movement_logs SET endEpochMs = :endEpochMs WHERE id = :id")
     suspend fun setEnd(id: Long, endEpochMs: Long)
 
+    /** The log's start, null for an unknown id. */
+    @Query("SELECT startEpochMs FROM movement_logs WHERE id = :id")
+    suspend fun startOf(id: Long): Long?
+
+    /** The start of the log's last stored (non-missing) epoch, null when it has none. */
+    @Query("SELECT MAX(startEpochMs) FROM movement_epochs WHERE logId = :logId")
+    suspend fun lastEpochStart(logId: Long): Long?
+
     @Query("SELECT * FROM movement_logs WHERE wakeDate = :wakeDate ORDER BY startEpochMs, id")
     fun observeFor(wakeDate: String): Flow<List<MovementLogEntity>>
 

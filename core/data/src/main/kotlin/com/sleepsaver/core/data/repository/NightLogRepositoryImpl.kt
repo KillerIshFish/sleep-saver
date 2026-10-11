@@ -145,7 +145,16 @@ class NightLogRepositoryImpl @Inject constructor(
         if (rows.isNotEmpty()) movementDao.insertEpochs(rows)
     }
 
-    override suspend fun endMovementLog(logId: Long, end: Instant) = movementDao.setEnd(logId, end.toEpochMilli())
+    /**
+     * A log with epochs ends no later than its last stored epoch's end: a log closed late (reconcile after the night
+     * expired, a service that died hours ago) doesn't claim hours of sensing it never did. Never before its start.
+     */
+    override suspend fun endMovementLog(logId: Long, end: Instant) {
+        var endMs = end.toEpochMilli()
+        movementDao.lastEpochStart(logId)?.let { last -> endMs = minOf(endMs, last + config.surfacing.epoch.toMillis()) }
+        movementDao.startOf(logId)?.let { start -> endMs = maxOf(endMs, start) }
+        movementDao.setEnd(logId, endMs)
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun movement(wakeDate: LocalDate): Flow<List<MovementTrace>> = movementDao.observeFor(wakeDate.toString())

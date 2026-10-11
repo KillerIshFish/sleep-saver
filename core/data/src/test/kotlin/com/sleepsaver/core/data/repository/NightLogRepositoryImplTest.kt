@@ -144,13 +144,42 @@ class NightLogRepositoryImplTest {
             ),
         )
         repository.addEpochs(logId, listOf(MovementEpoch(start.plusSeconds(90), null)))
-        repository.endMovementLog(logId, start.plusSeconds(120))
+        repository.endMovementLog(logId, start.plusSeconds(80))
 
         val trace = repository.movement(today).first { list -> list.any { it.end != null } }.single()
         assertThat(trace.logId).isEqualTo(logId)
         assertThat(trace.mode).isEqualTo("WINDOW")
-        assertThat(trace.end).isEqualTo(start.plusSeconds(120))
+        assertThat(trace.end).isEqualTo(start.plusSeconds(80))
         assertThat(trace.epochs).containsExactly(MovementEpoch(start, 4.0), MovementEpoch(start.plusSeconds(60), 31.5)).inOrder()
+    }
+
+    @Test
+    fun `a log closed late ends with its last stored epoch`() = runTest {
+        val repository = repository()
+        val start = instant("2026-10-05T23:10:00Z")
+        val logId = repository.startMovementLog(start, ZoneOffset.UTC, "WHOLE_NIGHT", today, anchorId = 4, occurrenceId = null)
+        repository.addEpochs(logId, listOf(MovementEpoch(start, 2.0), MovementEpoch(start.plusSeconds(30), 3.0), MovementEpoch(start.plusSeconds(60), null)))
+
+        // Reconcile closes an expired night at anchor + nightMaxLength, 14 h after the last epoch.
+        repository.endMovementLog(logId, start.plus(config.anchor.nightMaxLength))
+
+        val trace = repository.movement(today).first { list -> list.any { it.end != null } }.single()
+        assertThat(trace.end).isEqualTo(start.plusSeconds(30).plus(config.surfacing.epoch))
+    }
+
+    @Test
+    fun `a log without epochs keeps the given end, and an end never comes before the start`() = runTest {
+        val repository = repository()
+        val start = instant("2026-10-06T05:45:00Z")
+        val empty = repository.startMovementLog(start, ZoneOffset.UTC, "WINDOW", today, anchorId = null, occurrenceId = "2026-10-06T06:30")
+        val early = repository.startMovementLog(start.plusSeconds(600), ZoneOffset.UTC, "WINDOW", today, anchorId = null, occurrenceId = null)
+
+        repository.endMovementLog(empty, start.plusSeconds(3_600))
+        repository.endMovementLog(early, start)
+
+        val traces = repository.movement(today).first { list -> list.all { it.end != null } }
+        assertThat(traces.single { it.logId == empty }.end).isEqualTo(start.plusSeconds(3_600))
+        assertThat(traces.single { it.logId == early }.end).isEqualTo(start.plusSeconds(600))
     }
 
     // ------------------------------------------------------------ alarm events

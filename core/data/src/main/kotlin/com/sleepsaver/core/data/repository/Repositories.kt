@@ -423,6 +423,8 @@ interface NightLogRepository {
 
     /** Missing epochs are skipped. */
     suspend fun addEpochs(logId: Long, epochs: List<MovementEpoch>)
+
+    /** Stores min([end], last stored epoch's end) when the log has epochs, never before the log's start. */
     suspend fun endMovementLog(logId: Long, end: Instant)
     fun movement(wakeDate: LocalDate): Flow<List<MovementTrace>>
 
