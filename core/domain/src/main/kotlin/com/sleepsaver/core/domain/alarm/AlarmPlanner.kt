@@ -19,7 +19,10 @@ class AlarmPlanner(private val config: SleepConfig = SleepConfig.DEFAULT) {
      * Alarms after [now], in time order, from dates today .. today + (week.alarmLookaheadDays − 1) (today = now in [zone]):
      * for each date with resolve(date).alarmOn, target = ZonedDateTime.of(date, wakeTime, zone) (gap → forward,
      * overlap → earlier offset), source JUST_ONCE when the override made it, else DAY_PLAN.
-     * Kept when target > now and id ∉ [exclude] (stopped, timed-out or in-progress occurrences). At most [limit].
+     * Kept when target > now and id ∉ [exclude] (stopped, timed-out or in-progress occurrences), and, for a DAY_PLAN
+     * alarm, date ∉ [endedDates] (mornings whose alarm already rang out or was missed). Editing the day's time makes a
+     * new id, so the date is what stops an edit at 06:40 (06:30 → 07:15, meant for next week) from ringing again this
+     * morning; a JUST_ONCE alarm on that date is kept, since the user set it for that very morning. At most [limit].
      */
     fun upcoming(
         week: WeekPlan,
@@ -27,18 +30,25 @@ class AlarmPlanner(private val config: SleepConfig = SleepConfig.DEFAULT) {
         now: Instant,
         zone: ZoneId,
         exclude: Set<String> = emptySet(),
+        endedDates: Set<LocalDate> = emptySet(),
         limit: Int = config.week.upcomingLimit,
     ): List<AlarmOccurrence> {
         val today = now.atZone(zone).toLocalDate()
         return dates(today, 0)
             .mapNotNull { date -> occurrence(week.resolve(date, oneOffs), zone) }
-            .filter { it.target > now && it.id !in exclude }
+            .filter { it.target > now && it.id !in exclude && !(it.source == AlarmSource.DAY_PLAN && it.date in endedDates) }
             .sortedBy { it.target }
             .take(limit.coerceAtLeast(0))
     }
 
-    fun next(week: WeekPlan, oneOffs: OneOffs, now: Instant, zone: ZoneId, exclude: Set<String> = emptySet()): AlarmOccurrence? =
-        upcoming(week, oneOffs, now, zone, exclude, limit = 1).firstOrNull()
+    fun next(
+        week: WeekPlan,
+        oneOffs: OneOffs,
+        now: Instant,
+        zone: ZoneId,
+        exclude: Set<String> = emptySet(),
+        endedDates: Set<LocalDate> = emptySet(),
+    ): AlarmOccurrence? = upcoming(week, oneOffs, now, zone, exclude, endedDates, limit = 1).firstOrNull()
 
     /** Ids of every alarmOn date in today − 1 .. today + lookahead − 1, ignoring now and exclusions ("still planned"). */
     fun plannedIds(week: WeekPlan, oneOffs: OneOffs, now: Instant, zone: ZoneId): Set<String> {

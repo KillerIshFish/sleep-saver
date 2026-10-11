@@ -285,6 +285,42 @@ class ScheduleRepositoryImplTest {
     }
 
     @Test
+    fun `a morning whose alarm was stopped doesn't ring again at a new time, only at one set just for it`() = runTest {
+        // Wednesday 06:40: the 06:30 alarm rang early and was stopped, then Wednesday moves to 07:15 (for next week).
+        time.now = instant("2026-10-07T06:40:00Z")
+        time.ticks.value = time.now
+        val repository = repository()
+        repository.weekdayAlarmsAt(LocalTime.of(6, 30))
+        db.alarmEventDao().upsert(plannedEvent("2026-10-07", "2026-10-07T06:30", outcome = "STOPPED"))
+        repository.updateDay(DayOfWeek.WEDNESDAY) { it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(7, 15))) }
+
+        val plan = repository.computeAlarmPlan(time.now, exclude = setOf("2026-10-07T06:30"))
+
+        assertThat(plan.next!!.occurrence.id).isEqualTo("2026-10-08T06:30")
+        val upcoming = repository.upcomingAlarms.first { it.isNotEmpty() }.map { it.occurrence.id }
+        assertThat(upcoming.first()).isEqualTo("2026-10-08T06:30")
+        assertThat(upcoming).contains("2026-10-14T07:15")
+
+        // A just-once alarm the user sets for this morning still rings.
+        repository.setOverride(DateOverride(LocalDate.of(2026, 10, 7), OverrideKind.JUST_ONCE, LocalTime.of(8, 0), AlarmMode.FIXED))
+        assertThat(repository.computeAlarmPlan(time.now, emptySet()).next!!.occurrence.id).isEqualTo("2026-10-07T08:00")
+    }
+
+    @Test
+    fun `a snooze cancelled by moving the alarm leaves the morning to the new time`() = runTest {
+        // Wednesday 06:20: the 06:30 alarm rang early and was snoozed; moving Wednesday to 07:00 cancelled the snooze.
+        time.now = instant("2026-10-07T06:20:00Z")
+        time.ticks.value = time.now
+        val repository = repository()
+        repository.weekdayAlarmsAt(LocalTime.of(6, 30))
+        repository.updateDay(DayOfWeek.WEDNESDAY) { it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(7, 0))) }
+        db.alarmEventDao().upsert(plannedEvent("2026-10-07", "2026-10-07T06:30", outcome = "CANCELLED"))
+
+        assertThat(repository.computeAlarmPlan(time.now, emptySet()).next!!.occurrence.id).isEqualTo("2026-10-07T07:00")
+        assertThat(repository.nextAlarm.first { it != null }!!.occurrence.id).isEqualTo("2026-10-07T07:00")
+    }
+
+    @Test
     fun `an event still ringing doesn't count as handled`() = runTest {
         val repository = repository()
         repository.weekdayAlarmsAt(LocalTime.of(6, 30))

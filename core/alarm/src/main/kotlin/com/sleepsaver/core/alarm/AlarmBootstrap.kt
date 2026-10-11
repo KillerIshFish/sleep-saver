@@ -67,9 +67,9 @@ class AlarmBootstrap @Inject internal constructor(
     /**
      * After unlock, once: flush the events and Morning feel buffered while locked, reschedule from Room, then follow
      * the plan: debounce(1 s) + distinctUntilChanged + collectLatest { reschedule() } over the alarms the mirror holds
-     * (the next one and the following ones, each with its settings and window), the tuning, the active anchor, the
-     * prior (nights used) and the clock format and demo mode. Each sync that succeeds also refreshes the
-     * restless-trigger tuning.
+     * (the next one and the ones after it, whole: a new wake-up style, tone, volume, snooze, window or planned bedtime
+     * re-arms like a new time does), the tuning, the active anchor, the prior (nights used) and the clock format and
+     * demo mode. Each sync that succeeds also refreshes the restless-trigger tuning.
      */
     @OptIn(FlowPreview::class)
     fun startUnlocked() {
