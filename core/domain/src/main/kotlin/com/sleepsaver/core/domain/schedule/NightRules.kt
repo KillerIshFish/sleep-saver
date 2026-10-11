@@ -85,15 +85,15 @@ object NightRules {
 
     /**
      * [evening]'s bounds from the energy [schedule]: its own evening has `targetBedtime` and `tomorrowWakeZone`; the
-     * evening before it has [alarmBedtime] (the bedtime that morning's alarm was planned with), else the schedule's
-     * bedtime a day earlier, and `wakeZone`. Another evening knows only the alarm. [alarmWindowStart] = the alarm of the
-     * morning after [evening] (null without one).
+     * evening before it has [alarmBedtime] (the bedtime that morning's alarm was planned with), else `lastNightBedtime`
+     * (that evening's own, as Tonight works it out), and `wakeZone`. Another evening knows only the alarm.
+     * [alarmWindowStart] = the alarm of the morning after [evening] (null without one).
      */
     fun boundsFrom(schedule: EnergySchedule, evening: LocalDate, alarmWindowStart: Instant?, alarmBedtime: Instant? = null): NightBounds =
         when (evening) {
             schedule.date -> NightBounds(schedule.targetBedtime, alarmWindowStart, schedule.tomorrowWakeZone.start)
             schedule.date.minusDays(1) -> NightBounds(
-                bedtime = alarmBedtime ?: schedule.targetBedtime.atZone(schedule.zone).minusDays(1).toInstant(),
+                bedtime = alarmBedtime ?: schedule.lastNightBedtime,
                 alarmWindowStart = alarmWindowStart,
                 wakeZoneStart = schedule.wakeZone.start,
             )
