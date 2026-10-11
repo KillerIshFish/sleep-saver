@@ -24,6 +24,10 @@ class ZTuner(private val config: SleepConfig = SleepConfig.DEFAULT) {
     /** The threshold in force: the tuning row's, else the default restlessZ (2.5). */
     fun effectiveZ(tuning: AlarmTuning?): Double = tuning?.zThreshold ?: config.surfacing.restlessZ
 
+    /** The row "Reset to default" stores: zT back to restlessZ, counting only rings after [now]. */
+    fun reset(now: Instant, offset: ZoneOffset): AlarmTuning =
+        AlarmTuning(zThreshold = config.surfacing.restlessZ, reason = TuningReason.RESET, changedAt = now, offset = offset)
+
     /**
      * The next tuning row, or null for no change. Reads the most recent tuneRecentLandings SURFACING landings with
      * stages that rang after the last change: tuneRaiseDeepRings restless rings in watch-scored deep sleep raise zT by a
