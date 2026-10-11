@@ -390,7 +390,7 @@ class WinddownScreensTest {
         )
         compose.setContent {
             SleepSaverTheme {
-                NightResetContent(state = nightResetUiState(stage, eyesClosed = true, breath = null, NightState(), null, HushChoice()), actions = actions)
+                NightResetContent(state = nightResetUiState(stage, eyesClosed = true, breath = null, NightState(), null, HushChoice(), PlanSamples.today), actions = actions)
             }
         }
 

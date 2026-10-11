@@ -262,6 +262,7 @@ class WinddownScreenshotTest : ScreenshotTest() {
         nightState = nightState,
         nextAlarm = PlanSamples.plannedAlarm(),
         hush = HushChoice(color = HushColor.BROWN),
+        wakeDate = PlanSamples.plannedAlarm().occurrence.date,
     )
 
     @Test

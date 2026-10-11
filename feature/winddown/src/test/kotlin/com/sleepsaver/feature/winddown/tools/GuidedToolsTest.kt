@@ -11,6 +11,7 @@ import com.sleepsaver.core.testing.FakeTimeProvider
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.winddown.RecordingHaptics
+import com.sleepsaver.feature.winddown.nightSource
 import com.sleepsaver.feature.winddown.reset.NightResetViewModel
 import com.sleepsaver.feature.winddown.reset.ResetStage
 import com.sleepsaver.feature.winddown.richActivities
@@ -33,6 +34,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalTime
 
 /**
@@ -49,13 +51,26 @@ class GuidedToolsTest {
     /** Tonight's six steps, none checked: Slow tide is id 3, Body scan id 8, Tomorrow list id 2. */
     private val nightSteps = FakeNightStepsRepository(tonight = richSession(done = 0), activities = richActivities())
 
+    /** Tue Oct 6, 10:20; Wednesday's alarm is 06:45 with a 30-min window (bedtime 23:00). */
+    private val time = FakeTimeProvider()
+    private val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm()))
+
     @Before
     fun setUp() = Dispatchers.setMain(StandardTestDispatcher())
 
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.completion() = ToolCompletion(nightSteps, writer())
+    private fun TestScope.completion() = ToolCompletion(nightSource(nightSteps, time, schedule), nightSteps, writer())
+
+    /** [at] on [date]; at midnight the repository's "tonight" has moved on to Wednesday, Tuesday's stays readable. */
+    private fun afterMidnight(date: LocalDate = PlanSamples.today.plusDays(1), at: LocalTime = LocalTime.of(0, 20)) {
+        time.now = PlanSamples.at(date, at)
+        time.ticks.value = time.now
+        nightSteps.sessionsState.value = mapOf(PlanSamples.today to nightSteps.tonightState.value!!)
+        nightSteps.tonightState.value =
+            PlanSamples.nightStepsSession(nightOf = PlanSamples.today.plusDays(1), done = 0, activities = richActivities())
+    }
 
     private fun TestScope.step(ms: Long) {
         advanceTimeBy(ms)
@@ -195,6 +210,19 @@ class GuidedToolsTest {
         assertThat(nightSteps.doneCalls).containsExactly(Triple(PlanSamples.today, 8L, true))
     }
 
+    @Test
+    fun `a body scan finished after midnight ticks last night's step`() = runTest {
+        afterMidnight()
+        val viewModel = BodyScanViewModel(haptics, testClock(), completion())
+        viewModel.start()
+        runCurrent()
+
+        step(Duration.ofMinutes(10).toMillis())
+
+        assertThat(viewModel.stage.value).isEqualTo(ToolStage.Finished(checkedOff = true))
+        assertThat(nightSteps.doneCalls).containsExactly(Triple(PlanSamples.today, 8L, true))
+    }
+
     // ---------------------------------------------------------------- Muscle release
 
     @Test
@@ -220,11 +248,8 @@ class GuidedToolsTest {
 
     // ---------------------------------------------------------------- Tomorrow list
 
-    private fun TestScope.tomorrowList(
-        journal: FakeJournalRepository = FakeJournalRepository(),
-        time: FakeTimeProvider = FakeTimeProvider(),
-    ): TomorrowListViewModel {
-        val viewModel = TomorrowListViewModel(nightSteps, journal, time, completion(), writer())
+    private fun TestScope.tomorrowList(journal: FakeJournalRepository = FakeJournalRepository()): TomorrowListViewModel {
+        val viewModel = TomorrowListViewModel(nightSource(nightSteps, time, schedule), journal, time, completion(), writer())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
         return viewModel
@@ -260,21 +285,40 @@ class GuidedToolsTest {
     }
 
     @Test
-    fun `without a Night steps session the list belongs to the evening before the next wake date`() = runTest {
-        nightSteps.tonightState.value = null
-        val afterMidnight = FakeTimeProvider(PlanSamples.at(PlanSamples.today.plusDays(1), LocalTime.of(1, 0)))
+    fun `a list written after midnight is last night's, the one the morning shows`() = runTest {
+        val journal = FakeJournalRepository()
+        journal.setTomorrowList(PlanSamples.today, "Pack lunch")
+        afterMidnight()
 
-        val viewModel = tomorrowList(time = afterMidnight)
+        val viewModel = tomorrowList(journal)
+        assertThat(viewModel.uiState.value).isEqualTo(TomorrowListUiState.Ready(PlanSamples.today, "Pack lunch"))
+
+        viewModel.save("Pack lunch\nCall Sam")
+        runCurrent()
+
+        assertThat(journal.tomorrowListsSet.last()).isEqualTo(PlanSamples.today to "Pack lunch\nCall Sam")
+        assertThat(nightSteps.doneCalls).containsExactly(Triple(PlanSamples.today, 2L, true))
+    }
+
+    @Test
+    fun `without Night steps the list still belongs to the night in progress`() = runTest {
+        nightSteps.tonightState.value = null
+        time.now = PlanSamples.at(PlanSamples.today.plusDays(1), LocalTime.of(1, 0))
+        time.ticks.value = time.now
+
+        val viewModel = tomorrowList()
 
         assertThat((viewModel.uiState.value as TomorrowListUiState.Ready).nightOf).isEqualTo(PlanSamples.today)
+        // When even that can't be read: the evening before the wake date.
         assertThat(fallbackNightOf(PlanSamples.at(PlanSamples.today, LocalTime.of(23, 10)), SampleData.zone)).isEqualTo(PlanSamples.today)
+        assertThat(fallbackNightOf(time.now, SampleData.zone)).isEqualTo(PlanSamples.today)
     }
 
     // ---------------------------------------------------------------- Night reset
 
     @Test
     fun `night reset breathes with eyes-closed ticks for two minutes, then shows the advice`() = runTest {
-        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
         assertThat(viewModel.uiState.value.stage).isEqualTo(ResetStage.BREATHING)
@@ -294,7 +338,7 @@ class GuidedToolsTest {
 
     @Test
     fun `skipping goes straight to the advice and stops the cues`() = runTest {
-        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
 
@@ -309,7 +353,7 @@ class GuidedToolsTest {
     @Test
     fun `night reset plays Hush with the default choice, never until a window without an alarm`() = runTest {
         val nightController = FakeNightController()
-        val viewModel = NightResetViewModel(nightController, FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(nightController, FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
 
@@ -320,5 +364,29 @@ class GuidedToolsTest {
         assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
         assertThat(viewModel.uiState.value.hush.playing).isTrue()
         assertThat(viewModel.uiState.value.hush.night).isTrue()
+    }
+
+    @Test
+    fun `night reset waits for the window only when the alarm is this night's`() = runTest {
+        // 02:00 Wednesday.
+        time.now = PlanSamples.at(PlanSamples.today.plusDays(1), LocalTime.of(2, 0))
+        time.ticks.value = time.now
+
+        fun TestScope.playUntilWindow(alarmDate: LocalDate): FakeNightController {
+            val nightController = FakeNightController()
+            val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm(date = alarmDate)))
+            val viewModel = NightResetViewModel(nightController, schedule, time, haptics, testClock())
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            runCurrent()
+            viewModel.hushActions.onTimer(null)
+            viewModel.hushActions.onPlay()
+            runCurrent()
+            return nightController
+        }
+
+        // This morning's alarm: Hush fades out before its window.
+        assertThat(playUntilWindow(PlanSamples.today.plusDays(1)).nightControllerCalls).containsExactly("startHush(WHITE, null, 0.25)")
+        // No alarm this morning, Friday's next: the default timer, not two days of noise.
+        assertThat(playUntilWindow(PlanSamples.today.plusDays(3)).nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
     }
 }

@@ -31,7 +31,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.JournalRepository
-import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.ui.components.PrimaryButton
@@ -40,6 +39,7 @@ import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.winddown.LoadingBody
 import com.sleepsaver.feature.winddown.R
+import com.sleepsaver.feature.winddown.WinddownNightSource
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.safely
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -66,19 +66,21 @@ internal sealed interface TomorrowListUiState {
 }
 
 /**
- * The evening a list written [now] belongs to, when there is no Night steps session: the evening before the wake
- * date of [now] (23:10 Monday and 01:00 Tuesday both → Monday).
+ * The evening a list written [now] belongs to when the night in focus can't be worked out: the evening before the
+ * wake date of [now] (23:10 Monday and 01:00 Tuesday both → Monday).
  */
 internal fun fallbackNightOf(now: Instant, zone: ZoneId): LocalDate =
     NightRules.wakeDateOf(now, zone.rules.getOffset(now)).minusDays(1)
 
 /**
  * Tomorrow list (`GuidedTool.TOMORROW_LIST`): tonight's list, shown again in the morning. Done saves it
- * (`JournalRepository.setTomorrowList`, blank deletes) and checks the step off when the list isn't blank.
+ * (`JournalRepository.setTomorrowList`, blank deletes) and checks the step off when the list isn't blank. Tonight is
+ * the evening in focus ([WinddownNightSource]), so a list written at 00:20 Tuesday is Monday's: the one the morning
+ * review and Tonight show on Tuesday morning.
  */
 @HiltViewModel
 internal class TomorrowListViewModel @Inject constructor(
-    private val nightSteps: NightStepsRepository,
+    private val night: WinddownNightSource,
     private val journal: JournalRepository,
     private val time: TimeProvider,
     private val completion: ToolCompletion,
@@ -90,7 +92,7 @@ internal class TomorrowListViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val nightOf = safely("Reading tonight's steps") { nightSteps.tonight.first()?.nightOf }
+            val nightOf = safely("Reading the night in focus") { night.night.first().nightOf }
                 ?: fallbackNightOf(time.now(), time.zone())
             val text = safely("Reading the Tomorrow list") { journal.tomorrowList(nightOf).first()?.text }.orEmpty()
             _uiState.value = TomorrowListUiState.Ready(nightOf, text)

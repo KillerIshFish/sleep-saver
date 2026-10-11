@@ -28,8 +28,9 @@ data object NightStepsRoute
 data class RoutineEditorRoute(val day: Int = 0)
 
 /**
- * The step library. [day] = the weekday whose routine editor opened it (DayOfWeek.value), 0 = every evening: on a day
- * with its own list, "Add" puts the step on that list only.
+ * The step library. [day] = the weekday whose list it adds to (DayOfWeek.value: from that day's routine editor, or from
+ * Night steps on an evening with its own list), 0 = every evening: on a day with its own list, "Add" puts the step on
+ * that list only.
  */
 @Serializable
 data class StepLibraryRoute(val day: Int = 0)
@@ -47,7 +48,8 @@ internal class NightStepsNavigation(
     val onBack: () -> Unit,
     /** null = the every-evening list. */
     val onOpenEditor: (DayOfWeek?) -> Unit,
-    val onOpenLibrary: () -> Unit,
+    /** The library adding to this day's own list; null = the every-evening list. */
+    val onOpenLibrary: (DayOfWeek?) -> Unit,
     val onOpenTool: (GuidedTool) -> Unit,
     val onOpenDayPlan: (DayOfWeek, DayPart) -> Unit,
     val onOpenTonight: () -> Unit,
@@ -106,7 +108,7 @@ internal fun NavGraphBuilder.nightStepsGraph(
             NightStepsNavigation(
                 onBack = dropUnlessResumed { navController.popBackStack() },
                 onOpenEditor = { day -> if (entry.isResumed()) navController.navigateToRoutineEditor(day) },
-                onOpenLibrary = dropUnlessResumed { navController.navigateToStepLibrary() },
+                onOpenLibrary = { day -> if (entry.isResumed()) navController.navigateToStepLibrary(day) },
                 onOpenTool = { tool -> if (entry.isResumed()) navController.navigateToGuidedTool(tool) },
                 onOpenDayPlan = { day, part -> if (entry.isResumed()) onOpenDayPlan(day, part) },
                 onOpenTonight = dropUnlessResumed { onOpenTonight() },

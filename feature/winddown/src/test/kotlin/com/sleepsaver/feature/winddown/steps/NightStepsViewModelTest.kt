@@ -11,7 +11,6 @@ import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.patterns.EffectMetric
 import com.sleepsaver.core.domain.patterns.MarkEffect
 import com.sleepsaver.core.domain.patterns.PatternLabel
-import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeJournalRepository
 import com.sleepsaver.core.testing.FakeNightController
 import com.sleepsaver.core.testing.FakeNightStepsRepository
@@ -20,6 +19,7 @@ import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.FakeTimeProvider
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.PlanSamples.NightVariant
+import com.sleepsaver.feature.winddown.nightSource
 import com.sleepsaver.feature.winddown.richActivities
 import com.sleepsaver.feature.winddown.richSession
 import com.sleepsaver.feature.winddown.writer
@@ -40,6 +40,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
 import java.time.DayOfWeek
+import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalTime
 
 @RunWith(AndroidJUnit4::class)
@@ -54,6 +56,9 @@ class NightStepsViewModelTest {
     )
     private val journal = FakeJournalRepository()
     private val patterns = FakePatternsRepository()
+
+    /** Without nights, a night's end comes from its alarm or, with none, from the planned wake (the timing inputs). */
+    private val timingPatterns = FakePatternsRepository(debtPreviewInputs = PlanSamples.debtPreviewInputs())
     private val schedule = FakeScheduleRepository(week = PlanSamples.weekPlan(), upcoming = listOf(PlanSamples.plannedAlarm()))
     private val nightController = FakeNightController()
 
@@ -75,7 +80,7 @@ class NightStepsViewModelTest {
             journal = journal,
             patterns = patterns,
             schedule = schedule,
-            insights = FakeInsightsRepository(),
+            nightSource = nightSource(nightSteps, time, schedule, nightController, patterns = patterns),
             nightController = nightController,
             time = time,
             writer = writer(),
@@ -86,6 +91,17 @@ class NightStepsViewModelTest {
 
     private suspend fun NightStepsViewModel.ready(): NightStepsUiState.Ready =
         uiState.first { it is NightStepsUiState.Ready } as NightStepsUiState.Ready
+
+    private fun moveTo(date: LocalDate, time: LocalTime) {
+        this.time.now = PlanSamples.at(date, time)
+        this.time.ticks.value = this.time.now
+    }
+
+    /** At midnight the repository's "tonight" moves on to the schedule's new evening; Tuesday's stays readable. */
+    private fun scheduleRollsOver() {
+        nightSteps.sessionsState.value = mapOf(today to nightSteps.tonightState.value!!)
+        nightSteps.tonightState.value = PlanSamples.nightStepsSession(nightOf = today.plusDays(1), done = 0, activities = richActivities())
+    }
 
     @Test
     fun `tonight's steps come with tracking, suggestions and Hush`() = runTest {
@@ -146,15 +162,73 @@ class NightStepsViewModelTest {
     fun `from bedtime until the alarm window it is night`() = runTest {
         val viewModel = viewModel()
 
-        time.advance(java.time.Duration.ofMinutes(100)) // 23:30
+        time.advance(Duration.ofMinutes(100)) // 23:30
         assertThat(viewModel.ready().night).isTrue()
 
         // Tomorrow's alarm: 06:45 with a 30 min window, so night ends at 06:15.
         time.now = PlanSamples.at(today.plusDays(1), LocalTime.of(6, 14))
         time.ticks.value = time.now
         assertThat(viewModel.ready().night).isTrue()
-        time.advance(java.time.Duration.ofMinutes(1))
+        time.advance(Duration.ofMinutes(1))
         assertThat(viewModel.ready().night).isFalse()
+    }
+
+    @Test
+    fun `after midnight the checklist, its ticks and marks stay last night's until the alarm window`() = runTest {
+        moveTo(today, LocalTime.of(23, 40))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().session.nightOf).isEqualTo(today)
+
+        moveTo(today.plusDays(1), LocalTime.of(0, 20))
+        scheduleRollsOver()
+
+        val small = viewModel.ready()
+        assertThat(small.session).isEqualTo(richSession())
+        assertThat(small.wakeDate).isEqualTo(today.plusDays(1))
+        assertThat(small.night).isTrue()
+        viewModel.setDone(3, true)
+        viewModel.toggleMark(Mark.ALCOHOL)
+        assertThat(nightSteps.doneCalls).containsExactly(Triple(today, 3L, true))
+        assertThat(journal.marksSet).containsExactly(Triple(today.plusDays(1), Mark.ALCOHOL, true))
+
+        // Wednesday's alarm window opens at 06:15: from then on it is Wednesday evening's checklist, in daytime.
+        moveTo(today.plusDays(1), LocalTime.of(6, 15))
+        val morning = viewModel.ready()
+        assertThat(morning.session.nightOf).isEqualTo(today.plusDays(1))
+        assertThat(morning.night).isFalse()
+    }
+
+    @Test
+    fun `with no alarm for the morning after, the night still runs from bedtime to the wake zone`() = runTest {
+        // No Wednesday alarm; the next one is Friday's, days away.
+        schedule.upcomingState.value = listOf(PlanSamples.plannedAlarm(date = today.plusDays(3)))
+        moveTo(today, LocalTime.of(23, 30))
+        val viewModel = viewModel(patterns = timingPatterns)
+
+        assertThat(viewModel.ready().night).isTrue()
+
+        // Wednesday's planned wake is 06:45, so its wake zone (and the night) ends at 06:15.
+        moveTo(today.plusDays(1), LocalTime.of(6, 14))
+        scheduleRollsOver()
+        assertThat(viewModel.ready().night).isTrue()
+        moveTo(today.plusDays(1), LocalTime.of(6, 15))
+        assertThat(viewModel.ready().night).isFalse()
+    }
+
+    @Test
+    fun `last night's anchor doesn't darken the next morning when no alarm ends the night`() = runTest {
+        schedule.upcomingState.value = listOf(PlanSamples.plannedAlarm(date = today.plusDays(3)))
+        nightController.state.value = PlanSamples.nightState(NightVariant.ANCHORED)
+        val viewModel = viewModel(patterns = timingPatterns)
+        assertThat(viewModel.ready().anchored).isTrue()
+
+        // 09:00 Wednesday: the night state lasts until anchor + 14 h, but that night ended at its wake zone.
+        moveTo(today.plusDays(1), LocalTime.of(9, 0))
+        scheduleRollsOver()
+        val state = viewModel.ready()
+        assertThat(state.session.nightOf).isEqualTo(today.plusDays(1))
+        assertThat(state.night).isFalse()
+        assertThat(state.anchored).isFalse()
     }
 
     @Test
@@ -195,6 +269,21 @@ class NightStepsViewModelTest {
     }
 
     @Test
+    fun `on an evening with its own list a suggestion goes on that list, not every evening's`() = runTest {
+        val week = PlanSamples.weekPlan()
+        val tuesday = week.day(DayOfWeek.TUESDAY)
+        schedule.weekState.value = week.with(tuesday.copy(evening = tuesday.evening.copy(routine = listOf(1L))))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().ownList).isTrue()
+
+        viewModel.addTechnique(Technique.COOL_DARK_ROOM, "Cool, dark room")
+
+        val added = nightSteps.activitiesState.value.single { it.technique == Technique.COOL_DARK_ROOM }
+        assertThat(added.selected).isFalse()
+        assertThat(schedule.dayRoutines).containsExactly(DayOfWeek.TUESDAY to listOf(1L, added.id))
+    }
+
+    @Test
     fun `Drop anchor saves it from Night steps, then reports back`() = runTest {
         val viewModel = viewModel()
         val events = mutableListOf<NightStepsEvent>()
@@ -225,6 +314,19 @@ class NightStepsViewModelTest {
         // While it plays, a volume change goes straight to Hush.
         viewModel.hushActions.onVolume(0.5f)
         assertThat(nightController.nightControllerCalls.last()).isEqualTo("setHushVolume(0.5)")
+    }
+
+    @Test
+    fun `Hush waits for the window only when tonight has an alarm`() = runTest {
+        // No Wednesday alarm; the next one is Friday's.
+        schedule.upcomingState.value = listOf(PlanSamples.plannedAlarm(date = today.plusDays(3)))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().hush.untilWindowAvailable).isFalse()
+
+        viewModel.hushActions.onTimer(null)
+        viewModel.hushActions.onPlay()
+
+        assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
     }
 
     @Test
