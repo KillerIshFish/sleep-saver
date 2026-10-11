@@ -73,8 +73,12 @@ class WinddownScreenshotTest : ScreenshotTest() {
     )
 
     @Composable
-    private fun Editor(state: RoutineEditorUiState, removing: Long? = null) =
-        RoutineEditorContent(state = state, actions = RoutineEditorActions(), removing = removing)
+    private fun Editor(state: RoutineEditorUiState, removing: Long? = null, scrolledToEnd: Boolean = false) = RoutineEditorContent(
+        state = state,
+        actions = RoutineEditorActions(),
+        removing = removing,
+        scrollState = rememberScrollState(if (scrolledToEnd) 10_000 else 0),
+    )
 
     // ---------------------------------------------------------------- Night steps
 
@@ -129,6 +133,11 @@ class WinddownScreenshotTest : ScreenshotTest() {
     }
 
     @Test
+    fun editorScrolled() = captureScreen("editor_scrolled") {
+        Editor(routineEditorUiState(null, WeekPlan.DEFAULT, richActivities(), SampleData.habits), scrolledToEnd = true)
+    }
+
+    @Test
     fun editorDayOwn() = captureScreen("editor_day_own") {
         val tuesday = WeekPlan.DEFAULT.day(DayOfWeek.TUESDAY)
         val week = WeekPlan.DEFAULT.with(tuesday.copy(evening = tuesday.evening.copy(routine = listOf(1L, 3L, 10L))))
@@ -156,6 +165,11 @@ class WinddownScreenshotTest : ScreenshotTest() {
     @Test
     fun libraryExpanded() = captureScreen("library_expanded") {
         StepLibraryContent(library, StepLibraryActions(), expanded = setOf(Technique.COOL_DARK_ROOM))
+    }
+
+    @Test
+    fun libraryScrolled() = captureScreen("library_scrolled") {
+        StepLibraryContent(library, StepLibraryActions(), scrollState = rememberScrollState(10_000))
     }
 
     @Test
@@ -249,6 +263,11 @@ class WinddownScreenshotTest : ScreenshotTest() {
 
     @Test
     fun nightResetText() = captureScreen("night_reset_text") { NightResetContent(reset(ResetStage.TEXT), NightResetActions()) }
+
+    @Test
+    fun nightResetTextScrolled() = captureScreen("night_reset_text_scrolled") {
+        NightResetContent(reset(ResetStage.TEXT), NightResetActions(), scrollState = rememberScrollState(10_000))
+    }
 
     @Test
     fun nightResetLargeFont() = captureScreen("night_reset_large_font") {

@@ -292,7 +292,7 @@ class WinddownScreensTest {
         }
 
         compose.onNodeWithText("5 in · 5 out").performClick()
-        compose.onNodeWithText("15 min").performClick()
+        compose.onNodeWithText("15 min").performClick()
         compose.onNodeWithText("Eyes closed: vibration only").performScrollTo().performClick()
         compose.onNodeWithText("Start").performScrollTo().performClick()
 

@@ -353,13 +353,12 @@ private fun CardButtons(technique: Technique, title: String, inSteps: Boolean, a
         }
     }
     if (LocalDensity.current.fontScale >= 1.5f) {
-        Column(Modifier.padding(top = Spacing.s), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             add(Modifier.fillMaxWidth())
             tryNow(Modifier)
         }
     } else {
         Row(
-            Modifier.padding(top = Spacing.s),
             horizontalArrangement = Arrangement.spacedBy(Spacing.m),
             verticalAlignment = Alignment.CenterVertically,
         ) {

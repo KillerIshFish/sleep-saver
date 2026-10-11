@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -61,6 +62,7 @@ import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.patterns.EffectMetric
 import com.sleepsaver.core.domain.patterns.MarkEffect
 import com.sleepsaver.core.domain.patterns.PatternLabel
+import com.sleepsaver.core.ui.components.CardPadding
 import com.sleepsaver.core.ui.components.EvidenceBadge
 import com.sleepsaver.core.ui.components.HushControls
 import com.sleepsaver.core.ui.components.HushControlsActions
@@ -106,21 +108,8 @@ internal fun StepsCard(
     modifier: Modifier = Modifier,
 ) {
     val session = state.session
-    SleepSaverCard(modifier.fillMaxWidth()) {
-        val description = stringResource(R.string.winddown_progress_description, session.doneCount, session.steps.size)
-        Stack(large = largeFont(), modifier = Modifier.clearAndSetSemantics { contentDescription = description }) {
-            Text(
-                stringResource(R.string.winddown_progress, session.doneCount, session.steps.size),
-                style = MaterialTheme.typography.displayMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                stringResource(R.string.winddown_progress_label),
-                style = MaterialTheme.typography.bodyLarge,
-                color = SleepSaverTheme.colors.textSecondary,
-                modifier = Modifier.padding(start = Spacing.m, bottom = Spacing.s),
-            )
-        }
+    SleepSaverCard(modifier.fillMaxWidth(), contentPadding = EndsWithLinkPadding) {
+        ProgressLine(done = session.doneCount, total = session.steps.size)
         Column(Modifier.padding(top = Spacing.s)) {
             session.steps.forEachIndexed { index, step ->
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -140,6 +129,34 @@ internal fun StepsCard(
                 .padding(top = Spacing.xs)
                 .offset(x = (-12).dp),
         )
+    }
+}
+
+/** "2 of 4" big, with "done tonight" on its baseline (under it at large font sizes). */
+@Composable
+private fun ProgressLine(done: Int, total: Int) {
+    val description = stringResource(R.string.winddown_progress_description, done, total)
+    val number = stringResource(R.string.winddown_progress, done, total)
+    val label = stringResource(R.string.winddown_progress_label)
+    val numberStyle = MaterialTheme.typography.displayMedium
+    val labelStyle = MaterialTheme.typography.bodyLarge
+    if (largeFont()) {
+        Column(Modifier.clearAndSetSemantics { contentDescription = description }) {
+            Text(number, style = numberStyle, color = MaterialTheme.colorScheme.onSurface)
+            Text(label, style = labelStyle, color = SleepSaverTheme.colors.textSecondary)
+        }
+    } else {
+        Row(Modifier.clearAndSetSemantics { contentDescription = description }) {
+            Text(number, style = numberStyle, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.alignByBaseline())
+            Text(
+                label,
+                style = labelStyle,
+                color = SleepSaverTheme.colors.textSecondary,
+                modifier = Modifier
+                    .alignByBaseline()
+                    .padding(start = Spacing.m),
+            )
+        }
     }
 }
 
@@ -175,7 +192,10 @@ private fun StepRow(step: NightStep, zone: ZoneId, night: Boolean, onToggle: (Bo
             val technique = activity.technique
             if (technique != null) {
                 val tool = technique.tool.takeIf { it != GuidedTool.NONE }
-                Stack(large = largeFont(), modifier = Modifier.padding(top = Spacing.s), spacing = Spacing.s) {
+                val large = largeFont()
+                // The Start chip's 48 dp touch target already leaves room above the row.
+                val top = if (tool != null && !large) 0.dp else Spacing.s
+                Stack(large = large, modifier = Modifier.padding(top = top), spacing = Spacing.s) {
                     EvidenceBadge(technique.evidence)
                     if (tool != null) StartChip(technique, onClick = { onStart(tool) })
                 }
@@ -250,7 +270,7 @@ internal fun Stack(large: Boolean, modifier: Modifier = Modifier, spacing: Dp = 
 /** "Night steps are off this evening" with the way to the week plan. */
 @Composable
 internal fun StepsOffCard(day: DayOfWeek, onOpenWeekPlan: () -> Unit, modifier: Modifier = Modifier) {
-    SleepSaverCard(modifier.fillMaxWidth()) {
+    SleepSaverCard(modifier.fillMaxWidth(), contentPadding = EndsWithLinkPadding) {
         CardTitle(stringResource(R.string.winddown_off_title))
         Text(
             stringResource(R.string.winddown_off_body, formatDayLong(day)),
@@ -270,10 +290,17 @@ internal fun StepsOffCard(day: DayOfWeek, onOpenWeekPlan: () -> Unit, modifier: 
 
 /** "No steps yet. Pick a few that suit you." + "Pick steps". */
 @Composable
-internal fun NoStepsCard(night: Boolean, onPickSteps: () -> Unit, modifier: Modifier = Modifier) {
+internal fun NoStepsCard(onPickSteps: () -> Unit, modifier: Modifier = Modifier) {
     SleepSaverCard(modifier.fillMaxWidth()) {
         CardTitle(stringResource(R.string.winddown_empty_title))
-        MainButton(stringResource(R.string.winddown_pick_steps), onClick = onPickSteps, night = night, modifier = Modifier.padding(top = Spacing.l))
+        // Drop anchor stays the screen's one main action.
+        SecondaryButton(
+            stringResource(R.string.winddown_pick_steps),
+            onClick = onPickSteps,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.l),
+        )
     }
 }
 
@@ -511,7 +538,7 @@ internal fun AnchorCard(
     onOpenTonight: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    SleepSaverCard(modifier.fillMaxWidth()) {
+    SleepSaverCard(modifier.fillMaxWidth(), contentPadding = if (anchored) EndsWithLinkPadding else CardPadding) {
         if (anchored) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                 Icon(Icons.Rounded.Anchor, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -608,6 +635,9 @@ private fun CardTitle(text: String) {
 private fun Body(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = SleepSaverTheme.colors.textSecondary)
 }
+
+/** A card that ends with a text button: its 48 dp touch target stands in for most of the bottom padding. */
+private val EndsWithLinkPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = Spacing.s)
 
 /** The card's main action: a tide [PrimaryButton] in the evening, a quiet [SecondaryButton] at night (no glow). */
 @Composable

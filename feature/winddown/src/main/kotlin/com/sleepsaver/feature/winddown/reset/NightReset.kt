@@ -1,6 +1,7 @@
 package com.sleepsaver.feature.winddown.reset
 
 import android.util.Log
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -203,6 +204,7 @@ internal fun NightResetContent(
     modifier: Modifier = Modifier,
     mediaVolumeHigh: Boolean = false,
     breathProgress: Float? = null,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     DimScreen(SleepConfig.DEFAULT.steps.dimBrightness)
     WinddownSurface(
@@ -213,7 +215,7 @@ internal fun NightResetContent(
     ) {
         when (state.stage) {
             ResetStage.BREATHING -> BreathingPart(state, actions, breathProgress)
-            ResetStage.TEXT -> AdvicePart(state.hush.copy(mediaVolumeHigh = mediaVolumeHigh), actions)
+            ResetStage.TEXT -> AdvicePart(state.hush.copy(mediaVolumeHigh = mediaVolumeHigh), actions, scrollState)
         }
     }
 }
@@ -263,11 +265,11 @@ private fun BreathingPart(state: NightResetUiState, actions: NightResetActions, 
 }
 
 @Composable
-private fun AdvicePart(hush: HushControlsState, actions: NightResetActions) {
+private fun AdvicePart(hush: HushControlsState, actions: NightResetActions, scrollState: ScrollState) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = Spacing.screenHorizontal),
     ) {
         ResetTitle()

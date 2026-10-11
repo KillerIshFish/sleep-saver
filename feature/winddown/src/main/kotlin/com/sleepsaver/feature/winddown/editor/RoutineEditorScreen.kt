@@ -299,12 +299,15 @@ private fun EditorRowCard(
                     .padding(horizontal = Spacing.m),
             ) {
                 Text(activity.label, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    stringResource(R.string.winddown_editor_summary, minutesText(leadMinutes), stepLength(activity.duration)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = SleepSaverTheme.colors.textSecondary,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
+                // An included step shows the same numbers on its steppers below.
+                if (!row.included) {
+                    Text(
+                        stringResource(R.string.winddown_editor_summary, minutesText(leadMinutes), stepLength(activity.duration)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = SleepSaverTheme.colors.textSecondary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
             }
             SleepSaverSwitch(checked = row.included, onCheckedChange = null)
         }
@@ -323,6 +326,7 @@ private fun EditorRowCard(
                 onChange = onDurationChange,
                 step = state.durationStepMinutes,
                 max = state.durationMaxMinutes,
+                modifier = Modifier.padding(top = Spacing.xs),
             )
             if (durationMinutes == 0) {
                 Text(

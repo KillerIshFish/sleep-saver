@@ -7,8 +7,8 @@
     <string name="winddown_loading">Loading Night steps</string>
     <string name="winddown_unavailable_title">Night steps aren\'t available</string>
     <string name="winddown_unavailable_body">Something went wrong reading them. Try again in a moment.</string>
-    <!-- A step's length: "10 min". -->
-    <string name="winddown_minutes">%1$d min</string>
+    <!-- A step's length: "10 min" (a no-break space keeps it on one line). -->
+    <string name="winddown_minutes">%1$d&#160;min</string>
     <string name="winddown_checklist_item">Checklist item</string>
 
     <!-- Night steps: tonight's checklist -->
@@ -109,8 +109,6 @@
     <string name="winddown_editor_lead">Starts before bedtime</string>
     <string name="winddown_editor_length">Length</string>
     <string name="winddown_editor_length_zero">0 min makes it a checklist item.</string>
-    <!-- Screen readers on a row's switch: "Include Herbal tea". -->
-    <string name="winddown_editor_include">Include %1$s</string>
     <string name="winddown_editor_remove">Remove</string>
     <!-- %1$s: the activity ("Remove Herbal tea?"). -->
     <string name="winddown_editor_remove_title">Remove %1$s?</string>

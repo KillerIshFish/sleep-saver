@@ -222,7 +222,7 @@ private fun NightStepsBody(
         val cardModifier = Modifier.padding(top = Spacing.cardGap)
         when {
             !session.enabled -> StepsOffCard(state.day, actions.onOpenWeekPlan, Modifier.padding(top = Spacing.xl))
-            session.steps.isEmpty() -> NoStepsCard(state.night, actions.onPickSteps, Modifier.padding(top = Spacing.xl))
+            session.steps.isEmpty() -> NoStepsCard(actions.onPickSteps, Modifier.padding(top = Spacing.xl))
             else -> {
                 StepsCard(
                     state = state,
