@@ -205,7 +205,12 @@ private fun WaitingList(marks: MarkPatterns) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 marks.waiting.forEach { progress ->
                     Text(
-                        text = stringResource(R.string.progress_marks_waiting, progress.mark.label(), progress.nights, progress.needed),
+                        text = stringResource(
+                            if (progress.shortOnNightsWith) R.string.progress_marks_waiting else R.string.progress_marks_waiting_without,
+                            progress.mark.label(),
+                            progress.nights,
+                            progress.needed,
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.textSecondary,
                     )

@@ -47,8 +47,21 @@ class MarkPatternsTest {
         assertThat(patterns.shown).isEmpty()
         assertThat(patterns.waiting).containsExactly(
             MarkProgress(Mark.STRESS, 4, 6),
-            MarkProgress(Mark.SCREENS_IN_BED, 3, 6),
+            // On 41 nights, missing on only 3: the short side is the nights without it.
+            MarkProgress(Mark.SCREENS_IN_BED, 3, 6, shortOnNightsWith = false),
         ).inOrder()
+        assertThat(patterns.anyMeasured).isTrue()
+    }
+
+    @Test
+    fun `a pattern whose difference would read about 0 isn't shown`() {
+        val zeroFeel = MarkEffect(Mark.STRESS, EffectMetric.MORNING_FEEL, PatternLabel.POSSIBLE, 8, 30, 0.0, -0.5, -0.1)
+        val tinySleep = MarkEffect(Mark.ALCOHOL, EffectMetric.TOTAL_SLEEP, PatternLabel.CLEAR, 8, 30, -0.4, -9.0, -0.2)
+        val halfStep = MarkEffect(Mark.LATE_MEAL, EffectMetric.MORNING_FEEL, PatternLabel.POSSIBLE, 8, 30, -0.5, -1.0, -0.1)
+
+        val patterns = MarkPatterns.of(listOf(zeroFeel, tinySleep, halfStep))
+
+        assertThat(patterns.shown).containsExactly(halfStep)
         assertThat(patterns.anyMeasured).isTrue()
     }
 

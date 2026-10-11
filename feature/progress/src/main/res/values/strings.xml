@@ -140,6 +140,7 @@
     <string name="progress_marks_collapsed">Collapsed</string>
     <!-- "Stress: 4 of 6 nights" -->
     <string name="progress_marks_waiting">%1$s: %2$d of %3$d nights</string>
+    <string name="progress_marks_waiting_without">%1$s: %2$d of %3$d nights without it</string>
     <string name="progress_marks_caveat">This shows what went together, not what caused it.</string>
     <!-- Both numbers are the nights a mark needs on each side (6) -->
     <string name="progress_marks_empty">Add marks in the morning review or during Night steps. Patterns show once a mark has %1$d nights with it and %1$d without.</string>
