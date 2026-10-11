@@ -55,6 +55,7 @@ import com.sleepsaver.core.ui.platform.AlarmCheck
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.tonight.ArmBlockerNotice
+import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.R
 import com.sleepsaver.feature.tonight.TestRingMessages
@@ -86,7 +87,7 @@ internal fun AlarmCheckScreen(
         AlarmCheckActions(
             onBack = onBack,
             onFix = gate::fix,
-            onTestRing = { gate.arm(viewModel::onTestRing) },
+            onTestRing = { gate.arm(ArmSource.TEST_RING, viewModel::onTestRing) },
             onResetTuning = viewModel::onResetTuning,
         )
     }
@@ -95,7 +96,7 @@ internal fun AlarmCheckScreen(
         checks = gate.access.checks,
         actions = actions,
         modifier = modifier,
-        armBlocker = gate.blocker,
+        armBlocker = gate.blocker(ArmSource.TEST_RING),
         snackbarHostState = snackbar,
     )
 }

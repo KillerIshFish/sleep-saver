@@ -71,10 +71,22 @@ class TonightContentTest {
         ),
     )
 
-    private fun show(state: TonightUiState, blockers: List<AlarmBlocker> = emptyList(), armBlocker: AlarmBlocker? = null) {
+    private fun show(
+        state: TonightUiState,
+        blockers: List<AlarmBlocker> = emptyList(),
+        alarmArmBlocker: AlarmBlocker? = null,
+        catnapArmBlocker: AlarmBlocker? = null,
+    ) {
         compose.setContent {
             SleepSaverTheme {
-                TonightContent(state, actions, alarmBlockers = blockers, armBlocker = armBlocker, scrollState = ScrollState(0))
+                TonightContent(
+                    state,
+                    actions,
+                    alarmBlockers = blockers,
+                    alarmArmBlocker = alarmArmBlocker,
+                    catnapArmBlocker = catnapArmBlocker,
+                    scrollState = ScrollState(0),
+                )
             }
         }
     }
@@ -149,6 +161,22 @@ class TonightContentTest {
     }
 
     @Test
+    fun `a blocked turn back on says why in the alarm card, and the catnap card stays clear`() {
+        show(
+            s.ready(s.inputs(at(14, 0), oneOffs = PlanSamples.oneOffs(dayOff = wednesday))),
+            alarmArmBlocker = AlarmBlocker.RING_CHANNEL_OFF,
+        )
+
+        compose.onNodeWithText("Alarm notifications are turned off").assertExists()
+        assertThat(compose.onAllNodesWithText("Alarm notifications are turned off").fetchSemanticsNodes()).hasSize(1)
+        tap("Open settings")
+        scrollTo("Start catnap")
+        compose.onNodeWithText("Notifications are off").assertDoesNotExist()
+
+        assertThat(calls).containsExactly("fix:${AlarmBlocker.RING_CHANNEL_OFF}")
+    }
+
+    @Test
     fun `paused alarms resume`() {
         show(s.ready(s.inputs(at(14, 0), oneOffs = PlanSamples.oneOffs(pause = PlanPause(s.today, s.today.plusDays(5))))))
         compose.onNodeWithText("Until Sun, Oct 11").assertExists()
@@ -189,7 +217,7 @@ class TonightContentTest {
 
     @Test
     fun `catnap length, start and the arming notice`() {
-        show(s.ready(s.inputs(at(14, 0))), armBlocker = AlarmBlocker.NOTIFICATIONS_OFF)
+        show(s.ready(s.inputs(at(14, 0))), catnapArmBlocker = AlarmBlocker.NOTIFICATIONS_OFF)
 
         scrollTo("Start catnap")
         compose.onNodeWithText("Notifications are off").assertExists()

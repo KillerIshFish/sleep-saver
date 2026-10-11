@@ -217,6 +217,9 @@ internal class WeekPlanViewModel @Inject constructor(
 
     fun onClearOverride(date: LocalDate) = oneOffWrites.clear(date)
 
+    /** Whether undoing [date]'s one-off brings an alarm back (unknown counts as yes: the gate only asks). */
+    fun undoArms(date: LocalDate): Boolean = oneOffContext.value?.clearingArms(date) ?: true
+
     fun onResumeAlarms() = oneOffWrites.resume()
 
     private fun today(): LocalDate = time.now().atZone(time.zone()).toLocalDate()

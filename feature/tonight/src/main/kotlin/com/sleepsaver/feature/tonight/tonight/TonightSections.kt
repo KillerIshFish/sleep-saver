@@ -64,13 +64,16 @@ import com.sleepsaver.core.ui.R as UiR
 
 private val ScreenPadding = Modifier.padding(horizontal = Spacing.screenHorizontal)
 
+/** What stopped the last attempt to bring the alarm back ([alarm]) or to start a catnap ([catnap]). */
+internal data class ArmBlockers(val alarm: AlarmBlocker? = null, val catnap: AlarmBlocker? = null)
+
 /** The tab's sections for the day phase (SPEC_V2 §5.2 table): what matters now comes first. */
 @Composable
 internal fun ColumnScope.TonightSections(
     state: TonightUiState.Ready,
     actions: TonightActions,
     alarmBlockers: List<AlarmBlocker>,
-    armBlocker: AlarmBlocker?,
+    armBlockers: ArmBlockers,
 ) {
     val card = ScreenPadding.fillMaxWidth()
     if (state.demo) {
@@ -90,7 +93,7 @@ internal fun ColumnScope.TonightSections(
                 }
             }
             Gap()
-            AlarmSection(state, actions, alarmBlockers, card)
+            AlarmSection(state, actions, alarmBlockers, armBlockers.alarm, card)
             Gap()
             NightStepsSummary(state, actions, card)
             Gap()
@@ -100,10 +103,10 @@ internal fun ColumnScope.TonightSections(
         }
         TonightPhase.DAY -> {
             Spacer(Modifier.height(Spacing.l))
-            AlarmSection(state, actions, alarmBlockers, card)
+            AlarmSection(state, actions, alarmBlockers, armBlockers.alarm, card)
             state.catnap?.let { catnap ->
                 Gap()
-                CatnapCard(catnap, state, actions, armBlocker, card)
+                CatnapCard(catnap, state, actions, armBlockers.catnap, card)
             }
             Gap()
             NightStepsPreview(state, actions, card)
@@ -118,7 +121,7 @@ internal fun ColumnScope.TonightSections(
             Gap()
             DropAnchorCard(actions, card)
             Gap()
-            AlarmSection(state, actions, alarmBlockers, card, showPreview = true)
+            AlarmSection(state, actions, alarmBlockers, armBlockers.alarm, card, showPreview = true)
             Gap()
             SectionCard(stringResource(R.string.tonight_marks_title), card) {
                 MarkChips(selected = state.tonightMarks, onToggle = { mark -> actions.onMark(mark, mark !in state.tonightMarks) })
@@ -141,11 +144,17 @@ private fun AlarmSection(
     state: TonightUiState.Ready,
     actions: TonightActions,
     alarmBlockers: List<AlarmBlocker>,
+    armBlocker: AlarmBlocker?,
     modifier: Modifier,
     showPreview: Boolean = false,
 ) {
     Column(modifier) {
         AlarmCard(state, actions, showPreview)
+        // "Turn back on" or "Resume alarms" was stopped by the arming gate: say why, with the fix.
+        armBlocker?.let {
+            Gap()
+            ArmBlockerNotice(it, actions.onFixBlocker)
+        }
         val first = alarmBlockers.firstOrNull()
         if (state.armed && first != null) {
             Gap()

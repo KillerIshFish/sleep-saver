@@ -40,6 +40,16 @@ internal data class OneOffContext(
     fun startTime(date: LocalDate, config: SleepConfig = SleepConfig.DEFAULT): LocalTime =
         resolve(date).wakeTime ?: (usualWake[date.dayOfWeek] ?: DEFAULT_WAKE).roundTo(config.week.timeRounding)
 
+    /**
+     * Whether undoing [date]'s one-off brings an alarm back (it goes through the arming gate): the date has no alarm
+     * now and would have one without the one-off. Example: undoing a Day off on an alarm day does; undoing "Just this
+     * once" that set a one-off alarm on a free Saturday doesn't (it removes one).
+     */
+    fun clearingArms(date: LocalDate): Boolean {
+        val without = oneOffs.copy(overrides = oneOffs.overrides.filterNot { it.date == date })
+        return !resolve(date).alarmOn && week.resolve(date, without).alarmOn
+    }
+
     /** The date's alarm mode when it has one, else the mode a new alarm gets (`alarm.defaultMode`). */
     fun startMode(date: LocalDate, config: SleepConfig = SleepConfig.DEFAULT): AlarmMode =
         resolve(date).alarmMode.takeIf { it != AlarmMode.OFF } ?: config.alarm.defaultMode

@@ -86,6 +86,7 @@ import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.tonight.ArmBlockerNotice
+import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.DebtPreviewChip
 import com.sleepsaver.feature.tonight.GroupLabel
@@ -145,7 +146,7 @@ internal fun DayPlanScreen(
             onWakeUsual = viewModel::onWakeUsual,
             onWakeSet = viewModel::onWakeSet,
             onWakeTime = viewModel::onWakeTime,
-            onAlarmMode = { mode -> gate.armIf(mode != AlarmMode.OFF) { viewModel.onAlarmMode(mode) } },
+            onAlarmMode = { mode -> gate.armIf(mode != AlarmMode.OFF, ArmSource.ALARM) { viewModel.onAlarmMode(mode) } },
             onWindow = viewModel::onWindow,
             onStyle = viewModel::onStyle,
             onTone = viewModel::onTone,
@@ -162,17 +163,22 @@ internal fun DayPlanScreen(
             onNightSteps = viewModel::onNightSteps,
             onStepsStart = viewModel::onStepsStart,
             onEditSteps = { nav.onOpenRoutineEditor(it) },
-            onCopy = viewModel::onCopy,
+            // Copying this day's alarm onto days without one makes them ring: through the arming gate.
+            onCopy = { days, parts ->
+                val ready = viewModel.uiState.value as? DayPlanUiState.Ready
+                gate.armIf(ready?.copyArms(days, parts) ?: true, ArmSource.COPY) { viewModel.onCopy(days, parts) }
+            },
             onFixBlocker = gate::fix,
         )
     }
-    DayPlanContent(state, actions, modifier, armBlocker = gate.blocker)
+    DayPlanContent(state, actions, modifier, armBlocker = gate.blocker(ArmSource.ALARM), copyBlocker = gate.blocker(ArmSource.COPY))
 }
 
 /**
  * A day's plan for a given [state]: the Morning (wake time, alarm, window, wake-up style, sound, volume, snooze) and
  * the Evening ("Tuesday evening (before Wednesday)": bedtime, Night steps). Opens scrolled to the evening when the
- * route asks for it. [armBlocker] is why the last alarm switch-on didn't apply.
+ * route asks for it. [armBlocker] is why the last alarm switch-on didn't apply, [copyBlocker] why the last "Copy to…"
+ * that would have brought alarms to other days didn't (shown by the copy button).
  */
 @Composable
 internal fun DayPlanContent(
@@ -181,6 +187,7 @@ internal fun DayPlanContent(
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
     armBlocker: AlarmBlocker? = null,
+    copyBlocker: AlarmBlocker? = null,
     initialCopyOpen: Boolean = false,
 ) {
     var copyOpen by rememberSaveable { mutableStateOf(initialCopyOpen) }
@@ -199,7 +206,7 @@ internal fun DayPlanContent(
                     body = stringResource(R.string.tonight_unavailable_body),
                 )
             }
-            is DayPlanUiState.Ready -> ReadyDayPlan(state, actions, scrollState, armBlocker, onCopy = { copyOpen = true })
+            is DayPlanUiState.Ready -> ReadyDayPlan(state, actions, scrollState, armBlocker, copyBlocker, onCopy = { copyOpen = true })
         }
     }
     if (copyOpen && state is DayPlanUiState.Ready) {
@@ -222,6 +229,7 @@ private fun ReadyDayPlan(
     actions: DayPlanActions,
     scrollState: ScrollState,
     armBlocker: AlarmBlocker?,
+    copyBlocker: AlarmBlocker?,
     onCopy: () -> Unit,
 ) {
     // Scroll to the evening once, when the route asked for it (rotation doesn't scroll again).
@@ -277,6 +285,10 @@ private fun ReadyDayPlan(
         NightStepsCard(state, actions, card)
 
         Spacer(Modifier.height(Spacing.xl))
+        copyBlocker?.let {
+            ArmBlockerNotice(it, actions.onFixBlocker, card)
+            Spacer(Modifier.height(Spacing.m))
+        }
         SecondaryButton(
             stringResource(R.string.tonight_copy),
             onClick = onCopy,

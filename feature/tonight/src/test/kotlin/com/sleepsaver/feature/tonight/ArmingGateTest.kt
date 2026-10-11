@@ -17,8 +17,15 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.DateOverride
+import com.sleepsaver.core.domain.schedule.DayPart
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.OverrideKind
+import com.sleepsaver.core.domain.schedule.PlanPause
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.tonight.day.DayPlanScreen
+import com.sleepsaver.feature.tonight.day.DayPlanUiState
 import com.sleepsaver.feature.tonight.day.DayPlanViewModel
 import com.sleepsaver.feature.tonight.navigation.DayPlanNavigation
 import com.sleepsaver.feature.tonight.navigation.WeekPlanNavigation
@@ -33,6 +40,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import java.time.DayOfWeek
+import java.time.LocalTime
+import java.time.temporal.TemporalAdjusters
 
 /**
  * Arming needs notifications and the "Alarm" category (SPEC_V2 §5.0), tested through the real screens and
@@ -207,5 +216,78 @@ class ArmingGateTest {
         compose.waitForIdle()
 
         assertThat(saturday).isEqualTo(AlarmMode.FIXED)
+    }
+
+    // ---------------------------------------------------------------- Actions that bring an alarm back
+
+    private fun showWeekPlanWith(oneOffs: OneOffs) {
+        fakes.schedule.oneOffsState.value = oneOffs
+        showWeekPlan()
+    }
+
+    @Test
+    fun `undoing a day off waits for notifications`() {
+        val wednesday = TonightSamples.today.plusDays(1)
+        denyNotifications()
+        showWeekPlanWith(PlanSamples.oneOffs(dayOff = wednesday))
+
+        compose.onNodeWithText("Undo").performScrollTo().performClick()
+        answerPrompt(granted = false)
+
+        assertThat(fakes.schedule.clearedOverrides).isEmpty()
+        compose.onNodeWithText("Notifications are off").assertExists()
+    }
+
+    @Test
+    fun `undoing a one-off alarm on a free day never asks`() {
+        val saturday = TonightSamples.today.with(TemporalAdjusters.next(DayOfWeek.SATURDAY))
+        ringChannelOff()
+        showWeekPlanWith(
+            OneOffs(
+                listOf(
+                    DateOverride(
+                        saturday,
+                        OverrideKind.JUST_ONCE,
+                        LocalTime.of(8, 0),
+                        AlarmMode.FIXED,
+                    ),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Undo").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertThat(fakes.schedule.clearedOverrides).containsExactly(saturday)
+        compose.onNodeWithText("Alarm notifications are turned off").assertDoesNotExist()
+    }
+
+    @Test
+    fun `resuming paused alarms waits for the alarm category`() {
+        ringChannelOff()
+        showWeekPlanWith(
+            OneOffs(pause = PlanPause(TonightSamples.today, TonightSamples.today.plusDays(4))),
+        )
+
+        compose.onNodeWithText("Resume").performScrollTo().performClick()
+        compose.waitForIdle()
+
+        assertThat(fakes.schedule.oneOffsState.value.pause).isNotNull()
+        compose.onNodeWithText("Alarm notifications are turned off").assertExists()
+    }
+
+    @Test
+    fun `copying the alarm onto days without one is arming, evenings or alarm days are not`() {
+        val monday = DayPlanViewModel(
+            SavedStateHandle(mapOf("day" to DayOfWeek.MONDAY.value, "part" to "MORNING")),
+            fakes.schedule, fakes.nightSteps, fakes.patterns, fakes.nightController, fakes.time, writer,
+        )
+        compose.setContent { SleepSaverTheme { DayPlanScreen(DayPlanNavigation(), viewModel = monday) } }
+        compose.waitForIdle()
+        val ready = monday.uiState.value as DayPlanUiState.Ready
+
+        assertThat(ready.copyArms(setOf(DayOfWeek.SATURDAY), setOf(DayPart.MORNING))).isTrue()
+        assertThat(ready.copyArms(setOf(DayOfWeek.TUESDAY), setOf(DayPart.MORNING))).isFalse()
+        assertThat(ready.copyArms(setOf(DayOfWeek.SATURDAY), setOf(DayPart.EVENING))).isFalse()
     }
 }

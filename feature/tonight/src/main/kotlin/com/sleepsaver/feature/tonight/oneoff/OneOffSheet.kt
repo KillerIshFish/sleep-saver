@@ -43,6 +43,7 @@ import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.tonight.AlarmGate
 import com.sleepsaver.feature.tonight.ArmBlockerNotice
+import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.R
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -128,7 +129,7 @@ internal fun OneOffSheet(
                 mode = mode,
                 pauseDates = pauseDates,
                 pauseUntil = LocalDate.parse(pauseUntil),
-                armBlocker = gate.blocker,
+                armBlocker = gate.blocker(ArmSource.ONE_OFF),
             ),
             actions = OneOffSheetActions(
                 onDate = { picked = it.toString() },
@@ -138,7 +139,7 @@ internal fun OneOffSheet(
                 onJustOnce = {
                     val chosenTime = LocalTime.parse(time)
                     val chosenMode = mode
-                    gate.armIf(chosenMode != AlarmMode.OFF) { close { onJustOnce(day, chosenTime, chosenMode) } }
+                    gate.armIf(chosenMode != AlarmMode.OFF, ArmSource.ONE_OFF) { close { onJustOnce(day, chosenTime, chosenMode) } }
                 },
                 onPauseUntil = { pauseUntil = it.toString() },
                 onPause = { close { onPause(LocalDate.parse(pauseUntil)) } },

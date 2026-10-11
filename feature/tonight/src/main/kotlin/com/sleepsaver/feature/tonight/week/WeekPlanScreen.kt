@@ -75,6 +75,7 @@ import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.tonight.ArmBlockerNotice
+import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.R
 import com.sleepsaver.feature.tonight.TestRingMessages
@@ -123,18 +124,26 @@ internal fun WeekPlanScreen(
         WeekPlanActions(
             onBack = { nav.onBack() },
             onOpenDay = { nav.onOpenDayPlan(it) },
-            onAlarmSwitch = { day, on -> gate.armIf(on) { viewModel.onAlarmSwitch(day, on) } },
+            onAlarmSwitch = { day, on -> gate.armIf(on, ArmSource.ALARM) { viewModel.onAlarmSwitch(day, on) } },
             onChangeOneDay = { sheetOpen = true },
-            onUndoOverride = viewModel::onClearOverride,
-            onResumeAlarms = viewModel::onResumeAlarms,
+            // An Undo that brings an alarm back (a Day off) is arming; one that removes a one-off alarm isn't.
+            onUndoOverride = { date -> gate.armIf(viewModel.undoArms(date), ArmSource.ALARM) { viewModel.onClearOverride(date) } },
+            onResumeAlarms = { gate.arm(ArmSource.ALARM, viewModel::onResumeAlarms) },
             onDismissNotice = viewModel::onDismissNotice,
-            onApplyPreset = { preset, wake -> gate.arm { viewModel.onApplyPreset(preset, wake) } },
+            onApplyPreset = { preset, wake -> gate.arm(ArmSource.ALARM) { viewModel.onApplyPreset(preset, wake) } },
             onOpenAlarmCheck = { nav.onOpenAlarmCheck() },
-            onTestRing = { gate.arm(viewModel::onTestRing) },
+            onTestRing = { gate.arm(ArmSource.TEST_RING, viewModel::onTestRing) },
             onFixBlocker = gate::fix,
         )
     }
-    WeekPlanContent(state, actions, modifier, armBlocker = gate.blocker, snackbarHostState = snackbar)
+    WeekPlanContent(
+        state,
+        actions,
+        modifier,
+        armBlocker = gate.blocker(ArmSource.ALARM),
+        testRingBlocker = gate.blocker(ArmSource.TEST_RING),
+        snackbarHostState = snackbar,
+    )
 
     val context = oneOffContext
     if (sheetOpen && context != null) {
@@ -159,6 +168,7 @@ internal fun WeekPlanContent(
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
     armBlocker: AlarmBlocker? = null,
+    testRingBlocker: AlarmBlocker? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Box(
@@ -181,7 +191,7 @@ internal fun WeekPlanContent(
                     )
                 }
             }
-            is WeekPlanUiState.Ready -> ReadyWeekPlan(state, actions, scrollState, armBlocker)
+            is WeekPlanUiState.Ready -> ReadyWeekPlan(state, actions, scrollState, armBlocker, testRingBlocker)
         }
         TonightSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
@@ -190,7 +200,13 @@ internal fun WeekPlanContent(
 private val ScreenPadding = Modifier.padding(horizontal = Spacing.screenHorizontal)
 
 @Composable
-private fun ReadyWeekPlan(state: WeekPlanUiState.Ready, actions: WeekPlanActions, scrollState: ScrollState, armBlocker: AlarmBlocker?) {
+private fun ReadyWeekPlan(
+    state: WeekPlanUiState.Ready,
+    actions: WeekPlanActions,
+    scrollState: ScrollState,
+    armBlocker: AlarmBlocker?,
+    testRingBlocker: AlarmBlocker?,
+) {
     val card = ScreenPadding.fillMaxWidth()
     Column(
         Modifier
@@ -270,6 +286,7 @@ private fun ReadyWeekPlan(state: WeekPlanUiState.Ready, actions: WeekPlanActions
 
         Spacer(Modifier.height(Spacing.xl))
         Column(ScreenPadding, verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+            testRingBlocker?.let { ArmBlockerNotice(it, actions.onFixBlocker, Modifier.fillMaxWidth()) }
             SecondaryButton(stringResource(R.string.tonight_alarm_check), onClick = actions.onOpenAlarmCheck, modifier = Modifier.fillMaxWidth())
             TextLinkButton(stringResource(R.string.tonight_test_ring), onClick = actions.onTestRing, modifier = Modifier.align(Alignment.CenterHorizontally))
         }

@@ -86,6 +86,10 @@ internal sealed interface DayPlanUiState {
 
         /** The evening's bedtime: the set one, else the Settings rule's. */
         val shownBedtime: LocalTime? get() = plan.evening.bedtime ?: ruleBedtime
+
+        /** Whether copying [parts] onto [to] makes a day ring that didn't: this day's alarm onto a day without one. */
+        fun copyArms(to: Set<DayOfWeek>, parts: Set<DayPart>): Boolean =
+            DayPart.MORNING in parts && alarmOn && (to - day).any { it !in alarmDays }
     }
 }
 

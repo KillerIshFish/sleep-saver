@@ -61,6 +61,7 @@ import com.sleepsaver.feature.tonight.navigation.TonightNavigation
 import com.sleepsaver.feature.tonight.night.NightActions
 import com.sleepsaver.feature.tonight.night.NightContent
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheet
+import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.DayOfWeek
@@ -166,8 +167,9 @@ internal fun TonightScreen(
             onOpenMorningReview = { nav.onOpenMorningReview(it) },
             onDayOff = viewModel::onDayOff,
             onOneOff = { sheet = TonightSheet.OneOff(it) },
-            onTurnBackOn = viewModel::onClearOverride,
-            onResumeAlarms = viewModel::onResumeAlarms,
+            // Both bring an alarm back, so they go through the arming gate like switching one on.
+            onTurnBackOn = { date -> gate.arm(ArmSource.ALARM) { viewModel.onClearOverride(date) } },
+            onResumeAlarms = { gate.arm(ArmSource.ALARM, viewModel::onResumeAlarms) },
             onDropAnchor = { sheet = TonightSheet.Anchor },
             onMark = viewModel::onMark,
             hush = HushControlsActions(
@@ -178,7 +180,7 @@ internal fun TonightScreen(
                 onStop = viewModel::onHushStop,
             ),
             onCatnapLength = viewModel::onCatnapLength,
-            onStartCatnap = { gate.arm(viewModel::onStartCatnap) },
+            onStartCatnap = { gate.arm(ArmSource.CATNAP, viewModel::onStartCatnap) },
             onCancelCatnap = viewModel::onCancelCatnap,
             onFixBlocker = gate::fix,
             night = NightActions(
@@ -202,7 +204,8 @@ internal fun TonightScreen(
         actions = actions,
         modifier = modifier,
         alarmBlockers = gate.access.blockers,
-        armBlocker = gate.blocker,
+        alarmArmBlocker = gate.blocker(ArmSource.ALARM),
+        catnapArmBlocker = gate.blocker(ArmSource.CATNAP),
         snackbarHostState = snackbar,
     )
 
@@ -226,9 +229,9 @@ internal fun TonightScreen(
 
 /**
  * The Tonight tab for a given [state], stateless so it can be screenshot-tested without Hilt. [alarmBlockers] are the
- * phone's failing alarm checks (for the "Your alarm might not ring" notice) and [armBlocker] what stopped the last
- * attempt to start something that rings. In the NIGHT phase only the no-clock night shows. Pass a [scrollState] to
- * render it scrolled.
+ * phone's failing alarm checks (for the "Your alarm might not ring" notice); [alarmArmBlocker] and [catnapArmBlocker]
+ * are what stopped the last attempt to bring the alarm back or start a catnap, each shown in its own card. In the
+ * NIGHT phase only the no-clock night shows. Pass a [scrollState] to render it scrolled.
  */
 @Composable
 internal fun TonightContent(
@@ -237,7 +240,8 @@ internal fun TonightContent(
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
     alarmBlockers: List<AlarmBlocker> = emptyList(),
-    armBlocker: AlarmBlocker? = null,
+    alarmArmBlocker: AlarmBlocker? = null,
+    catnapArmBlocker: AlarmBlocker? = null,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     Box(
@@ -262,7 +266,7 @@ internal fun TonightContent(
                 if (state.phase == TonightPhase.NIGHT && night != null) {
                     NightContent(night = night, hush = state.hush, actions = actions.night, scrollState = scrollState)
                 } else {
-                    ReadyTonight(state, actions, scrollState, alarmBlockers, armBlocker)
+                    ReadyTonight(state, actions, scrollState, alarmBlockers, ArmBlockers(alarmArmBlocker, catnapArmBlocker))
                 }
             }
         }
@@ -276,7 +280,7 @@ private fun ReadyTonight(
     actions: TonightActions,
     scrollState: ScrollState,
     alarmBlockers: List<AlarmBlocker>,
-    armBlocker: AlarmBlocker?,
+    armBlockers: ArmBlockers,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val viewport = maxHeight
@@ -302,7 +306,7 @@ private fun ReadyTonight(
                     )
                 }
             }
-            TonightSections(state, actions, alarmBlockers, armBlocker)
+            TonightSections(state, actions, alarmBlockers, armBlockers)
         }
     }
 }
