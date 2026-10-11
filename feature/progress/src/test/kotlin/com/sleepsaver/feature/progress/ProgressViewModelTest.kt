@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -304,6 +305,29 @@ class ProgressViewModelTest {
 
         val previous = vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today.minusDays(14) } as ProgressUiState.Ready
         assertThat(previous.keel).isEqualTo(PlanSamples.keelCalibrating())
+    }
+
+    @Test
+    fun `paging reuses the patterns instead of recomputing them`() = runTest {
+        var keelSubscriptions = 0
+        var markSubscriptions = 0
+        val counting = object : com.sleepsaver.core.data.repository.PatternsRepository by patterns {
+            override val keel = patterns.keel.onStart { keelSubscriptions++ }
+            override val markEffects = patterns.markEffects.onStart { markSubscriptions++ }
+        }
+        patterns.keelState.value = PlanSamples.keelReady()
+        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, UnconfinedTestDispatcher(testScheduler), counting)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.uiState.first { (it as? ProgressUiState.Ready)?.keel != null }
+
+        vm.showPreviousWindow()
+        val previous = vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today.minusDays(14) } as ProgressUiState.Ready
+        vm.showNextWindow()
+        vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today }
+
+        assertThat(previous.keel).isEqualTo(PlanSamples.keelReady())
+        assertThat(keelSubscriptions).isEqualTo(1)
+        assertThat(markSubscriptions).isEqualTo(1)
     }
 
     @Test

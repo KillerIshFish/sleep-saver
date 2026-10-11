@@ -78,13 +78,18 @@ class ProgressViewModel @Inject constructor(
 
     private data class Patterns(val keel: KeelResult?, val socialJetlag: SocialJetlag?, val markEffects: List<MarkEffect>)
 
-    /** Keel, social jetlag and mark effects. Each starts empty and stays empty on failure, so the charts never wait. */
-    private val patterns: Flow<Patterns> = combine(
+    /**
+     * Keel, social jetlag and mark effects. Each starts empty and stays empty on failure, so the charts never wait.
+     * Shared across pages: they are "as of today", so paging must neither recompute them nor blank the cards.
+     */
+    private val patterns: StateFlow<Patterns> = combine(
         patternsRepository.keel.orDefault(null),
         patternsRepository.socialJetlag.orDefault(null),
         patternsRepository.markEffects.orDefault(emptyList()),
         ::Patterns,
-    ).distinctUntilChanged()
+    )
+        .flowOn(computeDispatcher)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), Patterns(null, null, emptyList()))
 
     val uiState: StateFlow<ProgressUiState> =
         combine(clock, windowsBack) { (today, zone), back -> Triple(today, zone, back) }
