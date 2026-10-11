@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import androidx.core.content.getSystemService
+import com.sleepsaver.core.data.hooks.ActiveNight
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.hooks.TimeProvider
@@ -22,6 +23,7 @@ import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.ReminderCategory
 import com.sleepsaver.core.domain.model.ScheduledHabit
+import com.sleepsaver.core.domain.schedule.NightRules
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -47,8 +49,9 @@ import kotlin.time.Duration.Companion.seconds
  * the alarm feature holds the permission), so a Night steps start isn't delivered late. Without that access it falls
  * back to the inexact `setAndAllowWhileIdle`, which Doze may deliver a few minutes late.
  *
- * Overnight quiet: after Drop anchor (NightController.state.night != null), due wind-down, bedtime and nap reminders
- * are marked posted without being posted. The Night steps reminder names tonight's unchecked steps.
+ * Overnight quiet: after Drop anchor (NightController.state.night != null), due wind-down, bedtime and nap reminders,
+ * and the cutoffs of the evening anchored, are marked posted without being posted ("Reminders stop for the night").
+ * The Night steps reminder names tonight's unchecked steps.
  */
 @Singleton
 class ReminderPlannerImpl internal constructor(
@@ -89,20 +92,21 @@ class ReminderPlannerImpl internal constructor(
     }
 
     private suspend fun plan(firing: Boolean) {
-        val upcoming = upcomingHabits()
+        val byEvening = upcomingHabits()
         val now = time.now()
-        if (upcoming == null) {
+        if (byEvening == null) {
             // Insights are still loading. Keep the armed alarm; if it just fired, look again shortly.
             if (firing) arm(now.plus(RETRY_WHILE_LOADING))
             return
         }
+        val upcoming = byEvening.values.flatten()
         var postedThrough = store.postedThrough ?: now.also { store.postedThrough = it }
         var lastPosted = store.lastPosted
         if (firing) {
             val due = planning.due(upcoming, now, postedThrough, lastPosted)
             // After Drop anchor the night is quiet: evening reminders count as posted without showing.
-            val anchored = nightController.state.value.night != null
-            val shown = if (anchored) due.filterNot { it.category in QUIET_AFTER_ANCHOR } else due
+            val quiet = quietAfterAnchor(nightController.state.value.night, byEvening)
+            val shown = due.filterNot(quiet)
             val routine = if (shown.any { it.type == HabitType.EVENING_ROUTINE }) chosenRoutine() else emptyList()
             shown.forEach { post(it, routine) }
             store.markPosted(due)
@@ -115,26 +119,38 @@ class ReminderPlannerImpl internal constructor(
     }
 
     /**
-     * Habits from yesterday's, today's and tomorrow's schedules; empty without nights; null while insights are still
-     * loading. The insights already carry one of those days: today's, or yesterday's for a night owl between
-     * midnight and the end of yesterday's melatonin window.
+     * What stays quiet after Drop anchor ([night] non-null): wind-down, bedtime and nap reminders, and the cutoffs of
+     * the evening anchored (its schedule's, in [byEvening]), which are pointless once settled. Another evening's
+     * cutoffs still post. Example: anchored at 21:45 for a 00:30 bedtime, the 22:30 exercise cutoff stays quiet; after
+     * an anchor at 00:30, today's 12:45 caffeine cutoff (tonight's evening) posts.
      */
-    private suspend fun upcomingHabits(): List<ScheduledHabit>? {
+    private fun quietAfterAnchor(night: ActiveNight?, byEvening: Map<LocalDate, List<ScheduledHabit>>): (ScheduledHabit) -> Boolean {
+        if (night == null) return { false }
+        val evening = NightRules.wakeDateOf(night.anchoredAt, night.offset).minusDays(1)
+        val cutoffs = byEvening[evening].orEmpty().filter { it.category == ReminderCategory.CUTOFFS }.toSet()
+        return { it.category in QUIET_AFTER_ANCHOR || it in cutoffs }
+    }
+
+    /**
+     * Habits from yesterday's, today's and tomorrow's schedules, by schedule date (the evening they lead up to); empty
+     * without nights; null while insights are still loading. The insights already carry one of those days: today's, or
+     * yesterday's for a night owl between midnight and the end of yesterday's melatonin window.
+     */
+    private suspend fun upcomingHabits(): Map<LocalDate, List<ScheduledHabit>>? {
         val state = withTimeoutOrNull(STATE_WAIT) { insights.state.first { it !is InsightsState.Loading } }
             ?: return null
-        val insightsToday = (state as? InsightsState.Ready)?.insights ?: return emptyList()
+        val insightsToday = (state as? InsightsState.Ready)?.insights ?: return emptyMap()
         val today = insightsToday.today
         val otherDays = withTimeoutOrNull(OTHER_DAYS_WAIT) {
             val settings = habits.habitSettings.first()
             coroutineScope {
                 listOf(today.minusDays(1), today, today.plusDays(1))
                     .filter { it != insightsToday.schedule.date }
-                    .map { date -> async { habitsOn(date, settings) } }
+                    .map { date -> async { date to habitsOn(date, settings) } }
                     .awaitAll()
-                    .flatten()
             }
         }
-        return insightsToday.habits + otherDays.orEmpty()
+        return mapOf(insightsToday.schedule.date to insightsToday.habits) + otherDays.orEmpty()
     }
 
     /** Best effort: a day whose schedule can't be had adds no reminders, and today's are still planned. */
@@ -214,7 +230,7 @@ class ReminderPlannerImpl internal constructor(
     private companion object {
         const val TAG = "SleepSaverReminders"
 
-        /** Reminders that stay quiet after Drop anchor. */
+        /** Reminders that stay quiet after Drop anchor, whatever their evening (the anchored evening's cutoffs too). */
         val QUIET_AFTER_ANCHOR = setOf(ReminderCategory.WIND_DOWN, ReminderCategory.BEDTIME, ReminderCategory.NAPS)
         val STATE_WAIT = 5.seconds
         val OTHER_DAYS_WAIT = 2.seconds
