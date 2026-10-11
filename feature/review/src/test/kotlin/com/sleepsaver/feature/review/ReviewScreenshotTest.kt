@@ -449,11 +449,12 @@ class ReviewScreenshotTest : ScreenshotTest() {
         }
     }
 
+    /** A morning without a planned alarm: the marks come right after the debt breakdown. */
     @Test
     fun reviewMarks() {
         val nights = landingNights(SleepStageType.LIGHT)
         captureScrolledTo("review_marks", "Last night’s marks") {
-            MorningReviewContent(landingState(nights, land(nights)), MorningReviewActions.Noop, animateResult = false)
+            MorningReviewContent(landingState(nights, land(nights)).copy(landing = null), MorningReviewActions.Noop, animateResult = false)
         }
     }
 

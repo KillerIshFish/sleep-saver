@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -499,5 +500,8 @@ class MorningReviewViewModel @Inject constructor(
     }
 }
 
-/** A flow that reads as "nothing" instead of failing, so a broken extra never takes the review down. */
-private fun <T> Flow<T?>.orNull(): Flow<T?> = catch { emit(null) }
+/**
+ * A flow that reads as "nothing" until it has a value and instead of failing, so a slow or broken extra never holds up
+ * or takes down the review.
+ */
+private fun <T> Flow<T?>.orNull(): Flow<T?> = onStart { emit(null) }.catch { emit(null) }

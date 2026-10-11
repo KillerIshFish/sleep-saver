@@ -4,7 +4,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
@@ -15,6 +19,7 @@ import com.sleepsaver.feature.progress.ProgressFixtures
 import com.sleepsaver.feature.progress.ProgressTab
 import com.sleepsaver.feature.progress.ProgressUiState
 import org.junit.Test
+import java.io.File
 
 class ProgressScreenshotTest : ScreenshotTest() {
 
@@ -142,6 +147,17 @@ class ProgressScreenshotTest : ScreenshotTest() {
         Progress(ProgressFixtures.ready(keel = PlanSamples.keelReady()), ProgressTab.SLEEP_QUALITY, firstItem = 3)
     }
 
+    /** The marks card with "Not enough nights yet" opened. */
+    @OptIn(ExperimentalRoborazziApi::class)
+    @Test
+    fun marksWaiting() {
+        captureScreen("progress_marks_waiting") { Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 3) }
+        composeRule.onNodeWithText("Not enough nights yet").performClick()
+        composeRule.mainClock.advanceTimeBy(EXPAND_SETTLE_MS)
+        composeRule.waitForIdle()
+        captureScreenRoboImage(File(System.getProperty("roborazzi.output.dir") ?: "build/outputs/roborazzi", "progress_marks_waiting.png").path)
+    }
+
     @Test
     fun keelLargeFont() = captureScreen("progress_keel_large_font") { LargeFont { Progress(sample, firstItem = 3) } }
 
@@ -158,3 +174,6 @@ class ProgressScreenshotTest : ScreenshotTest() {
         return ProgressFixtures.ready(listOf(old) + recent, windowsBack = 1)
     }
 }
+
+/** Long enough for the "Not enough nights yet" list to finish opening before the capture. */
+private const val EXPAND_SETTLE_MS = 1_000L

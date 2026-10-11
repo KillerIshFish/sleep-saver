@@ -49,6 +49,7 @@ import com.sleepsaver.core.ui.format.formatClockAxis
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatNightLabel
 import com.sleepsaver.core.ui.format.formatTimeRange
+import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.progress.NightRow
@@ -367,7 +368,12 @@ private fun NightRowItem(
             .padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        // The gap keeps a wrapped time range off the total at large font sizes.
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(end = 12.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(formatNightLabel(row.wakeDate, today), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 if (row.isEdited) {
@@ -392,7 +398,7 @@ private fun NightRowItem(
                 text = if (row.isMissing || fellAsleep == null || wokeUp == null) {
                     stringResource(R.string.progress_no_data)
                 } else {
-                    formatTimeRange(fellAsleep, wokeUp, use24h)
+                    formatTimeRange(fellAsleep, wokeUp, use24h).keepTimesTogether()
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,

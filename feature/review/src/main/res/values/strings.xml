@@ -30,7 +30,7 @@
     <string name="review_adjust">Adjust</string>
     <string name="review_dont_show">Don’t show these reviews again</string>
     <string name="review_dont_show_title">Turn off morning reviews?</string>
-    <string name="review_dont_show_body">You won’t get this check-in after you wake up. You can switch it back on anytime in Settings.</string>
+    <string name="review_dont_show_body">You won’t get this review after you wake up. You can switch it back on anytime in Settings.</string>
     <string name="review_dont_show_confirm">Turn off</string>
     <string name="review_dont_show_keep">Keep them</string>
     <string name="review_missing_title">Last night isn’t here yet</string>

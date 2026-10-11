@@ -4,7 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.MorningReview
+import com.sleepsaver.core.data.repository.NightLogRepository
 import com.sleepsaver.core.data.repository.ReviewStatus
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncResult
@@ -12,6 +14,7 @@ import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.alarm.AlarmTuning
 import com.sleepsaver.core.domain.alarm.LandingStage
 import com.sleepsaver.core.domain.alarm.TuningReason
+import com.sleepsaver.core.domain.alarm.WakeLanding
 import com.sleepsaver.core.domain.journal.FeelSource
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.MorningFeel
@@ -37,6 +40,8 @@ import com.sleepsaver.feature.review.FakeMorningReviewNotifier
 import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.edit.EditKind
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -628,9 +633,9 @@ class MorningReviewViewModelTest {
         val vm = MorningReviewViewModel(
             SavedStateHandle(mapOf("wakeDate" to today.toString())),
             sleep, insights, settings, sync, reviews, notifier, time, healthConnect,
-            object : com.sleepsaver.core.data.repository.JournalRepository by journal {
-                override fun feel(wakeDate: LocalDate) = kotlinx.coroutines.flow.flow<MorningFeelEntry?> { error("disk") }
-                override fun tomorrowList(nightOf: LocalDate) = kotlinx.coroutines.flow.flow<TomorrowList?> { error("disk") }
+            object : JournalRepository by journal {
+                override fun feel(wakeDate: LocalDate) = flow<MorningFeelEntry?> { error("disk") }
+                override fun tomorrowList(nightOf: LocalDate) = flow<TomorrowList?> { error("disk") }
             },
             nightLog, patterns,
         )
@@ -639,5 +644,21 @@ class MorningReviewViewModelTest {
         assertThat(vm.step).isInstanceOf(ReviewStep.Summary::class.java)
         assertThat(vm.uiState.value.feel).isNull()
         assertThat(vm.uiState.value.tomorrowList).isNull()
+    }
+
+    @Test
+    fun `a landing that never arrives doesn't hold up the review`() = runTest {
+        val vm = MorningReviewViewModel(
+            SavedStateHandle(mapOf("wakeDate" to today.toString())),
+            sleep, insights, settings, sync, reviews, notifier, time, healthConnect, journal,
+            object : NightLogRepository by nightLog {
+                override fun landing(wakeDate: LocalDate) = flow<WakeLanding?> { awaitCancellation() }
+            },
+            patterns,
+        )
+        advanceUntilIdle()
+
+        assertThat(vm.step).isInstanceOf(ReviewStep.Summary::class.java)
+        assertThat(vm.uiState.value.landing).isNull()
     }
 }
