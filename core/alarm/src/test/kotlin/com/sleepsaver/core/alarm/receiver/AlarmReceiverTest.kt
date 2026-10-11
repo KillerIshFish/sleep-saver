@@ -84,6 +84,41 @@ internal class AlarmReceiverTest : AlarmRobolectricTest() {
         assertThat(graph.nightLog.eventsState.value.single().outcome).isEqualTo(RingOutcome.STOPPED)
     }
 
+    @Test
+    fun `a fallback ring shows on the ringing screen, whose Stop ends it from the mirror`() {
+        armToday()
+        now = at(today, "06:30")
+
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+
+        // No service sounds it, but 303's full-screen intent opens the ringing screen: it must have a ring to show.
+        val ringing = checkNotNull(graph.nightController.state.value.ringing)
+        assertThat(ringing.wakeDate).isEqualTo(today)
+        assertThat(ringing.since).isEqualTo(now)
+        assertThat(ringing.snooze.until).isEqualTo(at(today, "06:39"))
+
+        graph.nightController.stopRinging()
+
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(m.handledIds).contains(id)
+        assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
+        assertThat(graph.nightLog.eventsState.value.single().outcome).isEqualTo(RingOutcome.STOPPED)
+    }
+
+    @Test
+    fun `the ringing screen's Snooze on a fallback ring snoozes it from the mirror`() {
+        armToday()
+        now = at(today, "06:30")
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+
+        graph.nightController.snooze()
+
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(graph.nightController.state.value.snoozedUntil).isEqualTo(at(today, "06:39"))
+        assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
+        assertThat(notifications.getNotification(AlarmActions.ID_SNOOZED)).isNotNull()
+    }
+
     // ---------------------------------------------------------------- WINDOW (T3)
 
     @Test

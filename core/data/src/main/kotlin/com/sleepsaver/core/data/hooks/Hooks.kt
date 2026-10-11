@@ -65,7 +65,10 @@ data class NightState(
     val sensing: SensingState? = null,
     val hush: HushState? = null,
     val catnap: ActiveCatnap? = null,
-    /** Only while a ring is sounding (null while snoozed). */
+    /**
+     * Only while a ring is sounding, or stands as its fallback notification because no ring service could start
+     * (null while snoozed).
+     */
     val ringing: Ringing? = null,
     val snoozedUntil: Instant? = null,
     val testPendingAt: Instant? = null,

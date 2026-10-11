@@ -16,13 +16,11 @@ import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.AlarmCoordinator
 import com.sleepsaver.core.alarm.AlarmPlatform
 import com.sleepsaver.core.alarm.AlarmSchedulerImpl
-import com.sleepsaver.core.alarm.AlarmText
 import com.sleepsaver.core.alarm.NightControllerImpl
 import com.sleepsaver.core.alarm.mirror.MirroredRinging
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.receiver.RingWakeLock
 import com.sleepsaver.core.alarm.synth.ToneSynth
-import com.sleepsaver.core.data.hooks.Ringing
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.SnoozeOffer
@@ -321,29 +319,10 @@ internal class AlarmRingService : Service() {
         foreground = true
     }
 
-    /** NightController.state.ringing: published only by this running service. */
+    /** NightController.state.ringing for the sounding ring (the controller adds a fallback ring from the mirror). */
     private fun publish() {
         val active = sounding
-        val r = active?.ringing
-        val alarm = r?.alarm
-        nightController.publishRinging(
-            if (r == null || alarm == null) {
-                null
-            } else {
-                Ringing(
-                    kind = r.kind,
-                    reason = r.ringReason,
-                    since = r.since,
-                    target = alarm.target.takeIf { r.kind != RingKind.TEST },
-                    wakeDate = alarm.wakeDate.takeIf { r.kind == RingKind.PLANNED },
-                    earlyBy = Duration.ofMinutes(AlarmText.minutesEarly(r.since, alarm.target)).takeIf { r.kind == RingKind.PLANNED } ?: Duration.ZERO,
-                    snooze = active.offer,
-                    style = alarm.wakeStyle,
-                    use24h = coordinator.read().use24h,
-                    zone = time.zone(),
-                )
-            },
-        )
+        nightController.publishRinging(active?.ringing?.toRinging(active.offer, coordinator.read().use24h, time.zone()))
     }
 
     private fun requestOf(intent: Intent): RingRequest {
