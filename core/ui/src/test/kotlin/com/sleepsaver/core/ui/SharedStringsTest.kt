@@ -1,11 +1,13 @@
 package com.sleepsaver.core.ui
 
 import android.content.Context
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.sleepsaver.core.domain.alarm.HushColor
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.nightsteps.EvidenceLevel
@@ -18,6 +20,7 @@ import com.sleepsaver.core.domain.schedule.SnoozeStyle
 import com.sleepsaver.core.domain.schedule.WakeStyle
 import com.sleepsaver.core.ui.components.actionLabelRes
 import com.sleepsaver.core.ui.components.descriptionRes
+import com.sleepsaver.core.ui.components.fix
 import com.sleepsaver.core.ui.components.fixRes
 import com.sleepsaver.core.ui.components.howToRes
 import com.sleepsaver.core.ui.components.labelRes
@@ -25,12 +28,17 @@ import com.sleepsaver.core.ui.components.sourceRes
 import com.sleepsaver.core.ui.components.titleRes
 import com.sleepsaver.core.ui.components.whyRes
 import com.sleepsaver.core.ui.platform.AlarmBlocker
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Duration
 
 /** The shared copy in SPEC_V2 §5.1, word for word, reached through the visuals features use. */
 @RunWith(AndroidJUnit4::class)
 class SharedStringsTest {
+
+    @get:Rule
+    val compose = createComposeRule()
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private fun text(id: Int, vararg args: Any): String = context.getString(id, *args)
@@ -159,6 +167,7 @@ class SharedStringsTest {
             mapOf(
                 AlarmBlocker.NOTIFICATIONS_OFF to "Alarms need notifications to show the Stop button.",
                 AlarmBlocker.RING_CHANNEL_OFF to "Turn on the \"Alarm\" category in notification settings.",
+                AlarmBlocker.EXACT_ALARMS_OFF to null,
                 AlarmBlocker.FULL_SCREEN_OFF to "The alarm shows as a banner instead of filling the screen.",
                 AlarmBlocker.BACKGROUND_RESTRICTED to
                     "Android may stop the alarm. Set Sleep Saver's battery use to Unrestricted or Optimized.",
@@ -169,8 +178,6 @@ class SharedStringsTest {
                 AlarmBlocker.BLUETOOTH_OUTPUT to "Your alarm may play there instead of on the phone.",
             ),
         ) { it.fixRes }
-        assertThat(text(AlarmBlocker.EXACT_ALARMS_OFF.fixRes, 10))
-            .isEqualTo("Without it, your alarm may ring up to 10 minutes early.")
         assertCopy(
             mapOf(
                 AlarmBlocker.NOTIFICATIONS_OFF to "Allow",
@@ -184,6 +191,21 @@ class SharedStringsTest {
                 AlarmBlocker.BLUETOOTH_OUTPUT to null,
             ),
         ) { it.actionLabelRes }
+    }
+
+    @Test
+    fun `the exact-alarm fix counts the minutes an alarm may ring early`() {
+        fun window(minutes: Long) = SleepConfig.DEFAULT.run { copy(alarm = alarm.copy(inexactRingWindow = Duration.ofMinutes(minutes))) }
+        var usual = ""
+        var one = ""
+        compose.setContent {
+            usual = AlarmBlocker.EXACT_ALARMS_OFF.fix()
+            one = AlarmBlocker.EXACT_ALARMS_OFF.fix(window(1))
+        }
+        compose.waitForIdle()
+
+        assertThat(usual).isEqualTo("Without it, your alarm may ring up to 10 minutes early.")
+        assertThat(one).isEqualTo("Without it, your alarm may ring up to 1 minute early.")
     }
 
     @Test

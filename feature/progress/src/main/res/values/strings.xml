@@ -59,10 +59,16 @@
     <string name="progress_jetlag_earlier">Social jetlag: free days run %1$s earlier</string>
     <string name="progress_jetlag_aligned">Free days and alarm days line up well.</string>
     <string name="progress_jetlag_weekend">(free days are Sat and Sun until you set alarms)</string>
-    <!-- %1$d = the days Keel looks back over (14) -->
-    <string name="progress_keel_caption">Keel compares when you\'re asleep, 24 hours apart, across the last %1$d days.</string>
-    <!-- "Keel · Calibrating: 4 of 7 days with nights" -->
-    <string name="progress_keel_calibrating">Keel · Calibrating: %1$d of %2$d days with nights</string>
+    <!-- %1$d = the days Keel looks back over (14). Quantity: those days. -->
+    <plurals name="progress_keel_caption">
+        <item quantity="one">Keel compares when you\'re asleep, 24 hours apart, across the last %1$d day.</item>
+        <item quantity="other">Keel compares when you\'re asleep, 24 hours apart, across the last %1$d days.</item>
+    </plurals>
+    <!-- "Keel · Calibrating: 4 of 7 days with nights". Quantity: the days needed (%2$d). -->
+    <plurals name="progress_keel_calibrating">
+        <item quantity="one">Keel · Calibrating: %1$d of %2$d day with nights</item>
+        <item quantity="other">Keel · Calibrating: %1$d of %2$d days with nights</item>
+    </plurals>
     <!-- Enough nights, but no two of them in a row (every other night) -->
     <string name="progress_keel_calibrating_pairs">Keel · Calibrating: needs two nights in a row</string>
     <!-- Screen readers: "Keel 84, Even keel" -->
@@ -116,8 +122,12 @@
 
     <!-- What went with your nights (Quality tab): patterns, never causes -->
     <string name="progress_marks_title">What went with your nights</string>
-    <!-- "Nights after alcohol: about 25 min less sleep (8 vs 31 nights)" -->
-    <string name="progress_marks_row">%1$s: %2$s (%3$d vs %4$d nights)</string>
+    <!-- "Nights after alcohol: about 25 min less sleep (8 vs 31 nights)". Quantity: the nights without it (%4$d), the
+         number next to the noun. -->
+    <plurals name="progress_marks_row">
+        <item quantity="one">%1$s: %2$s (%3$d vs %4$d night)</item>
+        <item quantity="other">%1$s: %2$s (%3$d vs %4$d nights)</item>
+    </plurals>
     <!-- %1$s = "about 25 min" -->
     <string name="progress_marks_more_sleep">%1$s more sleep</string>
     <string name="progress_marks_less_sleep">%1$s less sleep</string>
@@ -138,12 +148,21 @@
     <!-- Screen readers, the state of the "Not enough nights yet" list -->
     <string name="progress_marks_expanded">Expanded</string>
     <string name="progress_marks_collapsed">Collapsed</string>
-    <!-- "Stress: 4 of 6 nights" -->
-    <string name="progress_marks_waiting">%1$s: %2$d of %3$d nights</string>
-    <string name="progress_marks_waiting_without">%1$s: %2$d of %3$d nights without it</string>
+    <!-- "Stress: 4 of 6 nights". Quantity: the nights needed (%3$d). -->
+    <plurals name="progress_marks_waiting">
+        <item quantity="one">%1$s: %2$d of %3$d night</item>
+        <item quantity="other">%1$s: %2$d of %3$d nights</item>
+    </plurals>
+    <plurals name="progress_marks_waiting_without">
+        <item quantity="one">%1$s: %2$d of %3$d night without it</item>
+        <item quantity="other">%1$s: %2$d of %3$d nights without it</item>
+    </plurals>
     <string name="progress_marks_caveat">This shows what went together, not what caused it.</string>
-    <!-- Both numbers are the nights a mark needs on each side (6) -->
-    <string name="progress_marks_empty">Add marks in the morning review or during Night steps. Patterns show once a mark has %1$d nights with it and %1$d without.</string>
+    <!-- Both numbers are the nights a mark needs on each side (6). Quantity: those nights. -->
+    <plurals name="progress_marks_empty">
+        <item quantity="one">Add marks in the morning review or during Night steps. Patterns show once a mark has %1$d night with it and %1$d without.</item>
+        <item quantity="other">Add marks in the morning review or during Night steps. Patterns show once a mark has %1$d nights with it and %1$d without.</item>
+    </plurals>
     <!-- Marks have enough nights, but none goes with a clear difference -->
     <string name="progress_marks_none_stand_out">No mark goes with a clear difference in your nights so far.</string>
     <string name="progress_mark_nights_late_caffeine">Nights after late caffeine</string>

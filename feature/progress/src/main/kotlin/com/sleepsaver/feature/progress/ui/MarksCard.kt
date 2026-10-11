@@ -69,7 +69,7 @@ internal fun MarksCard(marks: MarkPatterns, modifier: Modifier = Modifier, confi
                 text = if (marks.anyMeasured) {
                     stringResource(R.string.progress_marks_none_stand_out)
                 } else {
-                    stringResource(R.string.progress_marks_empty, config.journal.marksMinPerSide)
+                    pluralStringResource(R.plurals.progress_marks_empty, config.journal.marksMinPerSide, config.journal.marksMinPerSide)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
@@ -106,8 +106,9 @@ private fun EffectRow(effect: MarkEffect) {
         verticalArrangement = Arrangement.spacedBy(Spacing.s),
     ) {
         Text(
-            text = stringResource(
-                R.string.progress_marks_row,
+            text = pluralStringResource(
+                R.plurals.progress_marks_row,
+                effect.withoutNights,
                 stringResource(nightsRes),
                 effectText(effect),
                 effect.withNights,
@@ -205,8 +206,9 @@ private fun WaitingList(marks: MarkPatterns) {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 marks.waiting.forEach { progress ->
                     Text(
-                        text = stringResource(
-                            if (progress.shortOnNightsWith) R.string.progress_marks_waiting else R.string.progress_marks_waiting_without,
+                        text = pluralStringResource(
+                            if (progress.shortOnNightsWith) R.plurals.progress_marks_waiting else R.plurals.progress_marks_waiting_without,
+                            progress.needed,
                             progress.mark.label(),
                             progress.nights,
                             progress.needed,
