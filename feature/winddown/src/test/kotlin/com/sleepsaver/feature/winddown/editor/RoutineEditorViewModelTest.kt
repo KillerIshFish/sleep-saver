@@ -216,7 +216,9 @@ class RoutineEditorViewModelTest {
         viewModel.setIncluded(3, false)
         viewModel.addCustom("Puzzle", "🧩")
 
-        assertThat(nightSteps.included).isEmpty()
+        // The new custom step is on Friday's list only, not on every evening's.
+        assertThat(nightSteps.included).containsExactly(11L to false)
+        assertThat(nightSteps.activitiesState.value.first { it.id == 11L }.selected).isFalse()
         assertThat(schedule.dayRoutines).containsExactly(
             DayOfWeek.FRIDAY to listOf(3L, 1L, 7L),
             DayOfWeek.FRIDAY to listOf(1L, 7L),

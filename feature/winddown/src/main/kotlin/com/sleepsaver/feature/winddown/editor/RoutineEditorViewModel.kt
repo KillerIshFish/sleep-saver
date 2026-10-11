@@ -184,19 +184,24 @@ internal class RoutineEditorViewModel @Inject constructor(
     }
 
     /**
-     * "Add your own": a custom activity at `steps.customLead` / `customDuration`, selected for every evening and, on
-     * a day with its own list, added to that list too. Blank labels add nothing.
+     * "Add your own": a custom activity at `steps.customLead` / `customDuration`. Every evening: selected for every
+     * evening. A day with its own list: on that list only (addCustom selects it for every evening, so that is undone in
+     * the same write). Blank labels add nothing.
      */
     fun addCustom(label: String, emoji: String) {
         val trimmed = label.trim()
         if (trimmed.isEmpty()) return
         val icon = emoji.trim().ifEmpty { DEFAULT_CUSTOM_EMOJI }
+        val day = day
+        val ownList = day?.let { ready?.ownList }
         viewModelScope.launch {
             val id = writer.saveFor("Adding $trimmed") {
-                nightSteps.addCustom(trimmed, icon, config.steps.customLead, config.steps.customDuration)
+                nightSteps.addCustom(trimmed, icon, config.steps.customLead, config.steps.customDuration).also { id ->
+                    if (ownList != null) nightSteps.setIncluded(id, false)
+                }
             } ?: return@launch
-            val day = day ?: return@launch
-            val own = ready?.ownList ?: return@launch
+            if (day == null || ownList == null) return@launch
+            val own = ready?.ownList ?: ownList
             if (id !in own) saveOwn(day, own + id)
         }
     }

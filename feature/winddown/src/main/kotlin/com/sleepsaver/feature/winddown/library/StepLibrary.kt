@@ -44,10 +44,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import com.sleepsaver.core.data.repository.NightStepsRepository
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.nightsteps.GuidedTool
@@ -74,16 +77,23 @@ import com.sleepsaver.feature.winddown.R
 import com.sleepsaver.feature.winddown.UnavailableBody
 import com.sleepsaver.feature.winddown.WinddownSurface
 import com.sleepsaver.feature.winddown.WinddownWriter
+import com.sleepsaver.feature.winddown.navigation.StepLibraryRoute
 import com.sleepsaver.feature.winddown.steps.EmojiCircle
 import com.sleepsaver.feature.winddown.steps.textRes
 import com.sleepsaver.feature.winddown.tools.ScreenTools
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import javax.inject.Inject
 
 // ---------------------------------------------------------------- State
@@ -99,33 +109,53 @@ internal sealed interface StepLibraryUiState {
     data class Ready(
         val suggestions: List<StepSuggestion>,
         val sections: List<LibrarySection>,
-        /** Techniques already in the every-evening list. */
+        /** Techniques already in the list "Add" adds to (the every-evening list, or the day's own list). */
         val inSteps: Set<Technique>,
     ) : StepLibraryUiState
 }
 
-/** Screen-based techniques (TV, Gaming) are never listed; groups keep StepCategory order, techniques enum order. */
+/**
+ * Screen-based techniques (TV, Gaming) are never listed; groups keep StepCategory order, techniques enum order.
+ * [ownList] = the edited day's own list (activity ids); null = the every-evening list ("selected").
+ */
 internal fun stepLibraryUiState(
     suggestions: List<StepSuggestion>,
     activities: List<RoutineActivity>,
+    ownList: List<Long>? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): StepLibraryUiState.Ready {
     val listed = Technique.entries.filter { !it.screenBased }
+    val inList = if (ownList == null) activities.filter { it.selected } else activities.filter { it.id in ownList }
     return StepLibraryUiState.Ready(
         suggestions = suggestions.filter { !it.technique.screenBased }.take(config.steps.suggestionMax),
         sections = StepCategory.entries.mapNotNull { category ->
             listed.filter { it.category == category }.takeIf { it.isNotEmpty() }?.let { LibrarySection(category, it) }
         },
-        inSteps = activities.filter { it.selected }.mapNotNullTo(LinkedHashSet()) { it.technique },
+        inSteps = inList.mapNotNullTo(LinkedHashSet()) { it.technique },
     )
 }
 
-/** The step library: every technique with how-to, evidence and why it helps; "Add" puts it in the every-evening list. */
+/**
+ * The step library: every technique with how-to, evidence and why it helps. "Add" puts it in the every-evening list,
+ * or, opened from the editor of a day with its own list ([StepLibraryRoute.day]), on that day's list only.
+ */
 @HiltViewModel
 internal class StepLibraryViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val nightSteps: NightStepsRepository,
+    private val schedule: ScheduleRepository,
     private val writer: WinddownWriter,
 ) : ViewModel() {
+
+    /** StepLibraryRoute.day; null = every evening. */
+    private val day: DayOfWeek? = runCatching { savedStateHandle.toRoute<StepLibraryRoute>().day }
+        .getOrDefault(0)
+        .takeIf { it in 1..7 }
+        ?.let { DayOfWeek.of(it) }
+
+    /** The edited day's own list, or null (every evening, or the day follows it). */
+    private val ownList: Flow<List<Long>?> =
+        if (day == null) flowOf(null) else schedule.weekPlan.map { it.day(day).evening.routine }.distinctUntilChanged()
 
     val uiState: StateFlow<StepLibraryUiState> = combine(
         nightSteps.suggestions.catch {
@@ -133,16 +163,32 @@ internal class StepLibraryViewModel @Inject constructor(
             emit(emptyList())
         },
         nightSteps.activities,
-    ) { suggestions, activities -> stepLibraryUiState(suggestions, activities) }
+        ownList,
+    ) { suggestions, activities, own -> stepLibraryUiState(suggestions, activities, own) }
         .catch<StepLibraryUiState> {
             Log.w(LOG_TAG, "Loading the step library failed", it)
             emit(StepLibraryUiState.Unavailable)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StepLibraryUiState.Loading)
 
-    /** [label] is the technique's title, resolved in composition (never inside the click lambda). */
+    /**
+     * [label] is the technique's title, resolved in composition (never inside the click lambda). On a day with its own
+     * list the step goes on that list only: addTechnique selects it for every evening, so that is undone unless it
+     * was already there. One write, so nothing can land in between.
+     */
     fun add(technique: Technique, label: String) {
-        viewModelScope.launch { writer.save("Adding $technique") { nightSteps.addTechnique(technique, label) } }
+        val day = day
+        viewModelScope.launch {
+            writer.save("Adding $technique") {
+                val own = day?.let { schedule.weekPlan.first().day(it).evening.routine }
+                val wasEveryEvening = nightSteps.activities.first().any { it.technique == technique && it.selected }
+                val id = nightSteps.addTechnique(technique, label)
+                if (day != null && own != null) {
+                    if (!wasEveryEvening) nightSteps.setIncluded(id, false)
+                    if (id !in own) schedule.setDayRoutine(day, own + id)
+                }
+            }
+        }
     }
 }
 

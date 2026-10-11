@@ -27,9 +27,12 @@ data object NightStepsRoute
 @Serializable
 data class RoutineEditorRoute(val day: Int = 0)
 
-/** The step library. */
+/**
+ * The step library. [day] = the weekday whose routine editor opened it (DayOfWeek.value), 0 = every evening: on a day
+ * with its own list, "Add" puts the step on that list only.
+ */
 @Serializable
-data object StepLibraryRoute
+data class StepLibraryRoute(val day: Int = 0)
 
 /** A guided tool. [tool] = GuidedTool.name (SLOW_TIDE, BODY_SCAN, MUSCLE_RELEASE, TOMORROW_LIST). */
 @Serializable
@@ -110,10 +113,12 @@ internal fun NavGraphBuilder.nightStepsGraph(
             ),
         )
     }
-    composable<RoutineEditorRoute> {
+    composable<RoutineEditorRoute> { entry ->
+        val day = entry.toRoute<RoutineEditorRoute>().day.takeIf { it in 1..7 }?.let(DayOfWeek::of)
         screens.editor(
             dropUnlessResumed { navController.popBackStack() },
-            dropUnlessResumed { navController.navigateToStepLibrary() },
+            // The library adds to the list being edited: this day's own list, or every evening.
+            dropUnlessResumed { navController.navigateToStepLibrary(day) },
         )
     }
     composable<StepLibraryRoute> { entry ->
@@ -141,7 +146,8 @@ fun NavController.navigateToNightSteps() = navigate(NightStepsRoute) { launchSin
 /** null = every evening. */
 fun NavController.navigateToRoutineEditor(day: DayOfWeek?) = navigate(RoutineEditorRoute(day?.value ?: 0)) { launchSingleTop = true }
 
-fun NavController.navigateToStepLibrary() = navigate(StepLibraryRoute) { launchSingleTop = true }
+/** null = every evening; else the weekday whose routine is being edited. */
+fun NavController.navigateToStepLibrary(day: DayOfWeek? = null) = navigate(StepLibraryRoute(day?.value ?: 0)) { launchSingleTop = true }
 
 fun NavController.navigateToGuidedTool(tool: GuidedTool) = navigate(GuidedToolRoute(tool.name)) { launchSingleTop = true }
 

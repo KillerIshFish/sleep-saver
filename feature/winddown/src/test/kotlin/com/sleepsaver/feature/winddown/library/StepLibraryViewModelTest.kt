@@ -1,12 +1,15 @@
 package com.sleepsaver.feature.winddown.library
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.nightsteps.StepCategory
 import com.sleepsaver.core.domain.nightsteps.StepSuggestion
 import com.sleepsaver.core.domain.nightsteps.SuggestionReason
 import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.FakeNightStepsRepository
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.feature.winddown.writer
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +24,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.DayOfWeek
 
 @RunWith(AndroidJUnit4::class)
 class StepLibraryViewModelTest {
@@ -33,8 +37,11 @@ class StepLibraryViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.viewModel(): StepLibraryViewModel {
-        val viewModel = StepLibraryViewModel(nightSteps, writer())
+    private val schedule = FakeScheduleRepository(week = WeekPlan.DEFAULT)
+
+    /** [day] as StepLibraryRoute carries it: DayOfWeek.value, 0 = every evening. */
+    private fun TestScope.viewModel(day: Int = 0): StepLibraryViewModel {
+        val viewModel = StepLibraryViewModel(SavedStateHandle(mapOf("day" to day)), nightSteps, schedule, writer())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
     }
@@ -80,5 +87,46 @@ class StepLibraryViewModelTest {
 
         assertThat(nightSteps.techniquesAdded).containsExactly(Technique.BODY_SCAN to "Body scan")
         assertThat(viewModel.ready().inSteps).contains(Technique.BODY_SCAN)
+        assertThat(schedule.dayRoutines).isEmpty()
+    }
+
+    @Test
+    fun `from a day with its own list, Add puts the step on that list only`() = runTest {
+        val friday = WeekPlan.DEFAULT.day(DayOfWeek.FRIDAY)
+        val slowTide = nightSteps.activitiesState.value.first { it.technique == Technique.SLOW_TIDE }.id
+        schedule.weekState.value = WeekPlan.DEFAULT.with(friday.copy(evening = friday.evening.copy(routine = listOf(slowTide))))
+        val viewModel = viewModel(day = DayOfWeek.FRIDAY.value)
+        assertThat(viewModel.ready().inSteps).containsExactly(Technique.SLOW_TIDE)
+
+        viewModel.add(Technique.BODY_SCAN, "Body scan")
+
+        val bodyScan = nightSteps.activitiesState.value.first { it.technique == Technique.BODY_SCAN }
+        assertThat(bodyScan.selected).isFalse()
+        assertThat(schedule.dayRoutines).containsExactly(DayOfWeek.FRIDAY to listOf(slowTide, bodyScan.id))
+        assertThat(viewModel.ready().inSteps).containsExactly(Technique.SLOW_TIDE, Technique.BODY_SCAN)
+    }
+
+    @Test
+    fun `from a day with its own list, a step already on every evening stays there`() = runTest {
+        val friday = WeekPlan.DEFAULT.day(DayOfWeek.FRIDAY)
+        schedule.weekState.value = WeekPlan.DEFAULT.with(friday.copy(evening = friday.evening.copy(routine = emptyList())))
+        val viewModel = viewModel(day = DayOfWeek.FRIDAY.value)
+
+        viewModel.add(Technique.TOMORROW_LIST, "Tomorrow list")
+
+        val tomorrowList = nightSteps.activitiesState.value.first { it.technique == Technique.TOMORROW_LIST }
+        assertThat(tomorrowList.selected).isTrue()
+        assertThat(nightSteps.included).isEmpty()
+        assertThat(schedule.dayRoutines).containsExactly(DayOfWeek.FRIDAY to listOf(tomorrowList.id))
+    }
+
+    @Test
+    fun `from a day that follows every evening, Add works on every evening`() = runTest {
+        val viewModel = viewModel(day = DayOfWeek.FRIDAY.value)
+
+        viewModel.add(Technique.BODY_SCAN, "Body scan")
+
+        assertThat(nightSteps.activitiesState.value.first { it.technique == Technique.BODY_SCAN }.selected).isTrue()
+        assertThat(schedule.dayRoutines).isEmpty()
     }
 }

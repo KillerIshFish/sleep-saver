@@ -133,6 +133,8 @@ class WinddownNavigationTest {
         setUpNavHost()
         compose.onNodeWithText("edit tuesday").performClick()
         compose.onNodeWithText("editor library").performClick()
+        // The library adds to the list being edited: Tuesday's.
+        compose.runOnIdle { assertThat(navController.currentBackStackEntry!!.toRoute<StepLibraryRoute>().day).isEqualTo(2) }
 
         compose.onNodeWithText("try body scan").performClick()
         compose.onNodeWithText("close BODY_SCAN").performClick()
