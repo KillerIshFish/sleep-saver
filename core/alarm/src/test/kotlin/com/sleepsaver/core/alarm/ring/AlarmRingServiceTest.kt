@@ -2,6 +2,7 @@ package com.sleepsaver.core.alarm.ring
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.Service
 import android.content.pm.ServiceInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -10,6 +11,7 @@ import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredCatnap
 import com.sleepsaver.core.alarm.mirror.MirroredNight
+import com.sleepsaver.core.alarm.receiver.AlarmReceiver
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
 import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.alarm.RingKind
@@ -268,6 +270,47 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(m.ringing).isNull()
         assertThat(m.extra).isNull()
         assertThat(events.single().outcome).isEqualTo(RingOutcome.MISSED)
+    }
+
+    // ---------------------------------------------------------------- T14
+
+    @Test
+    fun `a sounding ring is sticky and guarded until its timeout, and its end cancels the guard`() {
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+
+        val guard = scheduled(AlarmActions.RC_RING_GUARD).single()
+        assertThat(guard.triggerAtMs).isEqualTo((target + Duration.ofMinutes(10)).toEpochMilli())
+        assertThat(guard.isAllowWhileIdle).isTrue()
+        assertThat(guard.alarmClockInfo).isNull() // not shown as the next alarm
+        assertThat(ring.get().onStartCommand(ringAction(AlarmActions.ACTION_REPOST), 0, 7)).isEqualTo(Service.START_STICKY)
+
+        now = target + Duration.ofMinutes(1)
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(scheduled(AlarmActions.RC_RING_GUARD)).isEmpty()
+        assertThat(ring.get().onStartCommand(ringAction(AlarmActions.ACTION_REPOST), 0, 8)).isEqualTo(Service.START_NOT_STICKY)
+    }
+
+    @Test
+    fun `a ring whose process died times out at its guard, and its backup still comes`() {
+        armAndReachWakeTime()
+        startRing(AlarmActions.KIND_PLAN, id)
+        val guard = shadowOf(scheduled(AlarmActions.RC_RING_GUARD).single().operation).savedIntent
+        // The process dies a minute in: no onDestroy, no mirror change, and nothing is due until tomorrow's RING_PLAN.
+        AlarmRingService.running = false
+        AlarmRingService.current = null
+        assertThat(ringExtraAt).isNull()
+
+        now = target + Duration.ofMinutes(10)
+        AlarmReceiver().onReceive(context, guard)
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.handledIds).contains(id)
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+        assertThat(ringExtraAt).isEqualTo(target + Duration.ofMinutes(15))
+        assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
+        assertThat(scheduled(AlarmActions.RC_RING_GUARD)).isEmpty()
     }
 
     @Test

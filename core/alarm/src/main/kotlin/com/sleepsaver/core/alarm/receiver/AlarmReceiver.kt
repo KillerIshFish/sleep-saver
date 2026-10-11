@@ -24,8 +24,9 @@ import com.sleepsaver.core.domain.alarm.SensingOutcome
 import com.sleepsaver.core.domain.config.SleepConfig
 
 /**
- * The alarm broadcasts (SPEC_V2 §4.4): RING (T5), WINDOW (T3), and the notification actions Stop-while-snoozed,
- * Cancel catnap, Stop Hush and Hush +15 min. Only our own explicit PendingIntents reach it (exported=false).
+ * The alarm broadcasts (SPEC_V2 §4.4): RING (T5), WINDOW (T3), the ring guard (T14), and the notification actions
+ * Stop-while-snoozed, Cancel catnap, Stop Hush and Hush +15 min. Only our own explicit PendingIntents reach it
+ * (exported=false).
  * Direct-boot aware. RING and WINDOW start their service synchronously in onReceive, while the exact alarm's
  * foreground-service start exemption holds.
  */
@@ -41,7 +42,18 @@ internal class AlarmReceiver : BroadcastReceiver() {
             AlarmActions.ACTION_CANCEL_CATNAP -> entry.nightController().cancelCatnap()
             AlarmActions.ACTION_HUSH_STOP -> entry.nightController().stopHush()
             AlarmActions.ACTION_HUSH_EXTEND -> entry.nightController().extendHush(SleepConfig.DEFAULT.hush.extendStep)
+            AlarmActions.ACTION_RING_GUARD -> onRingGuard(context, entry)
         }
+    }
+
+    /**
+     * T14: a ring's timeout passed while `ringing` still stood (the coordinator's RING_GUARD). Its process died, or it
+     * only ever stood as notification 303. The mirror re-arm's reconcile resumes it or times it out and arms its
+     * backup; a 303 whose ring is over goes. A ring service that is still sounding answers it itself (no change).
+     */
+    private fun onRingGuard(context: Context, entry: AlarmEntryPoint) {
+        entry.scheduler().get().rearmFromMirror()
+        if (entry.coordinator().read().ringing == null) RingNotifications.cancel(context, AlarmActions.ID_RING_FALLBACK)
     }
 
     /**

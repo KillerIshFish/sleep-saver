@@ -84,11 +84,17 @@ internal sealed interface AlarmAction {
     /** setAlarmClock(at, RING_CATNAP). */
     data class ArmCatnap(val at: Instant) : AlarmAction
 
+    /** setExactAndAllowWhileIdle(at, RING_GUARD) (inexact allow-while-idle when exact alarms aren't allowed). */
+    data class ArmGuard(val at: Instant) : AlarmAction
+
     data class Cancel(val alarm: PendingAlarm) : AlarmAction
 }
 
-/** The four AlarmManager PendingIntents core:alarm owns. */
-internal enum class PendingAlarm { RING_PLAN, WINDOW, RING_EXTRA, RING_CATNAP }
+/**
+ * The AlarmManager PendingIntents core:alarm owns: the plan channel, the two extra channels, and RING_GUARD, which
+ * follows `ringing` (AlarmCoordinator arms it at the ring's timeout, so a ring that outlives its process is resolved).
+ */
+internal enum class PendingAlarm { RING_PLAN, WINDOW, RING_EXTRA, RING_CATNAP, RING_GUARD }
 
 /** The result of one coordinator apply: the new mirror, a value for the caller, and the AlarmManager calls to make. */
 internal data class MirrorUpdate<out T>(val state: MirrorState, val value: T, val actions: List<AlarmAction> = emptyList())

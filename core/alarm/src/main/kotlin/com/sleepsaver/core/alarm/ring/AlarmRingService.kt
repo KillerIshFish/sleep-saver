@@ -83,6 +83,11 @@ internal class AlarmRingService : Service() {
         AlarmChannels.ensure(this)
     }
 
+    /**
+     * Sticky while a ring sounds (T14): if the process dies mid-ring, the system restarts the service, and that start's
+     * reconcile (Application.onCreate) resumes the ring right away instead of only at the ring guard's timeout. The
+     * restart's null intent then finds nothing sounding and goes.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             AlarmActions.ACTION_RING -> onRing(requestOf(intent))
@@ -92,7 +97,7 @@ internal class AlarmRingService : Service() {
             else -> if (sounding == null) finishIdle()
         }
         RingWakeLock.release()
-        return START_NOT_STICKY
+        return if (sounding != null) START_STICKY else START_NOT_STICKY
     }
 
     override fun onDestroy() {

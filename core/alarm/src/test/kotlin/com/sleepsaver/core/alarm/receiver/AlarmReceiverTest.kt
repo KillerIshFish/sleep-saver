@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
+import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.ring.AlarmRingService
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
@@ -82,6 +83,39 @@ internal class AlarmReceiverTest : AlarmRobolectricTest() {
         assertThat(m.handledIds).contains(id)
         assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
         assertThat(graph.nightLog.eventsState.value.single().outcome).isEqualTo(RingOutcome.STOPPED)
+    }
+
+    @Test
+    fun `a refused ring times out at its guard, 303 goes and the backup ring still comes`() {
+        armToday()
+        now = at(today, "06:30")
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+        assertThat(armedAt(AlarmActions.RC_RING_GUARD)).isEqualTo(at(today, "06:40"))
+
+        now = at(today, "06:40")
+        receive(broadcastOf(AlarmActions.RC_RING_GUARD))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.handledIds).contains(id)
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+        assertThat(ringExtraAt).isEqualTo(at(today, "06:45"))
+        assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
+        assertThat(graph.nightLog.eventsState.value.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
+        assertThat(scheduled(AlarmActions.RC_RING_GUARD)).isEmpty()
+    }
+
+    @Test
+    fun `the guard of a ring that is still sounding changes nothing`() {
+        armToday()
+        now = at(today, "06:30")
+        startRing(AlarmActions.KIND_PLAN, id)
+        val ringing = m.ringing
+
+        now = at(today, "06:40")
+        receive(broadcastOf(AlarmActions.RC_RING_GUARD))
+
+        assertThat(m.ringing).isEqualTo(ringing)
+        assertThat(m.extra).isNull()
     }
 
     // ---------------------------------------------------------------- WINDOW (T3)

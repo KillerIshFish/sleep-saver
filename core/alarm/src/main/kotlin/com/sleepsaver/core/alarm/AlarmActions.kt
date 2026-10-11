@@ -15,6 +15,7 @@ internal object AlarmActions {
     const val ACTION_CANCEL_CATNAP = PREFIX + "CANCEL_CATNAP"
     const val ACTION_HUSH_STOP = PREFIX + "HUSH_STOP"
     const val ACTION_HUSH_EXTEND = PREFIX + "HUSH_EXTEND"
+    const val ACTION_RING_GUARD = PREFIX + "RING_GUARD"
 
     // AlarmRingService
     const val ACTION_SNOOZE = PREFIX + "SNOOZE"
@@ -49,6 +50,7 @@ internal object AlarmActions {
     const val RC_HUSH_EXTEND = 31
     const val RC_NIGHT = 32
     const val RC_REPOST = 33
+    const val RC_RING_GUARD = 34
 
     // Notification ids (core:notifications uses 1 and 100–108)
     const val ID_RINGING = 300
