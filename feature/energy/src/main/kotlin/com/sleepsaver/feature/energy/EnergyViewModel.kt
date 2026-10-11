@@ -13,12 +13,15 @@ import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.NightLogRepository
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
 import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.model.HabitType
+import com.sleepsaver.core.domain.schedule.NightRules
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -49,6 +53,7 @@ class EnergyViewModel @Inject constructor(
     private val healthConnect: HealthConnectGateway,
     scheduleRepository: ScheduleRepository,
     nightController: NightController,
+    nightLogRepository: NightLogRepository,
     private val savedStateHandle: SavedStateHandle,
     timeProvider: TimeProvider,
     /** Writes and syncs run here: never database or Health Connect work on the main thread. */
@@ -61,23 +66,34 @@ class EnergyViewModel @Inject constructor(
         settingsRepository.settings.map { it.sleep.sleepNeed }.distinctUntilChanged(),
     ) { insights, nights, need -> Triple(insights, nights, need) }
 
-    /** Night mode only: tomorrow's alarm (if it can't be read, the night ends at the wake zone) and the anchor. */
+    /**
+     * Night mode only: the alarms (if they can't be read, the night ends at the wake zone), the anchor, and when this
+     * morning's planned alarm was stopped or timed out (it ends last night at once).
+     */
     private val night = combine(
         scheduleRepository.upcomingAlarms.catch { emit(emptyList()) },
         nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged(),
-    ) { alarms, anchoredAt -> alarms to anchoredAt }
+        timeProvider.minuteTicks.map { it.atZone(timeProvider.zone()).toLocalDate() }
+            .distinctUntilChanged()
+            .flatMapLatest { today -> nightLogRepository.alarmEvent(today).map { NightRules.morningStop(it, today) } }
+            .catch { emit(null) },
+        ::NightInputs,
+    )
 
     val uiState: StateFlow<EnergyUiState> = combine(
         sources,
         timeProvider.minuteTicks,
         syncRepository.state,
         night,
-    ) { (insights, nights, need), now, sync, (alarms, anchoredAt) ->
+    ) { (insights, nights, need), now, sync, night ->
         when (insights) {
             InsightsState.Loading -> EnergyUiState.Loading
             InsightsState.NoNights -> EnergyUiState.NoNights(sync.emptyReason())
             is InsightsState.Ready ->
-                energyReadyState(insights.insights, nights, need, now, sync.isSyncing, alarms = alarms, anchoredAt = anchoredAt)
+                energyReadyState(
+                    insights.insights, nights, need, now, sync.isSyncing,
+                    alarms = night.alarms, anchoredAt = night.anchoredAt, morningStop = night.morningStop,
+                )
         }
     }
         .distinctUntilChanged()
@@ -136,6 +152,8 @@ class EnergyViewModel @Inject constructor(
         if (syncRepository.state.value.isSyncing) return
         viewModelScope.launch(ioDispatcher) { syncRepository.sync(SyncTrigger.MANUAL) }
     }
+
+    private data class NightInputs(val alarms: List<PlannedAlarm>, val anchoredAt: Instant?, val morningStop: Instant?)
 
     private companion object {
         const val KEY_SYNC_ON_RESUME = "energy.syncOnResume"

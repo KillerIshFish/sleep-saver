@@ -8,6 +8,8 @@ import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
+import com.sleepsaver.core.domain.alarm.RingOutcome
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
@@ -16,6 +18,7 @@ import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeNightLogRepository
 import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
@@ -55,6 +58,7 @@ class EnergyViewModelTest {
     private val time = FakeTimeProvider(SampleData.now)
     private val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm()))
     private val night = FakeNightController()
+    private val nightLog = FakeNightLogRepository()
 
     private val dispatcher = UnconfinedTestDispatcher()
 
@@ -67,7 +71,7 @@ class EnergyViewModelTest {
     private val healthConnect = FakeHealthConnectGateway()
 
     private fun viewModel() =
-        EnergyViewModel(insights, sleep, settings, habits, sync, healthConnect, schedule, night, SavedStateHandle(), time, dispatcher)
+        EnergyViewModel(insights, sleep, settings, habits, sync, healthConnect, schedule, night, nightLog, SavedStateHandle(), time, dispatcher)
 
     @Test
     fun `starts loading`() = runTest {
@@ -171,6 +175,29 @@ class EnergyViewModelTest {
         time.ticks.value = bedtime + Duration.ofMinutes(20)
         assertThat(nightMode()).isTrue()
         time.ticks.value = PlanSamples.plannedAlarm().window.start
+        assertThat(nightMode()).isFalse()
+    }
+
+    @Test
+    fun `a stopped morning alarm ends night mode before the window or wake zone`() = runTest {
+        // Wednesday, a few minutes before the wake zone: the early ring was stopped and its alarm left the list.
+        val wednesday = SampleData.today.plusDays(1)
+        val nights = SampleData.nights(today = SampleData.today)
+        val wakeZone = SampleData.insights(now = PlanSamples.plannedAlarm().window.start, nights = nights).schedule.wakeZone.start
+        val now = wakeZone - Duration.ofMinutes(3)
+        time.ticks.value = now
+        insights.mutableState.value = InsightsState.Ready(SampleData.insights(now = now, nights = nights))
+        schedule.upcomingState.value = emptyList()
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        fun nightMode() = (viewModel.uiState.value as EnergyUiState.Ready).nightMode
+        assertThat(nightMode()).isTrue()
+
+        nightLog.recordAlarmEvent(
+            PlanSamples.alarmEvent(RingReason.RESTLESS, wakeDate = wednesday)
+                .copy(firstRingAt = now - Duration.ofMinutes(4), stoppedAt = now - Duration.ofMinutes(2), outcome = RingOutcome.STOPPED),
+        )
+
         assertThat(nightMode()).isFalse()
     }
 

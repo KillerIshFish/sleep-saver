@@ -1,10 +1,18 @@
 package com.sleepsaver.core.domain.schedule
 
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.domain.alarm.RingKind
+import com.sleepsaver.core.domain.alarm.RingOutcome
+import com.sleepsaver.core.domain.alarm.RingReason
+import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
+import com.sleepsaver.core.domain.model.BedtimeMode
+import com.sleepsaver.core.domain.model.SleepTiming
+import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.domain.testing.Fx
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -119,6 +127,134 @@ class NightRulesTest {
             // 12:30 UTC is 14:30 at +02:00.
             assertThat(NightRules.wakeDateOf(at(monday, "12:30"), ZoneOffset.ofHours(2))).isEqualTo(tuesday)
             assertThat(NightRules.wakeDateOf(at(monday, "12:30"), Fx.UTC)).isEqualTo(monday)
+        }
+    }
+
+    /** Bedtime 23:00, a 6:45 alarm with a 30-min window (6:15), wake zone from 6:30, the same every day. */
+    @Nested
+    inner class Focus {
+
+        private val wednesday = tuesday.plusDays(1)
+
+        private fun bounds(evening: LocalDate, alarm: Boolean = true) = NightBounds(
+            bedtime = at(evening, "23:00"),
+            alarmWindowStart = if (alarm) at(evening.plusDays(1), "06:15") else null,
+            wakeZoneStart = at(evening.plusDays(1), "06:30"),
+        )
+
+        private fun focus(
+            now: Instant,
+            morningStop: Instant? = null,
+            anchoredAt: Instant? = null,
+            endedAt: Instant? = null,
+            stillYesterday: Boolean = false,
+            alarmThisMorning: Boolean = true,
+        ): FocusNight {
+            val today = now.atZone(Fx.UTC).toLocalDate()
+            return NightRules.focus(
+                now = now,
+                zone = Fx.UTC,
+                lastNight = bounds(today.minusDays(1), alarm = alarmThisMorning),
+                tonight = bounds(today),
+                morningStop = morningStop,
+                anchoredAt = anchoredAt,
+                endedAt = endedAt,
+                eveningStillYesterday = stillYesterday,
+            )
+        }
+
+        @Test
+        fun `night runs from the bedtime until the alarm window opens`() {
+            assertThat(focus(at(tuesday, "22:59")).isNight).isFalse()
+            val bedtime = focus(at(tuesday, "23:00"))
+            assertThat(bedtime.isNight).isTrue()
+            assertThat(bedtime.nightOf).isEqualTo(tuesday)
+            assertThat(bedtime.end).isEqualTo(at(wednesday, "06:15"))
+
+            val smallHours = focus(at(wednesday, "02:00"))
+            assertThat(smallHours.isNight).isTrue()
+            assertThat(smallHours.wakeDate).isEqualTo(wednesday)
+            assertThat(focus(at(wednesday, "06:14")).isNight).isTrue()
+
+            val open = focus(at(wednesday, "06:15"))
+            assertThat(open.isNight).isFalse()
+            assertThat(open.nightOf).isEqualTo(wednesday)
+        }
+
+        @Test
+        fun `without an alarm the night ends where the wake zone starts`() {
+            assertThat(focus(at(wednesday, "06:20"), alarmThisMorning = false).isNight).isTrue()
+            assertThat(focus(at(wednesday, "06:30"), alarmThisMorning = false).isNight).isFalse()
+        }
+
+        @Test
+        fun `a stopped or timed-out morning alarm ends the night at once`() {
+            // An early surfacing ring at 6:05 (a 45-min window opened at 6:00) was stopped; the alarm then left the
+            // upcoming list, so only the wake zone (6:30) would have ended the night.
+            val stopped = focus(at(wednesday, "06:06"), morningStop = at(wednesday, "06:05"), alarmThisMorning = false)
+
+            assertThat(stopped.isNight).isFalse()
+            assertThat(stopped.nightOf).isEqualTo(wednesday)
+            assertThat(focus(at(wednesday, "06:04"), morningStop = at(wednesday, "06:05"), alarmThisMorning = false).isNight).isTrue()
+        }
+
+        @Test
+        fun `an anchor makes it night early, and only for the night of its own wake date`() {
+            assertThat(focus(at(tuesday, "22:10")).isNight).isFalse()
+            assertThat(focus(at(tuesday, "22:10"), anchoredAt = at(tuesday, "22:05")).isNight).isTrue()
+            // Last night's anchor stays in the night state until the alarm is stopped, but no longer means night.
+            assertThat(focus(at(wednesday, "06:20"), anchoredAt = at(tuesday, "22:55")).isNight).isFalse()
+            assertThat(focus(at(wednesday, "08:00"), anchoredAt = at(wednesday, "07:00")).isNight).isFalse()
+        }
+
+        @Test
+        fun `before the schedule rolls over last night stays in focus`() {
+            val owl = focus(at(wednesday, "06:20"), stillYesterday = true)
+
+            assertThat(owl.nightOf).isEqualTo(tuesday)
+            assertThat(owl.isNight).isFalse() // its end (6:15) has passed
+            assertThat(focus(at(wednesday, "01:00"), stillYesterday = true).isNight).isTrue()
+        }
+
+        @Test
+        fun `I'm up ends this night's clock-free time until the next anchor, and only this night's`() {
+            assertThat(focus(at(tuesday, "23:40"), endedAt = at(tuesday, "23:30")).isNight).isFalse()
+            assertThat(focus(at(tuesday, "23:50"), anchoredAt = at(tuesday, "23:45"), endedAt = at(tuesday, "23:30")).isNight).isTrue()
+            // Up at 5:30: the next bedtime (less than 18 h later) is night as usual.
+            assertThat(focus(at(wednesday, "05:40"), endedAt = at(wednesday, "05:30")).isNight).isFalse()
+            assertThat(focus(at(wednesday, "23:30"), endedAt = at(wednesday, "05:30")).isNight).isTrue()
+        }
+
+        @Test
+        fun `the morning stop is the planned alarm's stop, or its first ring when nobody stopped it`() {
+            val stopped = Fx.alarmEvent(wednesday, "06:45", firstRingAt = "06:20", RingReason.RESTLESS, stoppedAt = "06:22")
+            val timedOut = Fx.alarmEvent(wednesday, "06:45", firstRingAt = "06:45", RingReason.DEADLINE, outcome = RingOutcome.TIMED_OUT)
+            val sounding = Fx.alarmEvent(wednesday, "06:45", firstRingAt = "06:20", RingReason.RESTLESS)
+            val nap = Fx.alarmEvent(wednesday, "15:00", firstRingAt = "15:00", RingReason.CATNAP_END, kind = RingKind.NAP, stoppedAt = "15:01")
+
+            assertThat(NightRules.morningStop(stopped, wednesday)).isEqualTo(at(wednesday, "06:22"))
+            assertThat(NightRules.morningStop(timedOut, wednesday)).isEqualTo(at(wednesday, "06:45"))
+            assertThat(NightRules.morningStop(sounding, wednesday)).isNull()
+            assertThat(NightRules.morningStop(nap, wednesday)).isNull()
+            assertThat(NightRules.morningStop(stopped, tuesday)).isNull()
+            assertThat(NightRules.morningStop(null, wednesday)).isNull()
+        }
+
+        @Test
+        fun `bounds from the energy schedule for its own evening and the one before`() {
+            val timing = SleepTiming(WakeTimeMode.FIXED, LocalTime.of(7, 0), BedtimeMode.FIXED, LocalTime.of(23, 0))
+            val schedule = EnergyScheduleCalculator().schedule(tuesday, Fx.UTC, emptyList(), Duration.ofHours(8), Duration.ZERO, timing)
+            val alarm = at(wednesday, "06:15")
+
+            val tonight = NightRules.boundsFrom(schedule, tuesday, alarm)
+            val lastNight = NightRules.boundsFrom(schedule, monday, alarmWindowStart = null)
+            val planned = NightRules.boundsFrom(schedule, monday, alarmWindowStart = null, alarmBedtime = at(monday, "22:30"))
+
+            assertThat(tonight).isEqualTo(NightBounds(schedule.targetBedtime, alarm, schedule.tomorrowWakeZone.start))
+            assertThat(lastNight.bedtime).isEqualTo(at(monday, "23:00"))
+            assertThat(lastNight.wakeZoneStart).isEqualTo(schedule.wakeZone.start)
+            assertThat(planned.bedtime).isEqualTo(at(monday, "22:30"))
+            assertThat(NightRules.boundsFrom(schedule, wednesday, alarm)).isEqualTo(NightBounds(null, alarm, null))
         }
     }
 }

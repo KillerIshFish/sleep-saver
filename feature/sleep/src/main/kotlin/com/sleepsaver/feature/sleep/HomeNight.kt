@@ -11,16 +11,13 @@ import java.time.LocalDate
 internal data class HomeNight(val wakeDate: LocalDate, val alarm: PlannedAlarm?, val isNight: Boolean)
 
 /**
- * [NightRules.isNight] for the night in progress or just ahead (§5.0).
+ * The night in progress or just ahead, by [NightRules.focus] (the rule Tonight and Energy use too), with each night's
+ * bounds from the energy [schedule] and that morning's alarm ([NightRules.boundsFrom]).
  *
- * - Before [schedule]'s wake zone opens (the small hours, once the schedule has moved on to the new day) it is last
- *   night: from the evening-before bedtime (that alarm's planned bedtime, else the schedule's bedtime a day earlier)
- *   until this morning's alarm window or wake zone.
- * - Otherwise it is tonight: from `schedule.targetBedtime` until tomorrow's alarm window or wake zone.
- *
- * Only that night's own alarm and anchor count (the anchor's wake date by [NightRules.wakeDateOf]), so an alarm days
- * away never stretches the night and last night's anchor doesn't keep the morning dark. [anchoredAt] is
- * `NightController.state.night?.anchoredAt`.
+ * [morningStop] is when this morning's planned alarm was stopped or timed out ([NightRules.morningStop]): it ends last
+ * night at once, even when an early surfacing ring came before the wake zone. [anchoredAt] is
+ * `NightController.state.night?.anchoredAt`. Only that night's own alarm and anchor count, so an alarm days away never
+ * stretches the night and last night's anchor doesn't keep the morning dark.
  * Example: bedtime 23:00 and tomorrow's 6:45 alarm with a 30-min window → night from 23:00 (or Drop anchor) to 6:15.
  */
 internal fun homeNight(
@@ -28,18 +25,23 @@ internal fun homeNight(
     now: Instant,
     alarms: List<PlannedAlarm>,
     anchoredAt: Instant?,
+    morningStop: Instant? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): HomeNight {
-    val lastNight = now < schedule.wakeZone.start
-    val wakeDate = if (lastNight) schedule.date else schedule.date.plusDays(1)
-    val alarm = alarms.firstOrNull { it.occurrence.date == wakeDate }
-    val bedtime = if (lastNight) {
-        alarm?.plannedBedtime ?: schedule.targetBedtime.atZone(schedule.zone).minusDays(1).toInstant()
-    } else {
-        schedule.targetBedtime
+    val today = now.atZone(schedule.zone).toLocalDate()
+    fun alarmFor(wakeDate: LocalDate): PlannedAlarm? = alarms.firstOrNull { it.occurrence.date == wakeDate }
+    fun bounds(evening: LocalDate) = alarmFor(evening.plusDays(1)).let { alarm ->
+        NightRules.boundsFrom(schedule, evening, alarm?.window?.start, alarm?.plannedBedtime)
     }
-    val wakeZoneStart = if (lastNight) schedule.wakeZone.start else schedule.tomorrowWakeZone.start
-    val end = NightRules.nightEnd(alarm?.window?.start, wakeZoneStart)
-    val anchor = anchoredAt?.takeIf { NightRules.wakeDateOf(it, schedule.zone.rules.getOffset(it), config) == wakeDate }
-    return HomeNight(wakeDate, alarm, NightRules.isNight(now, bedtime, end, anchor, config))
+    val focus = NightRules.focus(
+        now = now,
+        zone = schedule.zone,
+        lastNight = bounds(today.minusDays(1)),
+        tonight = bounds(today),
+        morningStop = morningStop,
+        anchoredAt = anchoredAt,
+        eveningStillYesterday = schedule.date < today,
+        config = config,
+    )
+    return HomeNight(focus.wakeDate, alarmFor(focus.wakeDate), focus.isNight)
 }

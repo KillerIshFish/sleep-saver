@@ -28,9 +28,11 @@ internal fun ready(
     alarms: List<PlannedAlarm> = sampleAlarms,
     steps: NightStepsSession? = sampleSteps,
     anchoredAt: Instant? = null,
+    morningStop: Instant? = null,
 ): SleepUiState.Ready = readyState(
     insights, settings, sync, SampleData.habits, pendingReview, source,
     alarms = alarms,
     steps = steps,
     anchoredAt = anchoredAt,
+    morningStop = morningStop,
 )

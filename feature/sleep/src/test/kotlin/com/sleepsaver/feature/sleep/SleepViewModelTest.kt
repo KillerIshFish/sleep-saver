@@ -20,6 +20,7 @@ import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeNightLogRepository
 import com.sleepsaver.core.testing.FakeNightStepsRepository
 import com.sleepsaver.core.testing.FakeReviewRepository
 import com.sleepsaver.core.testing.FakeScheduleRepository
@@ -31,6 +32,8 @@ import com.sleepsaver.core.data.repository.DemoModeController
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.domain.alarm.RingOutcome
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import kotlinx.coroutines.CompletableDeferred
@@ -68,6 +71,7 @@ class SleepViewModelTest {
     private val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm()))
     private val steps = FakeNightStepsRepository(tonight = PlanSamples.nightStepsSession())
     private val night = FakeNightController()
+    private val nightLog = FakeNightLogRepository()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -94,6 +98,7 @@ class SleepViewModelTest {
         scheduleRepository = scheduleRepository,
         nightStepsRepository = nightStepsRepository,
         nightController = night,
+        nightLogRepository = nightLog,
         timeProvider = FixedTime(now),
         ioDispatcher = UnconfinedTestDispatcher(),
     )
@@ -427,6 +432,28 @@ class SleepViewModelTest {
         assertThat(vm.ready().nightMode).isTrue()
 
         night.endNight()
+        assertThat(vm.ready().nightMode).isFalse()
+    }
+
+    @Test
+    fun `a stopped morning alarm ends night mode at once, before the wake zone`() = runTest {
+        // An early ring a few minutes before Wednesday's wake zone opens was stopped: the alarm left the upcoming list,
+        // so only the wake zone would have ended the night.
+        val wednesday = SampleData.today.plusDays(1)
+        val nights = SampleData.nights(today = SampleData.today)
+        val wakeZone = SampleData.insights(now = ZonedDateTime.of(wednesday, LocalTime.of(3, 0), SampleData.zone).toInstant(), nights = nights)
+            .schedule.wakeZone.start
+        val now = wakeZone - Duration.ofMinutes(3)
+        insights.mutableState.value = ready(SampleData.insights(now = now, nights = nights))
+        schedule.upcomingState.value = emptyList()
+        val vm = viewModel(now = now).also { vm -> backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} } }
+        assertThat(vm.ready().nightMode).isTrue()
+
+        nightLog.recordAlarmEvent(
+            PlanSamples.alarmEvent(RingReason.RESTLESS, wakeDate = wednesday)
+                .copy(firstRingAt = now - Duration.ofMinutes(4), stoppedAt = now - Duration.ofMinutes(2), outcome = RingOutcome.STOPPED),
+        )
+
         assertThat(vm.ready().nightMode).isFalse()
     }
 

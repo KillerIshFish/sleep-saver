@@ -142,6 +142,17 @@ class SleepUiStateTest {
     }
 
     @Test
+    fun `a stopped morning alarm ends the night even before the window or wake zone`() {
+        val schedule = SampleData.insights(now = at(wednesday, 3, 0), nights = nightsToTuesday).schedule
+        val now = schedule.wakeZone.start - Duration.ofMinutes(3)
+        val insights = SampleData.insights(now = now, nights = nightsToTuesday)
+
+        // The handled alarm has left the upcoming list; only the wake zone is left to end the night.
+        assertThat(ready(insights, alarms = emptyList()).nightMode).isTrue()
+        assertThat(ready(insights, alarms = emptyList(), morningStop = now - Duration.ofMinutes(1)).nightMode).isFalse()
+    }
+
+    @Test
     fun `last night's anchor doesn't keep the morning dark, and an alarm days away doesn't stretch the night`() {
         val anchor = at(tuesday, 22, 55)
         val friday = listOf(PlanSamples.plannedAlarm(date = tuesday.plusDays(3)))

@@ -11,11 +11,11 @@ import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.alarm.AlarmEvent
-import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
+import com.sleepsaver.core.domain.schedule.NightBounds
 import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import kotlinx.coroutines.flow.Flow
@@ -73,6 +73,7 @@ internal data class NightClock(
  * schedule (no nights yet) from tonight's Night steps [session] (timed from the plan or Settings) and from
  * [ScheduleTimes] over [inputs]. The night ends at the [alarms]' window start for the wake date, else at its wake
  * zone start; [todayEvent], today's planned alarm once stopped, ends last night and starts the morning at its stop.
+ * Whether it is night is [NightRules.focus], shared with Sleep home and Energy.
  *
  * [anchoredAt] is `NightController.state.night?.anchoredAt` (§5.0). [endedAt] is when the user last tapped "I'm up":
  * a night ended that way no longer counts its bedtime, so the clock comes back until they drop anchor again.
@@ -123,32 +124,25 @@ internal fun nightClock(
     }
 
     // Today's planned alarm, once stopped (or timed out), ended last night there and then.
-    val stoppedToday = todayEvent
-        ?.takeIf { it.kind == RingKind.PLANNED && it.wakeDate == today && it.outcome != null }
-        ?.let { it.stoppedAt ?: it.firstRingAt }
-    val lastNightEnd = listOfNotNull(NightRules.nightEnd(alarmStart(today), wakeZoneStart(today)), stoppedToday).minOrNull()
-    val nightOf = when {
+    val stoppedToday = NightRules.morningStop(todayEvent, today)
+    // The night decision itself is the one Sleep home and Energy use (NightRules.focus).
+    val focus = NightRules.focus(
+        now = now,
+        zone = zone,
+        lastNight = NightBounds(bedtimeOf(yesterday), alarmStart(today), wakeZoneStart(today)),
+        tonight = NightBounds(bedtimeOf(today), alarmStart(today.plusDays(1)), wakeZoneStart(today.plusDays(1))),
+        morningStop = stoppedToday,
+        anchoredAt = anchoredAt,
+        endedAt = endedAt,
         // Night owls: the schedule (or, without nights, the Night steps evening) is still yesterday's.
-        schedule?.date == yesterday -> yesterday
-        schedule == null && session?.nightOf == yesterday -> yesterday
-        lastNightEnd != null && now < lastNightEnd -> yesterday
-        else -> today
-    }
-    val wakeDate = nightOf.plusDays(1)
-    val bedtime = bedtimeOf(nightOf)
+        eveningStillYesterday = schedule?.date == yesterday || (schedule == null && session?.nightOf == yesterday),
+        config = config,
+    )
+    val nightOf = focus.nightOf
+    val bedtime = focus.bedtime
+    val end = focus.end
+    val isNight = focus.isNight
     val stepsFrom = stepsFromOf(nightOf)
-    val end = if (nightOf == yesterday) lastNightEnd else NightRules.nightEnd(alarmStart(wakeDate), wakeZoneStart(wakeDate))
-
-    // Last night's anchor stays in the night state until its alarm is stopped; once that night has ended (its window
-    // opened) the anchor says nothing about the coming night.
-    val anchor = anchoredAt?.takeUnless { nightOf == today && lastNightEnd != null && it < lastNightEnd }
-    // "I'm up" ends this night's no-clock time until the user drops anchor again. Only the night it was tapped in
-    // (same wake date): a tap at 5:30 must not cancel the coming night's bedtime, which is less than
-    // nightBedtimeMaxLead (18 h) away.
-    val ended = endedAt != null && endedAt <= now && (anchor == null || anchor < endedAt) &&
-        NightRules.wakeDateOf(endedAt, zone.rules.getOffset(endedAt), config) == wakeDate &&
-        (bedtime == null || endedAt >= bedtime - config.week.nightBedtimeMaxLead)
-    val isNight = NightRules.isNight(now, if (ended) null else bedtime, end, anchor, config)
 
     val morningStart = if (nightOf == today) {
         listOfNotNull(
