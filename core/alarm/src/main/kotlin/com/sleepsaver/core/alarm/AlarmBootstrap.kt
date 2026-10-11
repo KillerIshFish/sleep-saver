@@ -10,6 +10,7 @@ import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SyncRepository
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.FeelSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -53,6 +54,9 @@ class AlarmBootstrap @Inject internal constructor(
 ) {
     private val unlockedStarted = AtomicBoolean(false)
 
+    /** The alarms a reschedule arms or mirrors: the next one and the alarm.followingMirrored after it. */
+    private val mirroredAlarms = 1 + SleepConfig.DEFAULT.alarm.followingMirrored
+
     /**
      * Before or after unlock: channels, reconcile, re-arm from the mirror, restore NightController's state. Touches no
      * credential-encrypted storage and resolves no repository.
@@ -65,9 +69,10 @@ class AlarmBootstrap @Inject internal constructor(
 
     /**
      * After unlock, once: flush the events and Morning feel buffered while locked, reschedule from Room, then follow
-     * the plan: debounce(1 s) + distinctUntilChanged + collectLatest { reschedule() } over the next alarm (id, window,
-     * debt-aware), the tuning, the active anchor, the prior (nights used) and the clock format and demo mode. Each sync
-     * that succeeds also refreshes the restless-trigger tuning.
+     * the plan: debounce(1 s) + distinctUntilChanged + collectLatest { reschedule() } over the alarms the mirror holds
+     * (the next one and the ones after it, whole: a new wake-up style, tone, volume, snooze, window or planned bedtime
+     * re-arms like a new time does), the tuning, the active anchor, the prior (nights used) and the clock format and
+     * demo mode. Each sync that succeeds also refreshes the restless-trigger tuning.
      */
     @OptIn(FlowPreview::class)
     fun startUnlocked() {
@@ -80,12 +85,12 @@ class AlarmBootstrap @Inject internal constructor(
         }
         scope.launch {
             combine(
-                schedule.get().nextAlarm.map { next -> next?.let { Triple(it.occurrence.id, it.window, it.window.debtAware) } }.orNull(),
+                schedule.get().upcomingAlarms.map { it.take(mirroredAlarms) }.orNull(),
                 nightLog.get().tuning.orNull(),
                 nightLog.get().activeAnchor.map { it?.id }.orNull(),
                 patterns.get().deepPrior.map { it?.nightsUsed }.orNull(),
                 settings.get().settings.map { it.clockFormat to it.demoMode }.orNull(),
-            ) { next, tuning, anchor, prior, clock -> listOf(next, tuning, anchor, prior, clock) }
+            ) { alarms, tuning, anchor, prior, clock -> listOf(alarms, tuning, anchor, prior, clock) }
                 .debounce(1.seconds)
                 .distinctUntilChanged()
                 .collectLatest { rescheduleSafely() }
