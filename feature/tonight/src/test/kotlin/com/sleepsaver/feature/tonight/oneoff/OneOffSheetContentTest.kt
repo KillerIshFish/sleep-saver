@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.tonight.TonightSamples
 import org.junit.Rule
@@ -67,6 +68,16 @@ class OneOffSheetContentTest {
         compose.onNodeWithText("Pause until Wed, Oct 7").performScrollTo().performClick()
 
         assertThat(calls).containsExactly("dayOff", "mode:${AlarmMode.OFF}", "justOnce", "pauseUntil:${today.plusDays(2)}", "pause").inOrder()
+    }
+
+    @Test
+    fun `a blocked pause says why next to its button`() {
+        show(state().copy(pauseBlocker = AlarmBlocker.RING_CHANNEL_OFF))
+
+        compose.onNodeWithText("Alarm notifications are turned off").performScrollTo()
+        compose.onNodeWithText("Open settings").performScrollTo().performClick()
+
+        assertThat(calls).containsExactly("fix:${AlarmBlocker.RING_CHANNEL_OFF}")
     }
 
     @Test
