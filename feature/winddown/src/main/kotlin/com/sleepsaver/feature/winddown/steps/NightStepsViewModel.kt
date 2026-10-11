@@ -32,6 +32,7 @@ import com.sleepsaver.feature.winddown.WinddownNight
 import com.sleepsaver.feature.winddown.WinddownNightSource
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.hushControlsState
+import com.sleepsaver.feature.winddown.library.addToSteps
 import com.sleepsaver.feature.winddown.untilWindowAvailable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -156,7 +157,7 @@ internal class NightStepsViewModel @Inject constructor(
     private val nightSteps: NightStepsRepository,
     private val journal: JournalRepository,
     patterns: PatternsRepository,
-    schedule: ScheduleRepository,
+    private val schedule: ScheduleRepository,
     nightSource: WinddownNightSource,
     private val nightController: NightController,
     private val time: TimeProvider,
@@ -238,9 +239,13 @@ internal class NightStepsViewModel @Inject constructor(
         viewModelScope.launch { writer.save("Checking step $activityId") { nightSteps.setDone(nightOf, activityId, done) } }
     }
 
-    /** [label] is the technique's title, resolved in composition (never inside the click lambda). */
+    /**
+     * "Worth a try" Add. [label] is the technique's title, resolved in composition (never inside the click lambda). On
+     * an evening with its own list the step goes on that list, the one tonight's checklist is built from ([addToSteps]).
+     */
     fun addTechnique(technique: Technique, label: String) {
-        viewModelScope.launch { writer.save("Adding $technique") { nightSteps.addTechnique(technique, label) } }
+        val day = ready?.day
+        viewModelScope.launch { writer.save("Adding $technique") { addToSteps(technique, label, day, nightSteps, schedule) } }
     }
 
     fun toggleMark(mark: Mark) {

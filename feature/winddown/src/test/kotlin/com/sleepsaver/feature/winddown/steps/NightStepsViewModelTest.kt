@@ -269,6 +269,21 @@ class NightStepsViewModelTest {
     }
 
     @Test
+    fun `on an evening with its own list a suggestion goes on that list, not every evening's`() = runTest {
+        val week = PlanSamples.weekPlan()
+        val tuesday = week.day(DayOfWeek.TUESDAY)
+        schedule.weekState.value = week.with(tuesday.copy(evening = tuesday.evening.copy(routine = listOf(1L))))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().ownList).isTrue()
+
+        viewModel.addTechnique(Technique.COOL_DARK_ROOM, "Cool, dark room")
+
+        val added = nightSteps.activitiesState.value.single { it.technique == Technique.COOL_DARK_ROOM }
+        assertThat(added.selected).isFalse()
+        assertThat(schedule.dayRoutines).containsExactly(DayOfWeek.TUESDAY to listOf(1L, added.id))
+    }
+
+    @Test
     fun `Drop anchor saves it from Night steps, then reports back`() = runTest {
         val viewModel = viewModel()
         val events = mutableListOf<NightStepsEvent>()

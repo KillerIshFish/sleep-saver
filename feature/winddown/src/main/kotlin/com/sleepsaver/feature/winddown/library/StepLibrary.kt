@@ -136,8 +136,31 @@ internal fun stepLibraryUiState(
 }
 
 /**
+ * Adds [technique] to the list tonight's "Add" works on: the every-evening list, or [day]'s own list when it has one.
+ * There it goes on that list only: addTechnique selects it for every evening, so that is undone unless it was already
+ * there. Call it inside one [WinddownWriter.save], so nothing can land in between. [label] = the technique's title,
+ * resolved in composition.
+ */
+internal suspend fun addToSteps(
+    technique: Technique,
+    label: String,
+    day: DayOfWeek?,
+    nightSteps: NightStepsRepository,
+    schedule: ScheduleRepository,
+) {
+    val own = day?.let { schedule.weekPlan.first().day(it).evening.routine }
+    val wasEveryEvening = nightSteps.activities.first().any { it.technique == technique && it.selected }
+    val id = nightSteps.addTechnique(technique, label)
+    if (day != null && own != null) {
+        if (!wasEveryEvening) nightSteps.setIncluded(id, false)
+        if (id !in own) schedule.setDayRoutine(day, own + id)
+    }
+}
+
+/**
  * The step library: every technique with how-to, evidence and why it helps. "Add" puts it in the every-evening list,
- * or, opened from the editor of a day with its own list ([StepLibraryRoute.day]), on that day's list only.
+ * or, opened for a day with its own list ([StepLibraryRoute.day]: from that day's editor, or from Night steps on such
+ * an evening), on that day's list only.
  */
 @HiltViewModel
 internal class StepLibraryViewModel @Inject constructor(
@@ -173,22 +196,10 @@ internal class StepLibraryViewModel @Inject constructor(
 
     /**
      * [label] is the technique's title, resolved in composition (never inside the click lambda). On a day with its own
-     * list the step goes on that list only: addTechnique selects it for every evening, so that is undone unless it
-     * was already there. One write, so nothing can land in between.
+     * list the step goes on that list only ([addToSteps]).
      */
     fun add(technique: Technique, label: String) {
-        val day = day
-        viewModelScope.launch {
-            writer.save("Adding $technique") {
-                val own = day?.let { schedule.weekPlan.first().day(it).evening.routine }
-                val wasEveryEvening = nightSteps.activities.first().any { it.technique == technique && it.selected }
-                val id = nightSteps.addTechnique(technique, label)
-                if (day != null && own != null) {
-                    if (!wasEveryEvening) nightSteps.setIncluded(id, false)
-                    if (id !in own) schedule.setDayRoutine(day, own + id)
-                }
-            }
-        }
+        viewModelScope.launch { writer.save("Adding $technique") { addToSteps(technique, label, day, nightSteps, schedule) } }
     }
 }
 
