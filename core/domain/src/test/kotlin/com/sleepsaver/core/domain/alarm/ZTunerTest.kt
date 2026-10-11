@@ -114,4 +114,18 @@ class ZTunerTest {
         assertThat(tuner.effectiveZ(tuning(3.0, daysAgo = 1))).isEqualTo(3.0)
         assertThat(tuner.next(null, deepRings(3), now, offset)?.zThreshold).isEqualTo(2.75)
     }
+
+    @Test
+    fun `a reset goes back to the default and forgets the rings before it`() {
+        val resetAt = now - Duration.ofDays(4)
+        val reset = tuner.reset(resetAt, offset)
+
+        assertThat(reset).isEqualTo(AlarmTuning(2.5, TuningReason.RESET, resetAt, offset))
+        assertThat(tuner.effectiveZ(reset)).isEqualTo(2.5)
+        // The deep rings that caused the raise rang before the reset: they don't bring it straight back.
+        assertThat(tuner.next(reset, deepRings(3, daysBack = 5), now, offset)).isNull()
+        // Rings after the reset count at once: a reset has no cooldown.
+        assertThat(tuner.next(reset, deepRings(3, daysBack = 0), now, offset))
+            .isEqualTo(AlarmTuning(2.75, TuningReason.RAISED_AFTER_DEEP_RINGS, now, offset))
+    }
 }

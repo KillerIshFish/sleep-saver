@@ -173,4 +173,30 @@ class PlannedKeelTest {
         // Weekends at 07:00 against the circular mean of nine 07:00s and one 05:00 (06:48.4).
         assertThat(result.freeDayWakeShift).isEqualTo(Duration.ofMinutes(12))
     }
+
+    @Test
+    fun `a single one-off alarm doesn't turn the other days into free days`() {
+        val noAlarms = WeekPlan.DEFAULT
+        val oneOffs = OneOffs(
+            overrides = listOf(
+                DateOverride(date = from.plusDays(2), kind = OverrideKind.JUST_ONCE, time = LocalTime.of(5, 0), mode = AlarmMode.FIXED),
+            ),
+        )
+
+        val result = calculator.check(noAlarms, oneOffs, emptyList(), settings, from, Fx.UTC)
+
+        // Without weekly alarms the weekdays are the alarm days; the early Wednesday is just one of ten.
+        assertThat(result.freeDayWakeShift).isEqualTo(Duration.ofMinutes(12))
+        assertThat(result.warnFreeDayShift).isFalse()
+    }
+
+    @Test
+    fun `too few alarm days give no shift`() {
+        // Monday alarms only: 2 alarm days in 14, fewer than jetlagMinWork.
+        val result = planCheck(alarms(listOf(MONDAY), LocalTime.of(5, 0)))
+
+        assertThat(result.freeDayWakeShift).isNull()
+        assertThat(result.plannedSocialJetlag).isNull()
+        assertThat(result.warn).isFalse()
+    }
 }

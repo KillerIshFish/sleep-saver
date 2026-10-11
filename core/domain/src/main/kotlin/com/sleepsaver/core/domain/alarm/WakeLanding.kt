@@ -5,6 +5,7 @@ import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepStage
 import com.sleepsaver.core.domain.model.SleepStageType
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 import java.time.Instant
 
 /** The watch's stage at a moment, as Wake landing shows it. */
@@ -49,7 +50,8 @@ class WakeLandingCalculator(private val config: SleepConfig = SleepConfig.DEFAUL
             event = event,
             stageAtRing = hypnogram.stageAt(ring),
             majorityBefore = majority(before),
-            minutesEarly = event.earlyBy.toMinutes().toInt(),
+            // Whole clock minutes, so it agrees with the ring time shown beside it ("Rang 6:11 · 19 min early" for 6:30).
+            minutesEarly = maxOf(0L, Duration.between(event.firstRingAt.truncatedTo(ChronoUnit.MINUTES), event.target.truncatedTo(ChronoUnit.MINUTES)).toMinutes()).toInt(),
             windowDeepShare = window?.deepShare,
             windowNonDeepMinutes = window?.nonDeepMinutes,
             hasStages = hypnogram.hasStages,

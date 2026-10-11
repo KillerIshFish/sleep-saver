@@ -185,4 +185,12 @@ class WakeLandingTest {
         assertThat(landing.majorityBefore).isEqualTo(LandingStage.AWAKE)
         assertThat(landing.minutesEarly).isEqualTo(0)
     }
+
+    @Test
+    fun `minutes early counts whole clock minutes, like the ring time shown beside it`() {
+        // A restless ring fires a few seconds after an epoch ends: 06:11:05 reads "Rang 6:11 · 19 min early".
+        val landing = calculator.land(event(firstRingAt = "06:11:05"), Fx.stagedNight(date, morning(date)))
+
+        assertThat(checkNotNull(landing).minutesEarly).isEqualTo(19)
+    }
 }

@@ -7,10 +7,12 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.abs
 
-/** Why the restless trigger was retuned. */
-enum class TuningReason { RAISED_AFTER_DEEP_RINGS, LOWERED_AFTER_LATE_RINGS }
+/** Why the restless trigger was retuned. RESET = "Reset to default": zT back to restlessZ, and landings before it no
+ *  longer count (otherwise the same rings would redo the change at the next refresh). */
+enum class TuningReason { RAISED_AFTER_DEEP_RINGS, LOWERED_AFTER_LATE_RINGS, RESET }
 
-/** A tuning row (separate from the plan; "Reset to default" deletes it). Example: zThreshold 2.75 after deep rings. */
+/** A tuning row (separate from the plan; "Reset to default" stores a RESET row at restlessZ). Example: zThreshold 2.75
+ *  after deep rings. */
 data class AlarmTuning(val zThreshold: Double, val reason: TuningReason, val changedAt: Instant, val offset: ZoneOffset)
 
 /**
@@ -30,7 +32,9 @@ class ZTuner(private val config: SleepConfig = SleepConfig.DEFAULT) {
      */
     fun next(current: AlarmTuning?, landings: List<WakeLanding>, now: Instant, offset: ZoneOffset): AlarmTuning? {
         val surfacing = config.surfacing
-        val cooldownEnd = current?.changedAt?.plus(Duration.ofDays(surfacing.tuneCooldownDays))
+        // A reset starts a fresh count but no cooldown: only rings after it count anyway.
+        val cooldownEnd = current?.takeIf { it.reason != TuningReason.RESET }?.changedAt
+            ?.plus(Duration.ofDays(surfacing.tuneCooldownDays))
         if (cooldownEnd != null && now.isBefore(cooldownEnd)) return null
         val recent = landings
             .filter { it.event.mode == AlarmMode.SURFACING && it.hasStages }

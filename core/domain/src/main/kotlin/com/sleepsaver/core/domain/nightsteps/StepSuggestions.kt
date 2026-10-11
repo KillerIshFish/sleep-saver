@@ -24,7 +24,7 @@ data class StepSuggestion(val technique: Technique, val reason: SuggestionReason
  *
  * Rules, in order, each adding its techniques until suggestionMax are found ("the last 7 wake dates" = asOf − 6 ..
  * asOf; "present nights" are those up to asOf, most recent first):
- *  0. a quietWeekMarks mark on any of the last recentNights wake dates → nothing at all;
+ *  0. a quietWeekMarks mark on any of the last recentNights wake dates, or on tonight's (asOf + 1) → nothing at all;
  *  1. SLOW_TO_SETTLE: median of the latest latencyNights latencies (≥ latencyMinValues) > slowToSettleLatency →
  *     Tomorrow list, Slow tide;
  *  2. RESTLESS_NIGHTS: mean awakeInMain of the last recentNights present nights ≥ restlessAwake → Muscle release,
@@ -56,8 +56,10 @@ class StepSuggestionEngine(private val config: SleepConfig = SleepConfig.DEFAULT
     ): List<StepSuggestion> {
         val steps = config.steps
         val recentDates = (0 until steps.recentNights).map { asOf.minusDays(it.toLong()) }
+        // Marks set this evening belong to tonight's wake date (asOf + 1): an Unwell evening quiets tonight's suggestions too.
+        val quietDates = recentDates + asOf.plusDays(1)
         fun markedEvenings(mark: Mark): Int = recentDates.count { marks[it]?.contains(mark) == true }
-        if (recentDates.any { date -> marks[date].orEmpty().any { it in steps.quietWeekMarks } }) return emptyList()
+        if (quietDates.any { date -> marks[date].orEmpty().any { it in steps.quietWeekMarks } }) return emptyList()
 
         val present = nights
             .filter { it.isPresent && !it.wakeDate.isAfter(asOf) }

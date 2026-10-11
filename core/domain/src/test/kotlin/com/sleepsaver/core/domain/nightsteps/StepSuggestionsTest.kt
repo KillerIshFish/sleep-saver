@@ -157,6 +157,8 @@ class StepSuggestionsTest {
         assertThat(suggest(marks = PatternFx.merge(signals, PatternFx.marked(Mark.UNWELL, dates(0))))).isEmpty()
         // Eight days ago is last week.
         assertThat(suggest(marks = PatternFx.merge(signals, PatternFx.marked(Mark.UNWELL, dates(7))))).isNotEmpty()
+        // Marked this evening (tonight's wake date) counts too.
+        assertThat(suggest(marks = PatternFx.merge(signals, PatternFx.marked(Mark.UNWELL, listOf(asOf.plusDays(1)))))).isEmpty()
     }
 
     // ---------------------------------------------------------------- ordering and filters

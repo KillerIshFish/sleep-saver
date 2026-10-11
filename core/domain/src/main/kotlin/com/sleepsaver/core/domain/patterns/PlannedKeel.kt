@@ -4,6 +4,8 @@ import com.sleepsaver.core.domain.circadian.isWeekend
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.DayPlan
 import com.sleepsaver.core.domain.schedule.OneOffs
 import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import com.sleepsaver.core.domain.schedule.WeekPlan
@@ -35,11 +37,12 @@ data class PlanCheck(
  *  - timing = the settings with this [week] and [oneOffs]; latency = timing.latency ?: sleepLatency.
  *  - For each wake date D in from .. from + (plannedDays − 1): W = ScheduleTimes.wake(D) in [zone],
  *    B = ScheduleTimes.bedtime(D − 1); asleep [B + latency, W] when W is later; window [noon(D − 1), noon(D)) in [zone].
- *  - Alarm days are the dates whose resolved day has an alarm; with no alarm in the whole span, Monday–Friday are
- *    the alarm days and the weekend is free.
+ *  - Alarm days are the dates whose *weekly* day plan has an alarm (one-offs don't make a free day or an alarm day,
+ *    so a single "Just this once" alarm doesn't turn the other 13 days into free days); with no weekly alarm, Monday–
+ *    Friday are the alarm days and the weekend is free.
  *  - freeDayWakeShift and plannedSocialJetlag (mid-sleep) are circular-mean differences free − alarm days, wrapped and
- *    rounded to the minute; null without both kinds. Warnings: free days wake more than freeDayShiftWarning later, or
- *    |planned social jetlag| ≥ jetlagWarning.
+ *    rounded to the minute; null unless there are at least jetlagMinFree free and jetlagMinWork alarm days. Warnings:
+ *    free days wake more than freeDayShiftWarning later, or |planned social jetlag| ≥ jetlagWarning.
  *
  * Example: alarms at 07:00 on weekdays and set 09:00 weekend mornings with a fixed 23:00 bedtime → free days wake
  * 2 h later (warning) and mid-sleep moves 1 h later (warning).
@@ -64,7 +67,7 @@ class PlannedKeelCalculator(private val config: SleepConfig = SleepConfig.DEFAUL
             val date = from.plusDays(i.toLong())
             val wake = ZonedDateTime.of(date, times.wake(date, nights, timing).first, zone)
             val asleepAt = times.bedtime(date.minusDays(1), zone, nights, settings.sleepNeed, timing).first + latency
-            PlannedNight(date, wake, asleepAt, week.resolve(date, oneOffs).alarmOn)
+            PlannedNight(date, wake, asleepAt, week.day(date.dayOfWeek).hasWeeklyAlarm())
         }
 
         val days = planned.map { night ->
@@ -97,11 +100,14 @@ class PlannedKeelCalculator(private val config: SleepConfig = SleepConfig.DEFAUL
         )
     }
 
-    /** Circular mean of [free] − circular mean of [alarm], wrapped and rounded; null when either side is empty. */
+    /** Circular mean of [free] − circular mean of [alarm], wrapped and rounded; null without enough days of each kind. */
     private fun shift(free: List<Double>, alarm: List<Double>): Duration? {
-        if (free.isEmpty() || alarm.isEmpty()) return null
+        if (free.size < config.keel.jetlagMinFree || alarm.size < config.keel.jetlagMinWork) return null
         return roundedMinutes(wrapMinutes(circularMeanMinutes(free) - circularMeanMinutes(alarm)))
     }
+
+    /** The weekly plan rings on this day (a mode other than OFF and a set time); one-offs are ignored. */
+    private fun DayPlan.hasWeeklyAlarm(): Boolean = morning.alarm.mode != AlarmMode.OFF && morning.wakeTime != null
 
     /** One planned night: wake W on [date] and asleep from [asleepAt] (= B + latency). */
     private class PlannedNight(val date: LocalDate, val wake: ZonedDateTime, val asleepAt: Instant, val alarmOn: Boolean) {
