@@ -119,9 +119,13 @@ class KeelCalculator(private val config: SleepConfig = SleepConfig.DEFAULT) {
         )
     }
 
+    /**
+     * A manual-only night (its main block was built from the override) is one span. A manual-night override whose
+     * date later got watch data keeps the watch's awake periods: NightAssembler then builds main from the raw block.
+     */
     private fun asleepSpans(night: Night): List<SleepSpan> {
         val main = night.main
-        val mainSpans = if (night.isManual || main == null) {
+        val mainSpans = if (main == null || main.isManual) {
             val start = night.fellAsleep
             val end = night.wokeUp
             if (start != null && end != null && end > start) listOf(SleepSpan(start, end)) else emptyList()

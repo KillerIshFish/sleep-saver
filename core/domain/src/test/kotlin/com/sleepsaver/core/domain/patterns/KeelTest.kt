@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.config.KeelConfig
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Night
+import com.sleepsaver.core.domain.model.NightOverride
 import com.sleepsaver.core.domain.model.SleepStageType.AWAKE
 import com.sleepsaver.core.domain.model.SleepStageType.LIGHT
 import com.sleepsaver.core.domain.testing.Fx
@@ -111,6 +112,21 @@ class KeelTest {
         nights[10] = PatternFx.manualNight(day, "23:00", "07:00", awakeFrom = Fx.dt(day, "03:00"), awakeTo = Fx.dt(day, "04:00"))
 
         assertThat(ready(calculator.keel(nights, asOf)).score).isEqualTo(100)
+    }
+
+    @Test
+    fun `a manual night that later got watch data keeps the watch's awake time`() {
+        val nights = Fx.regularNights(14, asOf).toMutableList()
+        val day = asOf.minusDays(3)
+        // The watch saw 23:00–07:00 with 03:00–04:00 awake; the user had added the night by hand before it synced.
+        val synced = Fx.stagedNight(day, Fx.hypnogram(Fx.dt(day.minusDays(1), "23:00"), LIGHT to 240L, AWAKE to 60L, LIGHT to 180L))
+        val main = checkNotNull(synced.main)
+        nights[10] = synced.copy(
+            override = NightOverride(day, fellAsleep = main.start, wokeUp = main.end, isManualNight = true, offset = Fx.UTC, updatedAt = main.end),
+        )
+        check(nights[10].isManual && !main.isManual)
+
+        assertThat(ready(calculator.keel(nights, asOf)).score).isEqualTo(PatternFx.sri(pairs = 13 * 1440, mismatches = 120))
     }
 
     @Test

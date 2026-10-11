@@ -71,7 +71,7 @@ class AnchorStatsCalculator(private val config: SleepConfig = SleepConfig.DEFAUL
             .associateBy { it.wakeDate }
             .values
             .sortedByDescending { it.wakeDate }
-            .mapNotNull { night -> choose(anchors, night)?.let { night(it, night).latency } }
+            .mapNotNull { present -> choose(anchors, present)?.let { anchor -> night(anchor, present).latency } }
             .take(anchorConfig.personalMaxValues)
         if (latencies.isEmpty()) return PersonalLatency(values = 0, median = null, active = false)
         val medianMinutes = median(latencies.map { it.minutesExact() })
