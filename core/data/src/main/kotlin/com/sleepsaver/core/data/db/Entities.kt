@@ -1,5 +1,6 @@
 package com.sleepsaver.core.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -124,6 +125,7 @@ data class HabitEntity(
     val sortOrder: Int,
 )
 
+/** An evening-routine activity (a Night step). [selected] = on the every-evening list. */
 @Entity(tableName = "routine_activities")
 data class RoutineActivityEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -132,4 +134,229 @@ data class RoutineActivityEntity(
     val isCustom: Boolean,
     val selected: Boolean,
     val sortOrder: Int,
+    /** Technique.name; null = custom or unmapped. */
+    @ColumnInfo(defaultValue = "NULL") val techniqueKey: String? = null,
+    /** Minutes before the target bedtime the step starts. */
+    @ColumnInfo(defaultValue = "45") val leadMin: Int = 45,
+    /** Minutes the step lasts (0 = a checklist item). */
+    @ColumnInfo(defaultValue = "10") val durationMin: Int = 10,
+)
+
+// ---------------------------------------------------------------- Week plan (v2)
+
+/** One weekday's plan: morning (wake + alarm) and evening (bedtime + Night steps). */
+@Entity(tableName = "day_plans")
+data class DayPlanEntity(
+    /** ISO day of week, 1 = Monday … 7 = Sunday. */
+    @PrimaryKey val dayOfWeek: Int,
+    /** Minute of day; null = usual (learned or Settings). */
+    val wakeMinOfDay: Int?,
+    /** AlarmMode.name */
+    val alarmMode: String,
+    val windowMin: Int,
+    /** WakeStyle.name */
+    val wakeStyle: String,
+    /** AlarmTone.name */
+    val tone: String,
+    /** 10..100 */
+    val volumePct: Int,
+    /** SnoozeStyle.name */
+    val snoozeStyle: String,
+    val snoozeFixedMin: Int,
+    val snoozeFixedCount: Int,
+    val overrunMin: Int,
+    /** Minute of day; null = the Settings bedtime rule. */
+    val bedtimeMinOfDay: Int?,
+    val nightStepsOn: Boolean,
+    val windDownMin: Int,
+    /** false = the every-evening list (routine_activities.selected); true = this day's day_routine_items. */
+    val ownRoutine: Boolean,
+)
+
+/** A day's own Night steps list (only read when day_plans.ownRoutine). */
+@Entity(
+    tableName = "day_routine_items",
+    primaryKeys = ["dayOfWeek", "activityId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = RoutineActivityEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["activityId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("activityId")],
+)
+data class DayRoutineItemEntity(val dayOfWeek: Int, val activityId: Long, val position: Int)
+
+/** A one-off for one date (Day off / Just this once). Deleting it reverts to the week plan. */
+@Entity(tableName = "plan_overrides")
+data class PlanOverrideEntity(
+    /** ISO-8601 local date. */
+    @PrimaryKey val date: String,
+    /** OverrideKind.name */
+    val kind: String,
+    val wakeMinOfDay: Int?,
+    /** AlarmMode.name */
+    val alarmMode: String?,
+    val createdAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+/** "Pause alarms until …" (at most one row, id = 1). */
+@Entity(tableName = "plan_pauses")
+data class PlanPauseEntity(
+    @PrimaryKey val id: Int = 1,
+    val fromDate: String,
+    val untilDate: String,
+    val createdAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+// ---------------------------------------------------------------- Journal (v2)
+
+/** A checked Night step. No FK: history survives deleting a custom activity. */
+@Entity(tableName = "night_step_logs", primaryKeys = ["nightOf", "activityId"])
+data class NightStepLogEntity(
+    /** The evening, ISO-8601 local date. */
+    val nightOf: String,
+    val activityId: Long,
+    /** Technique.name */
+    val techniqueKey: String?,
+    val doneAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+/** The Tomorrow list written on the evening [nightOf]. */
+@Entity(tableName = "tomorrow_lists")
+data class TomorrowListEntity(
+    @PrimaryKey val nightOf: String,
+    val text: String,
+    val updatedAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+/** A night mark, keyed by the wake date of the night it goes with. */
+@Entity(tableName = "night_marks", primaryKeys = ["wakeDate", "mark"])
+data class NightMarkEntity(
+    val wakeDate: String,
+    /** Mark.name (stored marks only) */
+    val mark: String,
+    val createdAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+/** One wake date's Morning feel. */
+@Entity(tableName = "morning_feel")
+data class MorningFeelEntity(
+    @PrimaryKey val wakeDate: String,
+    /** 1..5 */
+    val level: Int,
+    val atEpochMs: Long,
+    val offsetSec: Int,
+    /** FeelSource.name */
+    val source: String,
+)
+
+// ---------------------------------------------------------------- Night log (v2)
+
+/** A Drop anchor tap. */
+@Entity(tableName = "anchors", indices = [Index("wakeDate")])
+data class AnchorEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val atEpochMs: Long,
+    val offsetSec: Int,
+    val wakeDate: String,
+    /** AnchorSource.name */
+    val source: String,
+    val wholeNightLog: Boolean,
+)
+
+/** One stream of phone movement (whole night after Drop anchor, or one surfacing window). */
+@Entity(tableName = "movement_logs", indices = [Index("wakeDate")])
+data class MovementLogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startEpochMs: Long,
+    val endEpochMs: Long?,
+    val offsetSec: Int,
+    /** WHOLE_NIGHT | WINDOW */
+    val mode: String,
+    val wakeDate: String,
+    val anchorId: Long?,
+    val occurrenceId: String?,
+)
+
+/** Non-missing epochs only (a missing slot has no row). */
+@Entity(
+    tableName = "movement_epochs",
+    primaryKeys = ["logId", "startEpochMs"],
+    foreignKeys = [
+        ForeignKey(
+            entity = MovementLogEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["logId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class MovementEpochEntity(val logId: Long, val startEpochMs: Long, val activity: Double)
+
+/** One alarm occurrence's history (updated across snoozes / backup). */
+@Entity(tableName = "alarm_events", indices = [Index("wakeDate"), Index("occurrenceId")])
+data class AlarmEventEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** RingKind.name */
+    val kind: String,
+    val occurrenceId: String?,
+    val wakeDate: String,
+    val targetEpochMs: Long,
+    val windowStartEpochMs: Long,
+    /** AlarmMode.name */
+    val mode: String,
+    /** WakeStyle.name */
+    val wakeStyle: String,
+    val firstRingEpochMs: Long,
+    /** RingReason.name */
+    val reason: String,
+    val maxZ: Double?,
+    /** Comma-separated epoch ms, one per snooze tap. */
+    val snoozeTimes: String,
+    val stoppedAtEpochMs: Long?,
+    /** RingOutcome.name */
+    val outcome: String?,
+    val sensingStartEpochMs: Long?,
+    val offsetSec: Int,
+)
+
+/** The restless-trigger tuning (at most one row, id = 1). "Reset to default" deletes it. */
+@Entity(tableName = "alarm_tuning")
+data class AlarmTuningEntity(
+    @PrimaryKey val id: Int = 1,
+    val zThreshold: Double,
+    /** TuningReason.name */
+    val reason: String,
+    val changedAtEpochMs: Long,
+    val offsetSec: Int,
+)
+
+/** One Hush play. [endEpochMs] is null while it plays (or when the process died mid-play). */
+@Entity(tableName = "hush_plays", indices = [Index("wakeDate")])
+data class HushPlayEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val startEpochMs: Long,
+    val endEpochMs: Long?,
+    val offsetSec: Int,
+    /** HushColor.name */
+    val color: String,
+    val wakeDate: String,
+)
+
+/** Prompts shown, so each shows at most once per wake date. */
+@Entity(tableName = "prompt_log", primaryKeys = ["wakeDate", "kind"])
+data class PromptLogEntity(
+    val wakeDate: String,
+    /** PromptKind.name */
+    val kind: String,
+    val shownAtEpochMs: Long,
+    val offsetSec: Int,
 )

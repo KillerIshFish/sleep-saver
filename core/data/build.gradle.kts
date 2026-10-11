@@ -8,6 +8,12 @@ android {
     namespace = "com.sleepsaver.core.data"
 }
 
+// MigrationTest (MigrationTestHelper) reads the exported Room schemas as test assets. Configured through the new DSL
+// type: the `android` accessor's legacy source-set type can't be cast under AGP 9.
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+    sourceSets.getByName("test").assets.directories.add("$projectDir/schemas")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("room.generateKotlin", "true")

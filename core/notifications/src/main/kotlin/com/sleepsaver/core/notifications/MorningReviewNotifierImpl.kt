@@ -39,7 +39,8 @@ class MorningReviewNotifierImpl @Inject constructor(
 ) : MorningReviewNotifier {
 
     private val alarmManager = checkNotNull(context.getSystemService<AlarmManager>())
-    private val prefs = context.getSharedPreferences("sleepsaver_review_nudge", Context.MODE_PRIVATE)
+    /** Opened on first use: credential-encrypted storage can't be read before the first unlock (direct boot). */
+    private val prefs by lazy { context.getSharedPreferences("sleepsaver_review_nudge", Context.MODE_PRIVATE) }
 
     /**
      * When the armed fallback goes off; persisted because alarms don't survive a reboot or an app update.

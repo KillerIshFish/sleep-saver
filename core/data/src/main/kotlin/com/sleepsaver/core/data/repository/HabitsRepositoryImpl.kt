@@ -1,19 +1,16 @@
 package com.sleepsaver.core.data.repository
 
-import android.content.Context
-import androidx.annotation.StringRes
-import com.sleepsaver.core.data.R
 import com.sleepsaver.core.data.db.HabitEntity
 import com.sleepsaver.core.data.db.RoutineActivityEntity
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.mapping.toDomain
 import com.sleepsaver.core.data.mapping.toDomainOrNull
 import com.sleepsaver.core.data.mapping.toEntity
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.transform
@@ -26,17 +23,21 @@ import javax.inject.Singleton
 /**
  * Habit settings and evening-routine activities in Room. Both tables are seeded with defaults whenever they
  * are read empty (first launch, or after "Reset all data"); a habit type missing from the table is added with
- * its catalog defaults.
+ * its catalog defaults. Routine activities are seeded and ordered by [RoutineActivityStore], which Night steps
+ * shares, so the first write from either side seeds the same defaults.
  */
 @Singleton
-class HabitsRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class HabitsRepositoryImpl @Inject internal constructor(
     database: SleepSaverDatabase,
+    private val store: RoutineActivityStore,
 ) : HabitsRepository {
 
     private val habitDao = database.habitDao()
     private val activityDao = database.routineActivityDao()
     private val catalog = HabitCatalog()
+    private val steps = SleepConfig.DEFAULT.steps
+
+    /** Guards the habits table only; routine_activities has the store's own lock. */
     private val seedLock = Mutex()
 
     /** Falls back to the catalog defaults if the table can't be read or seeded (it feeds the insights state). */
@@ -49,7 +50,7 @@ class HabitsRepositoryImpl @Inject constructor(
         .distinctUntilChanged()
 
     override val routineActivities: Flow<List<RoutineActivity>> = activityDao.observeAll()
-        .transform { rows -> if (rows.isNotEmpty()) emit(rows.map { it.toDomain() }) else seedActivities() }
+        .transform { rows -> if (rows.isNotEmpty()) emit(rows.map { it.toDomain() }) else store.seedIfEmpty() }
         .orFallback(TAG, "Routine activities") { emptyList() }
         .distinctUntilChanged()
 
@@ -67,19 +68,24 @@ class HabitsRepositoryImpl @Inject constructor(
     override suspend fun setActivitySelected(id: Long, selected: Boolean) = activityDao.setSelected(id, selected)
 
     /**
-     * Custom activities go to the end of the grid, already selected. Seeds the defaults first, since a table
-     * holding only this row would never get them.
+     * Custom activities go to the end of the grid, already selected, with the custom lead and duration. The store
+     * seeds the defaults first, since a table holding only this row would never get them.
      */
     override suspend fun addCustomActivity(label: String, emoji: String): Long {
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label must not be blank" }
-        seedActivities()
-        return seedLock.withLock {
-            val nextOrder = (activityDao.getAll().maxOfOrNull { it.sortOrder } ?: -1) + 1
-            activityDao.insert(
-                RoutineActivityEntity(label = trimmed, emoji = emoji.trim(), isCustom = true, selected = true, sortOrder = nextOrder),
-            )
-        }
+        return store.insertAtEnd(
+            RoutineActivityEntity(
+                label = trimmed,
+                emoji = emoji.trim(),
+                isCustom = true,
+                selected = true,
+                sortOrder = 0, // the store puts it last
+                techniqueKey = null,
+                leadMin = steps.customLead.toMinutes().toInt(),
+                durationMin = steps.customDuration.toMinutes().toInt(),
+            ),
+        )
     }
 
     override suspend fun deleteActivity(id: Long) = activityDao.delete(id)
@@ -109,34 +115,7 @@ class HabitsRepositoryImpl @Inject constructor(
         habitDao.upsertAll(seeded)
     }
 
-    private suspend fun seedActivities() = seedLock.withLock {
-        if (activityDao.count() > 0) return@withLock
-        activityDao.insertAll(
-            DEFAULT_ACTIVITIES.mapIndexed { index, activity ->
-                RoutineActivityEntity(
-                    label = context.getString(activity.label),
-                    emoji = activity.emoji,
-                    isCustom = false,
-                    selected = false,
-                    sortOrder = index,
-                )
-            },
-        )
-    }
-
-    private class DefaultActivity(@param:StringRes val label: Int, val emoji: String)
-
     private companion object {
         const val TAG = "HabitsRepository"
-
-        private val DEFAULT_ACTIVITIES = listOf(
-            DefaultActivity(R.string.routine_reading, "📖"),
-            DefaultActivity(R.string.routine_stretching, "🧘"),
-            DefaultActivity(R.string.routine_warm_shower, "🚿"),
-            DefaultActivity(R.string.routine_podcast, "🎧"),
-            DefaultActivity(R.string.routine_journaling, "✍️"),
-            DefaultActivity(R.string.routine_tv, "📺"),
-            DefaultActivity(R.string.routine_gaming, "🎮"),
-        )
     }
 }

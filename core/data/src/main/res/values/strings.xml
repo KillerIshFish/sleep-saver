@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Default evening-routine activities, stored in the database when the routine grid is first shown. -->
-    <string name="routine_reading">Reading</string>
+    <!--
+        Default Night steps (routine activities), stored in the database the first time the routine is read or
+        written (RoutineActivityStore). Rows created by earlier versions keep the labels they were stored with.
+    -->
+    <string name="routine_screens_down">Screens down</string>
+    <string name="routine_tomorrow_list">Tomorrow list</string>
+    <string name="routine_slow_tide">Slow tide breathing</string>
+    <string name="routine_reading">Read on paper</string>
     <string name="routine_stretching">Stretching</string>
-    <string name="routine_warm_shower">Warm shower</string>
-    <string name="routine_podcast">Podcast</string>
+    <string name="routine_warm_shower">Warm shower or bath</string>
     <string name="routine_journaling">Journaling</string>
-    <string name="routine_tv">TV</string>
-    <string name="routine_gaming">Gaming</string>
 </resources>

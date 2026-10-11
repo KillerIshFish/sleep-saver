@@ -1,8 +1,25 @@
 package com.sleepsaver.core.data.repository
 
+import com.sleepsaver.core.domain.alarm.AlarmEvent
+import com.sleepsaver.core.domain.alarm.AlarmOccurrence
+import com.sleepsaver.core.domain.alarm.AlarmTuning
+import com.sleepsaver.core.domain.alarm.DeepPrior
+import com.sleepsaver.core.domain.alarm.HushColor
+import com.sleepsaver.core.domain.alarm.MovementEpoch
+import com.sleepsaver.core.domain.alarm.SurfacingWindow
+import com.sleepsaver.core.domain.alarm.WakeLanding
+import com.sleepsaver.core.domain.journal.Anchor
+import com.sleepsaver.core.domain.journal.AnchorSource
+import com.sleepsaver.core.domain.journal.FeelSource
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
+import com.sleepsaver.core.domain.journal.MorningFeelEntry
+import com.sleepsaver.core.domain.journal.PromptKind
+import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DailyInsights
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
+import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
@@ -14,13 +31,33 @@ import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.model.VitalSample
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
+import com.sleepsaver.core.domain.nightsteps.StepAdherence
+import com.sleepsaver.core.domain.nightsteps.StepSuggestion
+import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.core.domain.patterns.AnchorNightStats
+import com.sleepsaver.core.domain.patterns.KeelResult
+import com.sleepsaver.core.domain.patterns.MarkEffect
+import com.sleepsaver.core.domain.patterns.OddNight
+import com.sleepsaver.core.domain.patterns.PersonalLatency
+import com.sleepsaver.core.domain.patterns.PlanCheck
+import com.sleepsaver.core.domain.patterns.SocialJetlag
+import com.sleepsaver.core.domain.schedule.DateOverride
+import com.sleepsaver.core.domain.schedule.DayPart
+import com.sleepsaver.core.domain.schedule.DayPlan
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.PlanPause
+import com.sleepsaver.core.domain.schedule.WeekPlan
+import com.sleepsaver.core.domain.schedule.WeekPreset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.OutputStream
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 // ---------------------------------------------------------------- Sleep data
@@ -235,4 +272,199 @@ interface ExportRepository {
 interface DataResetter {
     /** Deletes the database and settings, cancels sync work and reminders. */
     suspend fun resetAll()
+}
+
+// ---------------------------------------------------------------- Week plan
+
+/** A planned alarm with tonight's effective window. */
+data class PlannedAlarm(
+    val occurrence: AlarmOccurrence,
+    val window: SurfacingWindow,
+    /** B on the evening before (plan, Settings rule or learned); null when it can't be computed. */
+    val plannedBedtime: Instant?,
+    val debtStatus: DebtStatus?,
+    /** The latency [window] and [plannedBedtime] were computed with (personal latency, else config.sleepLatency). */
+    val latency: Duration,
+    /** The sleep need used for this plan (settings), for expectedOnset's target − need fallback. */
+    val need: Duration,
+)
+
+/**
+ * Everything the alarm scheduler arms from. [following] = up to alarm.followingMirrored (2) alarms after [next]
+ * (for the locked-boot mirror).
+ */
+data class AlarmPlan(val next: PlannedAlarm?, val following: List<PlannedAlarm>, val plannedIds: Set<String>, val computedAt: Instant)
+
+interface ScheduleRepository {
+    /** Always seven days, Monday first; seeded with WeekPlan.DEFAULT on first read. Falls back to DEFAULT only for the UI. */
+    val weekPlan: Flow<WeekPlan>
+
+    /** Overrides with date ≥ today − overrideHistoryDays, and the pause (expired pauses are dropped). */
+    val oneOffs: Flow<OneOffs>
+
+    /**
+     * Usual wake (learned or Settings, ignoring the plan's own times) for the next date of each weekday
+     * (tomorrow .. today + 7). Never fails: falls back to Settings' wake time.
+     */
+    val usualWake: Flow<Map<DayOfWeek, LocalTime>>
+
+    /**
+     * For the UI: the next week.upcomingLimit (7) planned alarms (excluding handled ones). Recomputed when the plan,
+     * one-offs, settings, nights, anchors or the local date change; minute ticks only drop alarms whose target passed.
+     */
+    val upcomingAlarms: Flow<List<PlannedAlarm>>
+    val nextAlarm: Flow<PlannedAlarm?>
+
+    /**
+     * For the alarm scheduler only: computed now from storage, no fallbacks. Throws when the plan, one-offs,
+     * settings or nights can't be read. [exclude] = handled + in-progress occurrence ids from the mirror.
+     */
+    suspend fun computeAlarmPlan(now: Instant, exclude: Set<String>): AlarmPlan
+
+    /**
+     * Atomic read-modify-write of one day (Mutex + transaction). Never touches routine items. Normalises: alarm on and
+     * no wake time → current usual wake rounded to timeRounding; clamps every range.
+     */
+    suspend fun updateDay(day: DayOfWeek, change: (DayPlan) -> DayPlan)
+
+    /** null = the every-evening list (ownRoutine = false); else replaces the day's items (unknown ids dropped). */
+    suspend fun setDayRoutine(day: DayOfWeek, activityIds: List<Long>?)
+    suspend fun copyDay(from: DayOfWeek, to: Set<DayOfWeek>, parts: Set<DayPart>)
+    suspend fun applyPreset(preset: WeekPreset, wake: LocalTime)
+
+    /** Replaces the override for its date; prunes rows older than today − overridePruneDays. */
+    suspend fun setOverride(override: DateOverride)
+    suspend fun clearOverride(date: LocalDate)
+
+    /** null = resume. require(until ≤ today + pauseMaxDays). */
+    suspend fun setPause(pause: PlanPause?)
+}
+
+// ---------------------------------------------------------------- Night steps
+
+interface NightStepsRepository {
+    /**
+     * Tonight's steps: the schedule day's evening (DailyInsights.schedule.date). Without nights (first run, no Health
+     * Connect) it is timed from the evening plan's bedtime or Settings' bedtime (fromSettingsOnly = true).
+     */
+    val tonight: Flow<NightStepsSession?>
+    fun session(nightOf: LocalDate): Flow<NightStepsSession?>
+
+    /** All routine activities (selected = every-evening list), with technique, lead and duration. */
+    val activities: Flow<List<RoutineActivity>>
+    val adherence: Flow<StepAdherence>
+    val suggestions: Flow<List<StepSuggestion>>
+    suspend fun setDone(nightOf: LocalDate, activityId: Long, done: Boolean)
+
+    /**
+     * Adds the technique as a selected activity (emoji = technique.emoji, lead/duration = config.steps.timing(technique)),
+     * or returns the existing activity with that technique (and selects it). [label] = the caller's localized title,
+     * resolved in composition (never call a @Composable title() from a click lambda).
+     */
+    suspend fun addTechnique(technique: Technique, label: String): Long
+    suspend fun addCustom(label: String, emoji: String, lead: Duration, duration: Duration): Long
+    suspend fun setTiming(activityId: Long, lead: Duration, duration: Duration)
+
+    /** The every-evening list (routine_activities.selected). */
+    suspend fun setIncluded(activityId: Long, included: Boolean)
+
+    /** Custom activities only (require). */
+    suspend fun deleteCustom(activityId: Long)
+}
+
+// ---------------------------------------------------------------- Journal (marks, Morning feel, Tomorrow list)
+
+interface JournalRepository {
+    fun marks(wakeDate: LocalDate): Flow<Set<Mark>>
+    val marksByDate: Flow<Map<LocalDate, Set<Mark>>>
+
+    /** Stored marks only (require(!mark.derived)); require(markEditable(wakeDate, today)). */
+    suspend fun setMark(wakeDate: LocalDate, mark: Mark, on: Boolean)
+    fun feel(wakeDate: LocalDate): Flow<MorningFeelEntry?>
+    val feels: Flow<Map<LocalDate, MorningFeelEntry>>
+
+    /** null clears. [at]/[offset] default to now (a buffered ring-screen tap passes its own). */
+    suspend fun setFeel(wakeDate: LocalDate, feel: MorningFeel?, source: FeelSource, at: Instant? = null, offset: ZoneOffset? = null)
+    fun tomorrowList(nightOf: LocalDate): Flow<TomorrowList?>
+
+    /** Blank deletes. */
+    suspend fun setTomorrowList(nightOf: LocalDate, text: String)
+    fun promptShown(wakeDate: LocalDate, kind: PromptKind): Flow<Boolean>
+    suspend fun markPromptShown(wakeDate: LocalDate, kind: PromptKind)
+}
+
+// ---------------------------------------------------------------- Night log (anchors, movement, alarm history, tuning, Hush)
+
+/** One movement log with its stored (non-missing) epochs, oldest first. [mode] = WHOLE_NIGHT | WINDOW. */
+data class MovementTrace(val logId: Long, val mode: String, val start: Instant, val end: Instant?, val epochs: List<MovementEpoch>)
+
+interface NightLogRepository {
+    /**
+     * The latest anchor whose wakeDate is the next wake date (null when none, or the night state ended). For alarm
+     * math only (expectedOnset, the debt-aware window); night mode in the UI reads NightController.state (§5.0).
+     */
+    val activeAnchor: Flow<Anchor?>
+    fun anchors(wakeDate: LocalDate): Flow<List<Anchor>>
+    val allAnchors: Flow<List<Anchor>>
+    suspend fun addAnchor(at: Instant, offset: ZoneOffset, source: AnchorSource, wholeNightLog: Boolean): Long
+    suspend fun deleteAnchor(id: Long)
+    suspend fun startMovementLog(
+        start: Instant,
+        offset: ZoneOffset,
+        mode: String,
+        wakeDate: LocalDate,
+        anchorId: Long?,
+        occurrenceId: String?,
+    ): Long
+
+    /** Missing epochs are skipped. */
+    suspend fun addEpochs(logId: Long, epochs: List<MovementEpoch>)
+    suspend fun endMovementLog(logId: Long, end: Instant)
+    fun movement(wakeDate: LocalDate): Flow<List<MovementTrace>>
+
+    /** Insert (id == 0) or update; returns the row id: the new id on insert, [event].id on update (never Room's −1). */
+    suspend fun recordAlarmEvent(event: AlarmEvent): Long
+
+    /** The latest PLANNED event for [wakeDate] (never a catnap or test). */
+    fun alarmEvent(wakeDate: LocalDate): Flow<AlarmEvent?>
+
+    /** The newest alarm.recentEventsLimit (30) events. */
+    val recentAlarmEvents: Flow<List<AlarmEvent>>
+    val lastTestRing: Flow<AlarmEvent?>
+
+    /** Occurrence ids of PLANNED events with an outcome, wakeDate ≥ [since]. */
+    suspend fun handledOccurrenceIds(since: LocalDate): Set<String>
+
+    /** Wake landing for [wakeDate]'s planned event (null without an event; hasStages false without stages). */
+    fun landing(wakeDate: LocalDate): Flow<WakeLanding?>
+    val tuning: Flow<AlarmTuning?>
+
+    /** Runs ZTuner over the latest landings and stores a new tuning row if a step is due. Idempotent. */
+    suspend fun refreshTuning()
+    suspend fun resetTuning()
+    suspend fun startHushPlay(start: Instant, offset: ZoneOffset, color: HushColor): Long
+    suspend fun endHushPlay(id: Long, end: Instant)
+}
+
+// ---------------------------------------------------------------- Patterns
+
+/** Inputs for DebtProjector (computed per scrub step in the ViewModel). [settings] has the plan and personal latency merged. */
+data class DebtPreviewInputs(val nights: List<Night>, val settings: UserSleepSettings, val zone: ZoneId)
+
+interface PatternsRepository {
+    val keel: Flow<KeelResult>
+    val socialJetlag: Flow<SocialJetlag?>
+
+    /** Planned keel + warnings for the current plan (null while loading / without inputs). */
+    val planCheck: Flow<PlanCheck?>
+
+    /** All marks × metrics (derived marks included). */
+    val markEffects: Flow<List<MarkEffect>>
+    fun oddNight(wakeDate: LocalDate): Flow<OddNight?>
+    fun anchorStats(wakeDate: LocalDate): Flow<AnchorNightStats?>
+    val personalLatency: Flow<PersonalLatency>
+
+    /** null in demo mode or with fewer than priorMinNights stage nights. */
+    val deepPrior: Flow<DeepPrior?>
+    val debtPreviewInputs: Flow<DebtPreviewInputs?>
 }

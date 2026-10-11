@@ -184,8 +184,9 @@ class ReminderPlannerImpl internal constructor(
 }
 
 /** Survives process death: what was already posted, so a replan never posts it twice. */
-internal class ReminderStore(context: Context) {
-    private val prefs = context.getSharedPreferences("sleepsaver_reminders", Context.MODE_PRIVATE)
+internal class ReminderStore(private val context: Context) {
+    /** Opened on first use: credential-encrypted storage can't be read before the first unlock (direct boot). */
+    private val prefs by lazy { context.getSharedPreferences("sleepsaver_reminders", Context.MODE_PRIVATE) }
 
     /** The latest reminder time a fire covered. */
     var postedThrough: Instant?
