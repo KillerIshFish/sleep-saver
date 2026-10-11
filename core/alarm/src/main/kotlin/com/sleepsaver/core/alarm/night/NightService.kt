@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -745,23 +746,37 @@ internal class MovementStream(
     var endAt: Instant? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    /** When the held wake lock times out (SystemClock.elapsedRealtime). */
+    private var wakeLockUntilMs = 0L
+
     fun add(closed: List<MovementEpoch>) {
         epochs += closed
         while (epochs.size > MAX_EPOCHS) epochs.removeAt(0)
         closed.filterTo(unsaved) { it.activity != null }
     }
 
+    /**
+     * Keeps the CPU awake for [length] from now. The stream holds one lock for all its reasons (the whole-night log's,
+     * then a window run's that shares the stream): a later reason extends it when it needs it longer and never cuts it
+     * short, so [releaseWakeLock] always releases everything the stream took.
+     */
     fun holdWakeLock(length: Duration) {
         if (length.isNegative || length.isZero) return
-        wakeLock = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.SURFACING_WAKE_LOCK_TAG)?.apply {
-            setReferenceCounted(false)
-            acquire(length.toMillis())
-        }
+        val lock = wakeLock ?: power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.SURFACING_WAKE_LOCK_TAG)
+            ?.apply { setReferenceCounted(false) }
+            ?.also { wakeLock = it }
+            ?: return
+        val now = SystemClock.elapsedRealtime()
+        val until = now + length.toMillis()
+        if (lock.isHeld && until <= wakeLockUntilMs) return
+        lock.acquire(until - now) // not reference-counted: the new timeout replaces the old one
+        wakeLockUntilMs = until
     }
 
     fun releaseWakeLock() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        wakeLockUntilMs = 0L
     }
 
     private companion object {

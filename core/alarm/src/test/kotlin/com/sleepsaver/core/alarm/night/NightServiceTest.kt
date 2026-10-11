@@ -3,6 +3,7 @@ package com.sleepsaver.core.alarm.night
 import android.app.Notification
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
@@ -15,16 +16,20 @@ import com.sleepsaver.core.data.hooks.SensingMode
 import com.sleepsaver.core.data.hooks.SensingState
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.MovementEpoch
+import com.sleepsaver.core.domain.alarm.MovementMeter
 import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.alarm.SensingOutcome
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.AnchorSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
+import org.robolectric.shadows.ShadowPowerManager
 import java.time.Duration
+import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
 internal class NightServiceTest : AlarmRobolectricTest() {
@@ -445,6 +450,24 @@ internal class NightServiceTest : AlarmRobolectricTest() {
 
         assertThat(graph.motion.sources.single().stopped).isFalse()
         assertThat(graph.nightLog.movementLogsEnded).isEmpty()
+    }
+
+    @Test
+    fun `a stream holds one wake lock for all its reasons, and closing it releases that lock`() {
+        // A phone without a wake-up accelerometer: the whole-night log keeps the CPU awake until the alarm + 10 min,
+        // then a window run that shares the stream asks for its own length.
+        val stream = MovementStream(now, ZoneOffset.UTC, MovementMeter(SleepConfig.DEFAULT), graph.motion.create(), context.getSystemService(PowerManager::class.java))
+        stream.holdWakeLock(Duration.ofMinutes(40))
+        val lock = ShadowPowerManager.getLatestWakeLock()
+
+        stream.holdWakeLock(Duration.ofMinutes(25)) // shorter: the lock keeps its 40 min
+        stream.holdWakeLock(Duration.ofMinutes(60)) // longer: the same lock is extended
+
+        assertThat(ShadowPowerManager.getLatestWakeLock()).isSameInstanceAs(lock)
+        idleMain(Duration.ofMinutes(50))
+        assertThat(lock.isHeld).isTrue()
+        stream.releaseWakeLock()
+        assertThat(lock.isHeld).isFalse()
     }
 
     @Test
