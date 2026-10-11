@@ -23,14 +23,23 @@ import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.domain.patterns.PersonalLatency
+import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.AlarmSettings
+import com.sleepsaver.core.domain.schedule.MorningPlan
+import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import com.sleepsaver.core.testing.FakeDataResetter
 import com.sleepsaver.core.testing.FakeDemoModeController
 import com.sleepsaver.core.testing.FakeExportRepository
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakePatternsRepository
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +56,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalTime
 
@@ -60,6 +70,9 @@ class SettingsViewModelTest {
     private val gateway = FakeHealthConnectGateway()
     private val platform = FakeSettingsPlatform()
     private val time = FakeTimeProvider()
+    private val schedule = FakeScheduleRepository()
+    private val patterns = FakePatternsRepository()
+    private val night = FakeNightController()
     private var demo: DemoModeController = FakeDemoModeController(settings)
     private var resetter: DataResetter = FakeDataResetter()
     private var settingsRepository: SettingsRepository = settings
@@ -83,6 +96,9 @@ class SettingsViewModelTest {
             dataResetter = resetter,
             healthConnect = gateway,
             platform = platform,
+            scheduleRepository = schedule,
+            patternsRepository = patterns,
+            nightController = night,
             timeProvider = time,
             ioDispatcher = io,
         )
@@ -244,21 +260,79 @@ class SettingsViewModelTest {
         insights.mutableState.value = InsightsState.NoNights
         assertThat(viewModel.state.needSuggestion).isNull()
         assertThat(viewModel.state.learned).isEqualTo(LearnedSleepTiming())
-        assertThat(viewModel.state.scheduleWake).isNull()
     }
 
     @Test
-    fun `learned times and today's wake time and bedtime come from the insights`() = runTest {
+    fun `learned times come from the insights`() = runTest {
         val ready = SampleData.readyState() as InsightsState.Ready
         insights.mutableState.value = ready
-        val schedule = ready.insights.schedule
 
         val viewModel = viewModel()
 
         assertThat(viewModel.state.learned).isEqualTo(ready.insights.learnedTiming)
         assertThat(viewModel.state.learned.weekdayWake).isNotNull()
-        assertThat(viewModel.state.scheduleWake).isEqualTo(schedule.typicalWake.toLocalTime())
-        assertThat(viewModel.state.scheduleBedtime).isEqualTo(schedule.targetBedtime.atZone(schedule.zone).toLocalTime())
+    }
+
+    @Test
+    fun `without nights the rows show the user's own wake time and bedtime`() = runTest {
+        val viewModel = viewModel()
+
+        assertThat(viewModel.state.usualWake).isEqualTo(LocalTime.of(7, 0))
+        assertThat(viewModel.state.usualBedtime).isEqualTo(LocalTime.of(23, 0))
+    }
+
+    @Test
+    fun `the wake time and bedtime rows show the usual times, which an early alarm tomorrow doesn't move`() = runTest {
+        val nights = SampleData.nights()
+        sleep.nightsState.value = nights
+        settings.state.update { it.copy(sleep = it.sleep.copy(bedtimeMode = BedtimeMode.SLEEP_NEED)) }
+        insights.mutableState.value = SampleData.readyState()
+        val viewModel = viewModel()
+        val wake = viewModel.state.usualWake
+        val bedtime = viewModel.state.usualBedtime
+        // Learned from the nights, and the bedtime leaves room for the 8h need plus 15 min to fall asleep.
+        assertThat(wake).isNotEqualTo(LocalTime.of(7, 0))
+        assertThat(bedtime).isEqualTo(wake!!.minusHours(8).minusMinutes(15))
+
+        // Tomorrow gets its own 5:30 alarm: the plan, the settings it's merged into and the schedule all move...
+        val tomorrow = SampleData.today.plusDays(1).dayOfWeek
+        schedule.updateDay(tomorrow) {
+            it.copy(morning = MorningPlan(wakeTime = LocalTime.of(5, 30), alarm = AlarmSettings(mode = AlarmMode.FIXED)))
+        }
+        val withPlan = settings.state.value.sleep.copy(week = schedule.weekState.value)
+        settings.state.update { it.copy(sleep = withPlan) }
+        insights.mutableState.value = InsightsState.Ready(SampleData.insights(settings = withPlan, nights = nights))
+        val planBedtime = ScheduleTimes().bedtime(SampleData.today, SampleData.zone, nights, withPlan.sleepNeed, withPlan.timing).first
+        assertThat(planBedtime.atZone(SampleData.zone).toLocalTime()).isEqualTo(LocalTime.of(21, 15))
+
+        // ...but neither row does.
+        assertThat(viewModel.state.usualWake).isEqualTo(wake)
+        assertThat(viewModel.state.usualBedtime).isEqualTo(bedtime)
+    }
+
+    @Test
+    fun `the usual bedtime uses the personal time to fall asleep once there is one`() = runTest {
+        sleep.nightsState.value = SampleData.nights()
+        settings.state.update { it.copy(sleep = it.sleep.copy(bedtimeMode = BedtimeMode.SLEEP_NEED)) }
+        val viewModel = viewModel()
+        val wake = viewModel.state.usualWake!!
+
+        patterns.personalLatencyState.value = PersonalLatency(values = 9, median = Duration.ofMinutes(35), active = true)
+
+        assertThat(viewModel.state.usualBedtime).isEqualTo(wake.minusHours(8).minusMinutes(35))
+    }
+
+    @Test
+    fun `the week plan row sums up the alarm days`() = runTest {
+        val viewModel = viewModel()
+        assertThat(viewModel.state.weekPlan).isEqualTo(WeekPlanSummary.NoAlarms)
+
+        schedule.weekState.value = PlanSamples.weekPlan()
+        val weekdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY)
+        assertThat(viewModel.state.weekPlan).isEqualTo(WeekPlanSummary.OneTime(weekdays, LocalTime.of(6, 45)))
+
+        schedule.updateDay(DayOfWeek.FRIDAY) { it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(7, 30))) }
+        assertThat(viewModel.state.weekPlan).isEqualTo(WeekPlanSummary.Varied)
     }
 
     @Test
@@ -277,6 +351,24 @@ class SettingsViewModelTest {
         viewModel.messageShown()
         viewModel.setClockFormat(ClockFormat.H24)
         assertThat(viewModel.state.message).isEqualTo(SettingsMessage.SAVE_FAILED)
+    }
+
+    // ------------------------------------------------------------------ Alarms
+
+    @Test
+    fun `a test ring is set through the night controller, and a busy one says so`() = runTest {
+        val viewModel = viewModel()
+
+        viewModel.testRing()
+
+        assertThat(night.nightControllerCalls).containsExactly("testRing")
+        assertThat(viewModel.state.message).isEqualTo(SettingsMessage.TEST_RING_SET)
+        assertThat(viewModel.state.testRingAt).isEqualTo(SampleData.now + SleepConfig.DEFAULT.alarm.testRingDelay)
+
+        viewModel.messageShown()
+        night.testRingAllowed = false
+        viewModel.testRing()
+        assertThat(viewModel.state.message).isEqualTo(SettingsMessage.TEST_RING_BUSY)
     }
 
     // ------------------------------------------------------------------ Goals

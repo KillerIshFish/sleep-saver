@@ -266,6 +266,19 @@ internal fun ValueChevron(value: String? = null) {
     }
 }
 
+/** A short note under the rows above it, lined up with their text ("Used on days without their own time."). */
+@Composable
+internal fun RowCaption(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = SleepSaverTheme.colors.textSecondary,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = RowTextStart, end = RowPadding, bottom = Spacing.s),
+    )
+}
+
 /** A small spinner for rows with work in flight. */
 @Composable
 internal fun RowProgress() {

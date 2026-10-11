@@ -178,6 +178,43 @@ class SleepContentTest {
     }
 
     @Test
+    fun `the tonight row says what's planned and opens the Tonight tab`() {
+        var opened = 0
+        val tonight = TonightSummary(stepsFrom = sampleSteps.windowStart, alarm = LocalTime.of(6, 45), surfacing = true)
+        show(ready().copy(tonight = tonight), SleepActions(onOpenTonight = { opened++ }))
+
+        compose.onNodeWithText("Night steps from", substring = true).assertExists()
+        compose.onNodeWithText("· Alarm", substring = true).assertExists()
+        compose.onNodeWithText("Tonight").performScrollTo().performClick()
+
+        assertThat(opened).isEqualTo(1)
+    }
+
+    @Test
+    fun `by day next up counts down to the habit`() {
+        show(ready(), SleepActions())
+
+        compose.onNodeWithText("· in", substring = true).performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `at night the row shows no clock and next up has no countdown`() {
+        val tonight = TonightSummary(stepsFrom = sampleSteps.windowStart, alarm = LocalTime.of(6, 45), surfacing = true)
+        show(ready().copy(nightMode = true, tonight = tonight), SleepActions())
+
+        compose.onNodeWithText("Alarm set · never later than 6:45", substring = true).assertExists()
+        compose.onNodeWithText("Night steps", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("· in", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `at night without an alarm the row says so`() {
+        show(ready().copy(nightMode = true, tonight = TonightSummary(stepsFrom = null, alarm = null)), SleepActions())
+
+        compose.onNodeWithText("No alarm in the morning").assertExists()
+    }
+
+    @Test
     fun `energy row opens the energy tab`() {
         var opened = 0
         show(ready(), SleepActions(onOpenEnergy = { opened++ }))

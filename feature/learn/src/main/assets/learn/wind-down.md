@@ -5,7 +5,7 @@ minutes: 2
 order: 9
 ---
 
-Sleep rarely arrives on command. Going straight from a busy evening to lights out often means lying awake with your thoughts still running. A wind-down is a buffer: time for your body and mind to slow down before bed.
+Sleep rarely arrives on command. Going straight from a busy evening to bed often means lying awake with your thoughts still running. A wind-down is a buffer: time for your body and mind to slow down before bed.
 
 ## What a good routine looks like
 
@@ -31,6 +31,6 @@ None of these are off-limits. They just make the switch to sleep harder, so movi
 
 ## In Sleep Saver
 
-Your wind-down block starts about 90 minutes before your target bedtime and runs until your melatonin window opens, 30 minutes before it.
+Your wind-down runs until your melatonin window opens, 30 minutes before your target bedtime. By default it starts 90 minutes before bedtime; in your Week plan you can start it anywhere from one to three hours before, evening by evening.
 
-The **Evening routine** habit lets you pick the activities you want, and its reminder arrives as wind-down begins. Optional cutoffs for large meals and alcohol (3 hours before bed) and intense exercise (2 hours before bed) can nudge you earlier in the evening.
+**Night steps** is the checklist for each evening, from the start of the wind-down to bedtime. Use one list for every evening or give an evening its own, and switch the steps off on evenings that rarely go to plan. Those evenings never count against you. The **Night steps** habit sends a reminder as they begin, and optional cutoffs for large meals and alcohol (3 hours before bed) and intense exercise (2 hours before bed) can nudge you earlier in the evening.

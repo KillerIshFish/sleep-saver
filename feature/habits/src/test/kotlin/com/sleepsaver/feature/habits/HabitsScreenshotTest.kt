@@ -10,14 +10,13 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
-import com.sleepsaver.core.testing.FakeHabitsRepository
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.SampleData
-import com.sleepsaver.core.ui.components.CustomActivityForm
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
-import com.sleepsaver.core.ui.testing.captureComponent
 import com.sleepsaver.core.ui.testing.captureScreen
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Duration
 
 class HabitsScreenshotTest : ScreenshotTest() {
@@ -35,7 +34,8 @@ class HabitsScreenshotTest : ScreenshotTest() {
         settings: List<HabitSettings> = defaults,
         activities: List<RoutineActivity> = ActivitiesWithCustom,
         insights: InsightsState = ready,
-    ) = habitDetailUiState(type, settings, activities, insights)
+        week: WeekPlan? = null,
+    ) = habitDetailUiState(type, settings, activities, insights, week = week)
 
     @Composable
     private fun LargeFont(content: @Composable () -> Unit) {
@@ -62,19 +62,9 @@ class HabitsScreenshotTest : ScreenshotTest() {
         onToggleReminder = {},
         onTimingChange = {},
         onResetTiming = {},
-        onChooseActivities = {},
+        onEditNightSteps = {},
         notificationsBlocked = blocked,
         scrollState = rememberScrollState(if (scrolledToEnd) 10_000 else 0),
-    )
-
-    @Composable
-    private fun RoutineScreen(state: EveningRoutineUiState) = EveningRoutineContent(
-        state = state,
-        onClose = {},
-        onToggle = { _, _ -> },
-        onAddCustom = { _, _ -> },
-        onDelete = {},
-        onAddToSchedule = {},
     )
 
     // ---------------------------------------------------------------- Habit list
@@ -127,6 +117,19 @@ class HabitsScreenshotTest : ScreenshotTest() {
         DetailScreen(detail(HabitType.EVENING_ROUTINE), scrolledToEnd = true)
     }
 
+    /** Night steps switched off on Friday and Saturday evenings in the week plan. */
+    @Test
+    fun detailEveningRoutineStepsOff() = captureScreen("habit_detail_evening_routine_steps_off") {
+        DetailScreen(detail(HabitType.EVENING_ROUTINE, week = weekWithStepsOff(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY)), scrolledToEnd = true)
+    }
+
+    @Test
+    fun detailEveningRoutineStepsOffLargeFont() = captureScreen("habit_detail_evening_routine_steps_off_large_font") {
+        LargeFont {
+            DetailScreen(detail(HabitType.EVENING_ROUTINE, week = weekWithStepsOff(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY)), scrolledToEnd = true)
+        }
+    }
+
     @Test
     fun detailBedtimeShiftedBlocked() = captureScreen("habit_detail_bedtime_blocked") {
         DetailScreen(
@@ -157,33 +160,4 @@ class HabitsScreenshotTest : ScreenshotTest() {
         LargeFont { DetailScreen(detail(HabitType.DIM_LIGHTS), scrolledToEnd = true) }
     }
 
-    // ---------------------------------------------------------------- Evening routine
-
-    @Test
-    fun routine() = captureScreen("evening_routine") {
-        RoutineScreen(EveningRoutineUiState.Ready(ActivitiesWithCustom, routineEnabled = false))
-    }
-
-    @Test
-    fun routineNothingPicked() = captureScreen("evening_routine_nothing_picked") {
-        RoutineScreen(EveningRoutineUiState.Ready(FakeHabitsRepository.DEFAULT_ACTIVITIES.map { it.copy(selected = false) }, routineEnabled = true))
-    }
-
-    @Test
-    fun routineLoading() = captureScreen("evening_routine_loading") { RoutineScreen(EveningRoutineUiState.Loading) }
-
-    @Test
-    fun routineLargeFont() = captureScreen("evening_routine_large_font") {
-        LargeFont { RoutineScreen(EveningRoutineUiState.Ready(ActivitiesWithCustom, routineEnabled = true)) }
-    }
-
-    @Test
-    fun customForm() = captureComponent("evening_routine_custom_form") {
-        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> }, initialLabel = "Herbal tea", initialEmoji = "🍵", autoFocus = false)
-    }
-
-    @Test
-    fun customFormEmpty() = captureComponent("evening_routine_custom_form_empty") {
-        CustomActivityForm(onCancel = {}, onAdd = { _, _ -> }, autoFocus = false)
-    }
 }

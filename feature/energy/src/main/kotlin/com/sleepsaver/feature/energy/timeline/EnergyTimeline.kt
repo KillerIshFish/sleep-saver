@@ -268,6 +268,7 @@ internal fun EnergyTimeline(
             NowPill(
                 now = now,
                 zone = state.zone,
+                showTime = !state.nightMode,
                 height = with(density) { layout.spec.nowHeight.toDp() },
                 modifier = Modifier.offset { IntOffset(layout.labelLeft.roundToInt(), now.labelTop.roundToInt()) },
             )
@@ -895,8 +896,9 @@ private fun HabitLabel(mark: HabitMark, zone: ZoneId, onOpen: () -> Unit, height
     }
 }
 
+/** "Now 2:47 PM"; just "Now" at night, when no screen shows the time (§5.0). */
 @Composable
-private fun NowPill(now: NowMark, zone: ZoneId, height: Dp, modifier: Modifier = Modifier) {
+private fun NowPill(now: NowMark, zone: ZoneId, showTime: Boolean, height: Dp, modifier: Modifier = Modifier) {
     Box(
         modifier
             .height(height)
@@ -906,7 +908,11 @@ private fun NowPill(now: NowMark, zone: ZoneId, height: Dp, modifier: Modifier =
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = stringResource(R.string.energy_now, clockTime(now.time, zone)),
+            text = if (showTime) {
+                stringResource(R.string.energy_now, clockTime(now.time, zone))
+            } else {
+                stringResource(R.string.energy_now_night)
+            },
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.background,
             maxLines = 1,

@@ -6,6 +6,7 @@
 
     <!-- Groups -->
     <string name="settings_group_sleep">Sleep</string>
+    <string name="settings_group_alarms">Alarms</string>
     <string name="settings_group_goals">Goals</string>
     <string name="settings_group_data">Data</string>
     <string name="settings_group_notifications">Notifications</string>
@@ -35,6 +36,12 @@
     <string name="settings_confidence_medium">medium confidence</string>
     <string name="settings_confidence_high">high confidence</string>
 
+    <!-- Week plan row. "Weekdays · 6:30 AM": %1$s = the alarm days, %2$s = their wake time -->
+    <string name="settings_week_plan">Week plan</string>
+    <string name="settings_week_plan_one_time">%1$s · %2$s</string>
+    <string name="settings_week_plan_varied">Different times through the week</string>
+    <string name="settings_week_plan_none">No alarms set</string>
+
     <!-- Wake time and bedtime -->
     <string name="settings_wake_time">Wake time</string>
     <string name="settings_bedtime">Bedtime</string>
@@ -43,6 +50,8 @@
     <!-- %1$s = the user's own time, used until there are enough nights -->
     <string name="settings_timing_waiting">From your sleep data after a few nights. Until then %1$s</string>
     <string name="settings_timing_fixed">A fixed time you set</string>
+    <!-- Under the Wake time and Bedtime rows: they're the usual times, which the week plan's own times override -->
+    <string name="settings_usual_caption">Used on days without their own time.</string>
     <!-- %1$s = sleep need, e.g. "8h 20m" -->
     <string name="settings_bedtime_need_caption">Leaves room for your %1$s before tomorrow\'s wake time</string>
     <!-- Learned parts, joined with ", " -->
@@ -97,10 +106,10 @@
 
     <!-- Demo -->
     <string name="settings_demo">Use demo data</string>
-    <string name="settings_demo_body">Explore with 60 made-up nights. Your own data is kept aside.</string>
+    <string name="settings_demo_body">Explore with 60 made-up nights. Your own data is kept aside. Alarms still ring as you set them.</string>
     <string name="settings_demo_switching">Switching…</string>
     <string name="settings_demo_off_title">Turn off demo data?</string>
-    <string name="settings_demo_off_body">Edits made in demo mode will be removed. Your own nights come back exactly as they were.</string>
+    <string name="settings_demo_off_body">Edits, marks, Morning feel and Night steps check-offs made in demo mode will be removed.</string>
     <string name="settings_demo_off_confirm">Turn off</string>
     <string name="settings_demo_off_keep">Keep demo</string>
 
@@ -158,7 +167,7 @@
 
     <!-- Notifications -->
     <string name="settings_morning_review">Morning review</string>
-    <string name="settings_morning_review_body">A short check-in once last night\'s sleep arrives</string>
+    <string name="settings_morning_review_body">A short look back once last night\'s sleep arrives</string>
     <string name="settings_habit_reminders">Habit reminders</string>
     <string name="settings_habit_reminders_body">Choose which habits give you a nudge</string>
     <string name="settings_system_notifications">System notification settings</string>
@@ -167,6 +176,23 @@
     <string name="settings_notifications_off_body">Reminders and the morning review can\'t reach you until you allow them.</string>
     <string name="settings_notifications_allow">Allow notifications</string>
     <string name="settings_notifications_open_settings">Open settings</string>
+
+    <!-- Alarms -->
+    <string name="settings_alarm_check">Alarm check</string>
+    <string name="settings_alarm_check_ready">Everything looks ready</string>
+    <plurals name="settings_alarm_check_issues">
+        <item quantity="one">%1$d thing to fix</item>
+        <item quantity="other">%1$d things to fix</item>
+    </plurals>
+    <string name="settings_test_ring">Test ring in 1 minute</string>
+    <string name="settings_test_ring_body">Hear your alarm the way it will ring. Your real alarms don\'t change.</string>
+    <!-- "Set for 9:14 PM" -->
+    <string name="settings_test_ring_pending">Set for %1$s</string>
+    <!-- Snackbars: "Test ring set for 9:14 PM" -->
+    <string name="settings_test_ring_set">Test ring set for %1$s</string>
+    <string name="settings_test_ring_set_plain">Test ring set</string>
+    <string name="settings_test_ring_busy">A ring is already set or sounding</string>
+    <string name="settings_alarm_sounds_note">Alarm sounds and Hush are made on this phone. Nothing is downloaded.</string>
 
     <!-- Display -->
     <string name="settings_time_format">Time format</string>
@@ -191,6 +217,7 @@
     <string name="settings_reset_dialog_body">This permanently erases what Sleep Saver keeps on this phone:</string>
     <string name="settings_reset_item_nights">Nights, naps and every edit you made</string>
     <string name="settings_reset_item_habits">Habits, routines and reminders</string>
+    <string name="settings_reset_item_alarms">Alarms, Night steps history, marks and Morning feel</string>
     <string name="settings_reset_item_settings">Sleep need, goals and preferences</string>
     <string name="settings_reset_untouched">Health Connect and Garmin Connect keep their own copy and aren\'t touched. This can\'t be undone.</string>
     <string name="settings_reset_confirm">Erase everything</string>

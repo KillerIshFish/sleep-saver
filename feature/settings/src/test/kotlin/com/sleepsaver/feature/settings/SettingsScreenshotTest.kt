@@ -18,6 +18,7 @@ import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
+import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.testing.ScreenshotTest
 import com.sleepsaver.core.ui.testing.captureScreen
 import com.sleepsaver.core.ui.theme.Spacing
@@ -31,11 +32,12 @@ class SettingsScreenshotTest : ScreenshotTest() {
     private val noActions = object : SettingsActions {}
 
     @Composable
-    private fun Screen(state: SettingsUiState, scrollTo: SettingsSection? = null) {
+    private fun Screen(state: SettingsUiState, scrollTo: SettingsSection? = null, alarms: AlarmsStatus = AlarmsStatus()) {
         SettingsContent(
             state = state,
             actions = noActions,
             listState = rememberLazyListState(initialFirstVisibleItemIndex = scrollTo?.listIndex() ?: 0),
+            alarms = alarms,
         )
     }
 
@@ -63,6 +65,46 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test
     fun top() = captureScreen("settings_top") { Screen(SettingsSamples.ready) }
+
+    /** The Sleep group with the Week plan row and the usual wake time and bedtime under it. */
+    @Test
+    fun weekPlanRow() = captureScreen("settings_week_plan_row") { Screen(SettingsSamples.ready, SettingsSection.SLEEP) }
+
+    @Test
+    fun weekPlanRowVaried() = captureScreen("settings_week_plan_row_varied") {
+        Screen(SettingsSamples.busy, SettingsSection.SLEEP)
+    }
+
+    @Test
+    fun alarms() = captureScreen("settings_alarms") { Screen(SettingsSamples.ready, SettingsSection.ALARMS) }
+
+    /** Two things to fix, a test ring pending, and the notice left by a test ring the "Alarm" category stopped. */
+    @Test
+    fun alarmsBlocked() = captureScreen("settings_alarms_blocked") {
+        Screen(
+            SettingsSamples.testRingSet,
+            SettingsSection.ALARMS,
+            alarms = AlarmsStatus(issues = 2, testRingBlocker = AlarmBlocker.RING_CHANNEL_OFF),
+        )
+    }
+
+    @Test
+    fun alarms24h() = captureScreen("settings_alarms_24h") {
+        CompositionLocalProvider(LocalUse24HourClock provides true) {
+            Screen(SettingsSamples.testRingSet, SettingsSection.SLEEP)
+        }
+    }
+
+    @Test
+    fun alarmsLargeFont() = captureScreen("settings_alarms_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            Screen(
+                SettingsSamples.ready,
+                SettingsSection.ALARMS,
+                alarms = AlarmsStatus(issues = 1, testRingBlocker = AlarmBlocker.NOTIFICATIONS_OFF),
+            )
+        }
+    }
 
     @Test
     fun data() = captureScreen("settings_data") { Screen(SettingsSamples.ready, SettingsSection.DATA) }

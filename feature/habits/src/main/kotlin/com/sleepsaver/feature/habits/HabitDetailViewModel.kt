@@ -8,11 +8,13 @@ import androidx.navigation.toRoute
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.habits.HabitScheduler
 import com.sleepsaver.core.domain.model.HabitAnchor
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.feature.habits.navigation.HabitDetailRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +22,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
@@ -56,17 +60,24 @@ internal sealed interface HabitDetailUiState {
         val times: TimesStatus = TimesStatus.READY,
         /** The evening routine's picked activities (empty for every other habit). */
         val activities: List<RoutineActivity> = emptyList(),
+        /** Evenings the week plan switches Night steps off for (the evening routine only), e.g. Fri and Sat. */
+        val stepsOffEvenings: Set<DayOfWeek> = emptySet(),
     ) : HabitDetailUiState {
         val isDefaultTiming: Boolean get() = value == defaultValue
     }
 }
 
+/**
+ * One habit's detail. For the evening routine (Night steps) it also reads the week plan, to say which evenings have
+ * Night steps switched off.
+ */
 @HiltViewModel
 internal class HabitDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     habits: HabitsRepository,
     insights: InsightsRepository,
     private val writer: HabitSettingsWriter,
+    schedule: ScheduleRepository,
 ) : ViewModel() {
 
     private val type: HabitType? = runCatching {
@@ -82,14 +93,21 @@ internal class HabitDetailViewModel @Inject constructor(
     val uiState: StateFlow<HabitDetailUiState> = if (type == null) {
         MutableStateFlow(HabitDetailUiState.NotFound)
     } else {
+        // Only the evening routine shows the week plan, and a plan that can't be read just leaves its line out.
+        val week = if (type == HabitType.EVENING_ROUTINE) {
+            schedule.weekPlan.catch<WeekPlan?> { emit(null) }
+        } else {
+            flowOf(null)
+        }
         combine(
             habits.habitSettings,
             habits.routineActivities,
             insights.state,
             pendingOffset,
-        ) { settings, activities, state, pending ->
+            week,
+        ) { settings, activities, state, pending, plan ->
             val shown = if (pending == null) settings else withOffset(settings, type, pending)
-            habitDetailUiState(type, shown, activities, state)
+            habitDetailUiState(type, shown, activities, state, week = plan)
         }
             .catch<HabitDetailUiState> {
                 Log.w(LOG_TAG, "Loading habit $type failed", it)
@@ -134,12 +152,14 @@ internal class HabitDetailViewModel @Inject constructor(
 private fun withOffset(settings: List<HabitSettings>, type: HabitType, offset: Duration): List<HabitSettings> =
     completeSettings(settings).map { if (it.type == type) it.copy(offset = offset) else it }
 
+/** [week] is the week plan (for the evening routine's "Off on Fri, Sat" line); null leaves the line out. */
 internal fun habitDetailUiState(
     type: HabitType,
     settings: List<HabitSettings>,
     activities: List<RoutineActivity>,
     insights: InsightsState,
     scheduler: HabitScheduler = HabitScheduler(habitCatalog),
+    week: WeekPlan? = null,
 ): HabitDetailUiState.Ready {
     val complete = completeSettings(settings)
     val setting = complete.first { it.type == type }
@@ -162,5 +182,10 @@ internal fun habitDetailUiState(
         zone = schedule?.zone,
         times = insights.timesStatus(),
         activities = if (type == HabitType.EVENING_ROUTINE) activities.filter { it.selected } else emptyList(),
+        stepsOffEvenings = if (type == HabitType.EVENING_ROUTINE && week != null) {
+            week.days.filter { !it.evening.nightStepsOn }.mapTo(LinkedHashSet()) { it.day }
+        } else {
+            emptySet()
+        },
     )
 }

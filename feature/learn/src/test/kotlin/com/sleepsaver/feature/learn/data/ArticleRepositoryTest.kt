@@ -18,7 +18,7 @@ class ArticleRepositoryTest {
 
         val articles = repository.articles()
 
-        assertThat(articles).hasSize(10)
+        assertThat(articles).hasSize(13)
         assertThat(articles.map { it.meta.order }).isInStrictOrder()
         assertThat(articles.first().meta.slug).isEqualTo("sleep-debt")
     }

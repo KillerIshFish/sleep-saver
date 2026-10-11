@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.energy
 
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
@@ -45,6 +46,8 @@ sealed interface EnergyUiState {
         val nextHabit: ScheduledHabit?,
         /** A sync is running right now (the "Sync now" action shows progress instead). */
         val syncing: Boolean = false,
+        /** The no-clock night (§5.0): the now pill says "Now" without the time. */
+        val nightMode: Boolean = false,
     ) : EnergyUiState {
         /** Habits drawn on the timeline: only the ones in the user's plan. */
         val timelineHabits: List<ScheduledHabit> get() = habits.filter { it.enabled }
@@ -77,7 +80,8 @@ val SyncState.isSyncing: Boolean get() = status != SyncStatus.Idle
 /**
  * Builds [EnergyUiState.Ready] from the day's insights, the freshest nights from the sleep repository and the
  * current minute. Last night (the one ending on the schedule's day) comes from [nights] when it's there (it may
- * have synced after the insights were computed), otherwise from the insights.
+ * have synced after the insights were computed), otherwise from the insights. [alarms] (the upcoming planned alarms)
+ * and [anchoredAt] (the night state's anchor) decide night mode.
  */
 fun energyReadyState(
     insights: DailyInsights,
@@ -85,6 +89,8 @@ fun energyReadyState(
     sleepNeed: Duration,
     now: Instant,
     syncing: Boolean = false,
+    alarms: List<PlannedAlarm> = emptyList(),
+    anchoredAt: Instant? = null,
 ): EnergyUiState.Ready {
     val today = insights.today
     val day = insights.schedule.date
@@ -113,5 +119,6 @@ fun energyReadyState(
         habits = habits,
         nextHabit = habits.firstOrNull { it.enabled && (it.windowEnd ?: it.time).isAfter(now) },
         syncing = syncing,
+        nightMode = isEnergyNight(insights.schedule, now, alarms, anchoredAt),
     )
 }

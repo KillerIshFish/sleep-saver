@@ -23,6 +23,7 @@ class ArticleAssetsTest {
     private val slugs = listOf(
         "sleep-debt", "sleep-need", "circadian-rhythm", "sleep-inertia", "afternoon-dip",
         "melatonin-window", "light-exposure", "caffeine", "wind-down", "naps",
+        "waking-gently", "night-steps", "keel",
     )
 
     private val documents: Map<String, MarkdownDocument> by lazy {
@@ -32,7 +33,7 @@ class ArticleAssetsTest {
     }
 
     @Test
-    fun `exactly the ten articles are bundled`() {
+    fun `exactly the thirteen articles are bundled`() {
         assertThat(context.assets.list("learn").orEmpty().toList()).containsExactlyElementsIn(slugs.map { "$it.md" })
     }
 
@@ -77,6 +78,29 @@ class ArticleAssetsTest {
             val text = doc.blocks.plainText()
             assertWithMessage(slug).that(text).doesNotContain("*")
             assertWithMessage(slug).that(text).doesNotContainMatch("(?m)^\\s*(#|>|- )")
+        }
+    }
+
+    @Test
+    fun `the new articles come last, in order`() {
+        val orders = listOf("waking-gently", "night-steps", "keel").map { documents.getValue(it).frontMatter.getValue("order").toInt() }
+
+        assertThat(orders).containsExactly(11, 12, 13).inOrder()
+    }
+
+    @Test
+    fun `articles keep to honest alarm copy and leave out other apps' terms`() {
+        // SPEC_V2 §0.2 and §0.3: no stage claims for the alarm, no competitors' feature names.
+        val banned = listOf(
+            "smart alarm", "smart wake", "wake-up phase", "wake up window", "smart period", "sunrise alarm", "dawn glow",
+            "unwind", "wind down routine", "brain dump", "sleep planner", "bedtime guidance", "tonight's bedtime",
+            "super streak", "readiness", "restore", "soundscape", "sleep stories", "lullaby", "sleep notes", "check-in",
+            "sleep score", "sleep consistency", "sleep rhythm", "lights out", "lights off", "word drift",
+            "light phase", "lighter phase", "light sleep detected",
+        )
+        documents.forEach { (slug, doc) ->
+            val text = doc.blocks.plainText().lowercase()
+            banned.forEach { term -> assertWithMessage("$slug says \"$term\"").that(text).doesNotContain(term) }
         }
     }
 

@@ -76,6 +76,17 @@
         <item quantity="other">%1$d more</item>
     </plurals>
 
+    <!-- Tonight row. %1$s = when Night steps start ("9:45 PM"), %2$s = the alarm's wake time ("6:30 AM") -->
+    <string name="sleep_tonight_title">Tonight</string>
+    <string name="sleep_tonight_steps_alarm">Night steps from&#160;%1$s · Alarm&#160;%2$s</string>
+    <string name="sleep_tonight_steps_no_alarm">Night steps from&#160;%1$s · No&#160;alarm</string>
+    <string name="sleep_tonight_alarm">Alarm&#160;%1$s</string>
+    <string name="sleep_tonight_no_alarm">No alarm</string>
+    <!-- At night: no current time, no countdown. %1$s = the alarm's wake time -->
+    <string name="sleep_tonight_night_surfacing">Alarm set · never later than %1$s</string>
+    <string name="sleep_tonight_night_fixed">Alarm set · %1$s</string>
+    <string name="sleep_tonight_night_no_alarm">No alarm in the morning</string>
+
     <!-- Energy -->
     <string name="sleep_energy_potential">Energy potential</string>
     <string name="sleep_energy_potential_value">%1$d%%</string>

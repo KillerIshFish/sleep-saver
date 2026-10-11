@@ -5,14 +5,19 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.model.HabitAnchor
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.PhaseType
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -24,6 +29,8 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
+import java.time.DayOfWeek
 import java.time.Duration
 
 @RunWith(AndroidJUnit4::class)
@@ -32,6 +39,7 @@ class HabitDetailViewModelTest {
     private val habits = FakeHabitsRepository()
     private val planner = RecordingReminderPlanner()
     private val insights = SampleData.insights()
+    private val schedule = FakeScheduleRepository()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -43,12 +51,14 @@ class HabitDetailViewModelTest {
         type: String,
         state: InsightsState = InsightsState.Ready(insights),
         repository: HabitsRepository = habits,
+        scheduleRepository: ScheduleRepository = schedule,
     ): HabitDetailViewModel {
         val viewModel = HabitDetailViewModel(
             SavedStateHandle(mapOf("type" to type)),
             repository,
             FakeInsightsRepository(state),
             writer(repository, planner),
+            scheduleRepository,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
@@ -268,6 +278,29 @@ class HabitDetailViewModelTest {
         val state = viewModel(HabitType.EVENING_ROUTINE).ready()
 
         assertThat(state.activities.map { it.label }).containsExactly("Reading", "Podcast").inOrder()
+        assertThat(state.stepsOffEvenings).isEmpty()
+    }
+
+    @Test
+    fun `the evening routine names the evenings the week plan switches Night steps off`() = runTest {
+        val viewModel = viewModel(HabitType.EVENING_ROUTINE)
+
+        schedule.weekState.value = weekWithStepsOff(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY)
+
+        assertThat(viewModel.ready().stepsOffEvenings).containsExactly(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY)
+    }
+
+    @Test
+    fun `other habits and an unreadable week plan leave the line out`() = runTest {
+        schedule.weekState.value = weekWithStepsOff(DayOfWeek.FRIDAY)
+        assertThat(viewModel(HabitType.DIM_LIGHTS).ready().stepsOffEvenings).isEmpty()
+
+        val failing = object : ScheduleRepository by schedule {
+            override val weekPlan: Flow<WeekPlan> = flow { throw IOException("disk") }
+        }
+        val state = viewModel(HabitType.EVENING_ROUTINE.name, scheduleRepository = failing).ready()
+        assertThat(state.stepsOffEvenings).isEmpty()
+        assertThat(state.activities).isNotEmpty()
     }
 
     @Test

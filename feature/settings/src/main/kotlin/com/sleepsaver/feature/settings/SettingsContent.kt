@@ -27,8 +27,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.DataObject
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.FileDownload
@@ -44,6 +46,7 @@ import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Watch
 import androidx.compose.material.icons.rounded.Waves
@@ -76,20 +79,27 @@ import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.components.LoadingOrb
+import com.sleepsaver.core.ui.components.NoticeCard
+import com.sleepsaver.core.ui.components.NoticeTone
 import com.sleepsaver.core.ui.components.ScreenHeader
 import com.sleepsaver.core.ui.components.SegmentedControl
 import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.components.WellnessDisclaimer
+import com.sleepsaver.core.ui.components.actionLabel
+import com.sleepsaver.core.ui.components.fix
+import com.sleepsaver.core.ui.components.icon
+import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatClockTime
+import com.sleepsaver.core.ui.format.formatDays
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 
 /** The screen's groups, in order. Each is one list item, right after the title. */
-internal enum class SettingsSection { SLEEP, GOALS, DATA, NOTIFICATIONS, DISPLAY, ABOUT, RESET }
+internal enum class SettingsSection { SLEEP, ALARMS, GOALS, DATA, NOTIFICATIONS, DISPLAY, ABOUT, RESET }
 
 /** The list index of [section] (the title is item 0), e.g. to open the screen scrolled to it. */
 internal fun SettingsSection.listIndex(): Int = ordinal + 1
@@ -98,8 +108,9 @@ internal fun SettingsSection.listIndex(): Int = ordinal + 1
 private val MaxContentWidth = 640.dp
 
 /**
- * The settings screen without its ViewModel: [state] in, [actions] out. Which dialog is open is UI state kept
- * here; [initialDialog] opens one straight away (for tests).
+ * The settings screen without its ViewModel: [state] in, [actions] out. [alarms] is what the phone's own settings say
+ * about alarms (read on screen). Which dialog is open is UI state kept here; [initialDialog] opens one straight away
+ * (for tests).
  */
 @Composable
 internal fun SettingsContent(
@@ -108,11 +119,17 @@ internal fun SettingsContent(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     initialDialog: SettingsDialog? = null,
+    alarms: AlarmsStatus = AlarmsStatus(),
 ) {
     var dialog by rememberSaveable { mutableStateOf(initialDialog) }
     val snackbar = remember { SnackbarHostState() }
     val currentActions by rememberUpdatedState(actions)
-    val messageText = state.message?.let { stringResource(it.textRes) }
+    val testRingAt = state.testRingAt
+    val messageText = when {
+        state.message == SettingsMessage.TEST_RING_SET && testRingAt != null ->
+            stringResource(R.string.settings_test_ring_set, clockTime(testRingAt, state.zone))
+        else -> state.message?.let { stringResource(it.textRes) }
+    }
     LaunchedEffect(state.message) {
         if (messageText != null) {
             snackbar.showSnackbar(messageText)
@@ -133,7 +150,7 @@ internal fun SettingsContent(
                     LoadingOrb(label = stringResource(R.string.settings_loading))
                 }
             } else {
-                SettingsList(state, actions, listState, openDialog = { dialog = it })
+                SettingsList(state, alarms, actions, listState, openDialog = { dialog = it })
             }
         }
         SnackbarHost(
@@ -190,6 +207,7 @@ private fun TopBar(showTitle: Boolean, onBack: () -> Unit) {
 @Composable
 private fun SettingsList(
     state: SettingsUiState,
+    alarms: AlarmsStatus,
     actions: SettingsActions,
     listState: LazyListState,
     openDialog: (SettingsDialog) -> Unit,
@@ -216,6 +234,7 @@ private fun SettingsList(
             item(key = section) {
                 when (section) {
                     SettingsSection.SLEEP -> SleepGroup(state, actions, openDialog, groupModifier)
+                    SettingsSection.ALARMS -> AlarmsGroup(state, alarms, actions, groupModifier)
                     SettingsSection.GOALS -> GoalsGroup(state, openDialog, groupModifier)
                     SettingsSection.DATA -> DataGroup(state, actions, openDialog, groupModifier)
                     SettingsSection.NOTIFICATIONS -> NotificationsGroup(state, actions, groupModifier)
@@ -268,6 +287,14 @@ private fun SleepGroup(
         }
         RowDivider()
         SettingsRow(
+            icon = Icons.Rounded.CalendarMonth,
+            title = stringResource(R.string.settings_week_plan),
+            supporting = state.weekPlan?.let { weekPlanText(it) },
+            onClick = actions::onOpenWeekPlan,
+            trailing = { ValueChevron() },
+        )
+        RowDivider()
+        SettingsRow(
             icon = Icons.Rounded.WbSunny,
             title = stringResource(R.string.settings_wake_time),
             supporting = when (state.wakeTimeMode) {
@@ -277,7 +304,7 @@ private fun SleepGroup(
                     ?: stringResource(R.string.settings_timing_waiting, formatClockTime(state.typicalWake, use24h))
             },
             onClick = { openDialog(SettingsDialog.WAKE_TIME) },
-            value = formatClockTime(state.scheduleWake ?: state.typicalWake, use24h),
+            value = formatClockTime(state.usualWake ?: state.typicalWake, use24h),
         )
         RowDivider()
         SettingsRow(
@@ -291,9 +318,68 @@ private fun SleepGroup(
                     ?: stringResource(R.string.settings_timing_waiting, formatClockTime(state.bedtime, use24h))
             },
             onClick = { openDialog(SettingsDialog.BEDTIME) },
-            value = state.scheduleBedtime?.let { formatClockTime(it, use24h) }
-                ?: formatClockTime(state.bedtime, use24h),
+            value = formatClockTime(state.usualBedtime ?: state.bedtime, use24h),
         )
+        RowCaption(stringResource(R.string.settings_usual_caption))
+    }
+}
+
+/** "Weekdays · 6:30 AM", "Different times through the week" or "No alarms set". */
+@Composable
+private fun weekPlanText(summary: WeekPlanSummary): String = when (summary) {
+    WeekPlanSummary.NoAlarms -> stringResource(R.string.settings_week_plan_none)
+    WeekPlanSummary.Varied -> stringResource(R.string.settings_week_plan_varied)
+    is WeekPlanSummary.OneTime ->
+        stringResource(R.string.settings_week_plan_one_time, formatDays(summary.days), clockTime(summary.time))
+}
+
+/**
+ * Alarm check (how many things would stop an alarm on this phone), the test ring and where the sounds come from.
+ * When a test ring was stopped by blocked notifications or a switched-off "Alarm" category, its fix shows under the
+ * card.
+ */
+@Composable
+private fun AlarmsGroup(state: SettingsUiState, alarms: AlarmsStatus, actions: SettingsActions, modifier: Modifier) {
+    Column(modifier) {
+        SettingsGroup(stringResource(R.string.settings_group_alarms)) {
+            SettingsRow(
+                icon = Icons.Rounded.TaskAlt,
+                title = stringResource(R.string.settings_alarm_check),
+                supporting = if (alarms.issues == 0) {
+                    stringResource(R.string.settings_alarm_check_ready)
+                } else {
+                    pluralStringResource(R.plurals.settings_alarm_check_issues, alarms.issues, alarms.issues)
+                },
+                // Amber, never red, when something needs fixing.
+                tint = if (alarms.issues == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                onClick = actions::onOpenAlarmCheck,
+                trailing = { ValueChevron() },
+            )
+            RowDivider()
+            val testRingAt = state.testRingAt
+            SettingsRow(
+                icon = Icons.Rounded.Alarm,
+                title = stringResource(R.string.settings_test_ring),
+                supporting = if (testRingAt != null) {
+                    stringResource(R.string.settings_test_ring_pending, clockTime(testRingAt, state.zone))
+                } else {
+                    stringResource(R.string.settings_test_ring_body)
+                },
+                onClick = actions::onTestRing,
+            )
+            RowCaption(stringResource(R.string.settings_alarm_sounds_note))
+        }
+        alarms.testRingBlocker?.let { blocker ->
+            NoticeCard(
+                title = blocker.title(),
+                body = blocker.fix(),
+                icon = blocker.icon,
+                actionLabel = blocker.actionLabel(),
+                onAction = { actions.onFixAlarmBlocker(blocker) },
+                tone = NoticeTone.WARNING,
+                modifier = Modifier.padding(top = Spacing.cardGap),
+            )
+        }
     }
 }
 
@@ -635,6 +721,8 @@ private val SettingsMessage.textRes: Int
         SettingsMessage.RESET_FAILED -> R.string.settings_reset_failed
         SettingsMessage.SAVE_FAILED -> R.string.settings_save_failed
         SettingsMessage.SETTINGS_UNAVAILABLE -> R.string.settings_no_settings_app
+        SettingsMessage.TEST_RING_SET -> R.string.settings_test_ring_set_plain
+        SettingsMessage.TEST_RING_BUSY -> R.string.settings_test_ring_busy
     }
 
 private val Confidence.textRes: Int

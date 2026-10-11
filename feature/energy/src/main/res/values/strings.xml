@@ -27,6 +27,8 @@
 
     <!-- Timeline -->
     <string name="energy_now">Now %1$s</string>
+    <!-- The now pill at night: no clock -->
+    <string name="energy_now_night">Now</string>
     <string name="energy_fell_asleep">Fell asleep</string>
     <string name="energy_woke_up">Woke up</string>
     <string name="energy_asleep">asleep</string>
@@ -53,7 +55,7 @@
     <string name="energy_habit_short_alcohol">Last drink</string>
     <string name="energy_habit_short_exercise">Last hard workout</string>
     <string name="energy_habit_short_dim_lights">Dim the lights</string>
-    <string name="energy_habit_short_routine">Evening routine</string>
+    <string name="energy_habit_short_routine">Night steps</string>
     <string name="energy_habit_short_bedtime">Bedtime</string>
     <string name="energy_habit_short_nap">Nap window</string>
 

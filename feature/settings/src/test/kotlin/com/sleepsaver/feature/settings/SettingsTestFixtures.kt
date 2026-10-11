@@ -9,6 +9,7 @@ import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.settings.platform.SettingsPlatform
+import java.time.DayOfWeek
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import java.time.Duration
@@ -56,9 +57,13 @@ internal object SettingsSamples {
             weekdayFellAsleep = LocalTime.of(23, 10),
             weekendFellAsleep = LocalTime.of(0, 20),
         ),
-        scheduleWake = LocalTime.of(6, 52),
-        scheduleBedtime = LocalTime.of(22, 55),
+        usualWake = LocalTime.of(6, 52),
+        usualBedtime = LocalTime.of(22, 55),
         needSuggestion = NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9),
+        weekPlan = WeekPlanSummary.OneTime(
+            setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
+            LocalTime.of(6, 30),
+        ),
         streakThreshold = Duration.ofHours(5),
         lowDebtMax = Duration.ofHours(2),
         highDebtMin = Duration.ofHours(5),
@@ -78,9 +83,10 @@ internal object SettingsSamples {
     /** Fresh install: no estimate yet, onboarding wake time, never synced, notifications not granted. */
     val fresh = ready.copy(
         learned = LearnedSleepTiming(),
-        scheduleWake = null,
-        scheduleBedtime = null,
+        usualWake = null,
+        usualBedtime = null,
         needSuggestion = null,
+        weekPlan = WeekPlanSummary.NoAlarms,
         healthConnect = HealthConnectAccess.PERMISSION_NEEDED,
         sync = SyncUi(lastSyncedAt = null, lastError = SyncError.PERMISSION_DENIED),
         notifications = NotificationAccess.PERMISSION_NEEDED,
@@ -103,5 +109,9 @@ internal object SettingsSamples {
         notifications = NotificationAccess.BLOCKED,
         clockFormat = ClockFormat.H24,
         needSuggestion = null,
+        weekPlan = WeekPlanSummary.Varied,
     )
+
+    /** A test ring set for a minute from now. */
+    val testRingSet = ready.copy(testRingAt = SampleData.now + Duration.ofMinutes(1))
 }

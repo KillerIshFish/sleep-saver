@@ -14,7 +14,7 @@ data object SleepRoute
 
 /**
  * The home screen. Taps while the screen isn't resumed (still animating in or out, or already left) are dropped,
- * so a double tap can't navigate twice.
+ * so a double tap can't navigate twice. [onOpenTonight] is the "Tonight" row (wire it to the Tonight tab).
  */
 fun NavGraphBuilder.sleepScreen(
     onOpenNight: (LocalDate) -> Unit,
@@ -25,6 +25,7 @@ fun NavGraphBuilder.sleepScreen(
     onOpenEnergy: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenHealthConnectSetup: () -> Unit,
+    onOpenTonight: () -> Unit = {},
 ) {
     composable<SleepRoute> { entry ->
         SleepScreen(
@@ -36,6 +37,7 @@ fun NavGraphBuilder.sleepScreen(
             onOpenEnergy = { entry.ifResumed(onOpenEnergy) },
             onOpenSettings = { entry.ifResumed(onOpenSettings) },
             onOpenHealthConnectSetup = { entry.ifResumed(onOpenHealthConnectSetup) },
+            onOpenTonight = { entry.ifResumed(onOpenTonight) },
         )
     }
 }

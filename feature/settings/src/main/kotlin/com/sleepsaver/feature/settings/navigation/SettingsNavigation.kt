@@ -13,7 +13,8 @@ data object SettingsRoute
 /**
  * Adds the settings screen. Taps that navigate are dropped while the screen isn't resumed (e.g. still
  * animating in or out), so a double tap can't pop twice or open a screen twice. [onResetDone] runs once
- * "Reset all data" has finished; wire it to onboarding with the back stack cleared.
+ * "Reset all data" has finished; wire it to onboarding with the back stack cleared. [onOpenWeekPlan] and
+ * [onOpenAlarmCheck] are the Week plan row and Alarm check (both in feature:tonight).
  */
 fun NavGraphBuilder.settingsGraph(
     onBack: () -> Unit,
@@ -21,6 +22,8 @@ fun NavGraphBuilder.settingsGraph(
     onOpenHealthConnectSetup: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onResetDone: () -> Unit,
+    onOpenWeekPlan: () -> Unit = {},
+    onOpenAlarmCheck: () -> Unit = {},
 ) {
     composable<SettingsRoute> {
         SettingsScreen(
@@ -29,6 +32,8 @@ fun NavGraphBuilder.settingsGraph(
             onOpenHealthConnectSetup = dropUnlessResumed(block = onOpenHealthConnectSetup),
             onOpenPrivacyPolicy = dropUnlessResumed(block = onOpenPrivacyPolicy),
             onResetDone = onResetDone,
+            onOpenWeekPlan = dropUnlessResumed(block = onOpenWeekPlan),
+            onOpenAlarmCheck = dropUnlessResumed(block = onOpenAlarmCheck),
         )
     }
 }

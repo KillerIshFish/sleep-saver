@@ -19,14 +19,24 @@ import com.sleepsaver.core.testing.FakeDemoModeController
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeNightStepsRepository
 import com.sleepsaver.core.testing.FakeReviewRepository
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.data.repository.DemoModeController
+import com.sleepsaver.core.data.repository.NightStepsRepository
+import com.sleepsaver.core.data.repository.PlannedAlarm
+import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.domain.journal.AnchorSource
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -38,6 +48,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -54,6 +65,9 @@ class SleepViewModelTest {
     private val reviews = FakeReviewRepository()
     private val demo = FakeDemoModeController(settings)
     private val gateway = FakeHealthConnectGateway()
+    private val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm()))
+    private val steps = FakeNightStepsRepository(tonight = PlanSamples.nightStepsSession())
+    private val night = FakeNightController()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -64,6 +78,9 @@ class SleepViewModelTest {
     private fun viewModel(
         savedState: SavedStateHandle = SavedStateHandle(),
         demoController: DemoModeController = demo,
+        scheduleRepository: ScheduleRepository = schedule,
+        nightStepsRepository: NightStepsRepository = steps,
+        now: Instant = SampleData.now,
     ) = SleepViewModel(
         context = ApplicationProvider.getApplicationContext(),
         savedStateHandle = savedState,
@@ -74,7 +91,10 @@ class SleepViewModelTest {
         reviewRepository = reviews,
         demoModeController = demoController,
         healthConnect = gateway,
-        timeProvider = FixedTime(),
+        scheduleRepository = scheduleRepository,
+        nightStepsRepository = nightStepsRepository,
+        nightController = night,
+        timeProvider = FixedTime(now),
         ioDispatcher = UnconfinedTestDispatcher(),
     )
 
@@ -82,7 +102,9 @@ class SleepViewModelTest {
     private fun TestScope.started(
         savedState: SavedStateHandle = SavedStateHandle(),
         demoController: DemoModeController = demo,
-    ): SleepViewModel = viewModel(savedState, demoController).also { vm ->
+        scheduleRepository: ScheduleRepository = schedule,
+        nightStepsRepository: NightStepsRepository = steps,
+    ): SleepViewModel = viewModel(savedState, demoController, scheduleRepository, nightStepsRepository).also { vm ->
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
     }
 
@@ -373,6 +395,56 @@ class SleepViewModelTest {
         assertThat(vm.ready().nextHabit!!.reminderOn).isFalse()
     }
 
+    // ---------------------------------------------------------------- Tonight
+
+    @Test
+    fun `the tonight row has tonight's Night steps and tomorrow's alarm`() = runTest {
+        insights.mutableState.value = SampleData.readyState()
+        val vm = started()
+
+        val tonight = vm.ready().tonight
+        assertThat(tonight?.stepsFrom).isEqualTo(PlanSamples.nightStepsSession().windowStart)
+        assertThat(tonight?.alarm).isEqualTo(LocalTime.of(6, 45))
+        assertThat(tonight?.surfacing).isTrue()
+
+        // Day off tomorrow: the planner drops the alarm, and the row follows.
+        schedule.upcomingState.value = emptyList()
+        assertThat(vm.ready().tonight?.alarm).isNull()
+
+        // The evening's steps switched off.
+        steps.tonightState.value = PlanSamples.nightStepsSession(enabled = false)
+        assertThat(vm.ready().tonight?.stepsFrom).isNull()
+    }
+
+    @Test
+    fun `night mode follows the night state's anchor, so I'm up ends it at once`() = runTest {
+        insights.mutableState.value = ready(SampleData.insights(now = at(21, 10)))
+        val vm = started()
+        assertThat(vm.ready().nightMode).isFalse()
+
+        night.clock = { at(21, 5) }
+        night.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
+        assertThat(vm.ready().nightMode).isTrue()
+
+        night.endNight()
+        assertThat(vm.ready().nightMode).isFalse()
+    }
+
+    @Test
+    fun `the home screen still loads when tonight's alarm or steps can't be read`() = runTest {
+        val failingSchedule = object : ScheduleRepository by schedule {
+            override val upcomingAlarms: Flow<List<PlannedAlarm>> = flow { throw IOException("disk") }
+        }
+        val failingSteps = object : NightStepsRepository by steps {
+            override val tonight: Flow<NightStepsSession?> = flow { throw IOException("disk") }
+        }
+        insights.mutableState.value = SampleData.readyState()
+
+        val state = started(scheduleRepository = failingSchedule, nightStepsRepository = failingSteps).ready()
+
+        assertThat(state.tonight).isEqualTo(TonightSummary(stepsFrom = null, alarm = null))
+    }
+
     // ---------------------------------------------------------------- Sync
 
     @Test
@@ -460,7 +532,7 @@ class SleepViewModelTest {
     }
 
     private class FixedTime(
-        private val instant: Instant = SampleData.now,
+        private val instant: Instant,
         private val zoneId: ZoneId = SampleData.zone,
     ) : TimeProvider {
         override fun now(): Instant = instant

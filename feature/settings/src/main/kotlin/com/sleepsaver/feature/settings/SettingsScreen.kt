@@ -29,15 +29,19 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.ui.platform.AlarmBlocker
+import com.sleepsaver.core.ui.platform.rememberAlarmAccess
 import java.time.LocalTime
 
 /**
  * Settings with its ViewModel. Navigation callbacks come from the nav graph; the export file pickers, the
- * notification permission and the system settings page are launched here.
+ * notification permission and the system settings page are launched here, and the phone's alarm settings are read
+ * here (Alarm check's count, and the notification check before a test ring).
  */
 @Composable
 internal fun SettingsScreen(
@@ -47,10 +51,21 @@ internal fun SettingsScreen(
     onOpenPrivacyPolicy: () -> Unit,
     onResetDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenWeekPlan: () -> Unit = {},
+    onOpenAlarmCheck: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Re-read on every resume, so a fix made in system settings shows when the user comes back.
+    val alarmAccess = rememberAlarmAccess(AlarmIntents.CHANNEL_RING)
+    // What stopped the last test ring; it disappears once that check passes again.
+    var testRingBlocker by rememberSaveable { mutableStateOf<AlarmBlocker?>(null) }
+    val alarms = AlarmsStatus(
+        issues = alarmAccess.blockers.size,
+        testRingBlocker = testRingBlocker?.takeIf { it in alarmAccess.blockers },
+    )
 
     // Back from Health Connect or the system notification page: show what changed there.
     LifecycleResumeEffect(viewModel) {
@@ -105,6 +120,9 @@ internal fun SettingsScreen(
     val currentJsonName by rememberUpdatedState(jsonName)
     val currentOpenNotificationSettings by rememberUpdatedState(openNotificationSettings)
     val currentIsResumed by rememberUpdatedState(isResumed)
+    val currentOnOpenWeekPlan by rememberUpdatedState(onOpenWeekPlan)
+    val currentOnOpenAlarmCheck by rememberUpdatedState(onOpenAlarmCheck)
+    val currentAlarmAccess by rememberUpdatedState(alarmAccess)
 
     val actions = remember(viewModel) {
         object : SettingsActions {
@@ -152,10 +170,45 @@ internal fun SettingsScreen(
             override fun onClockFormatChange(format: ClockFormat) = viewModel.setClockFormat(format)
             override fun onResetAll() = viewModel.resetAll()
             override fun onMessageShown() = viewModel.messageShown()
+            override fun onOpenWeekPlan() = currentOnOpenWeekPlan()
+            override fun onOpenAlarmCheck() = currentOnOpenAlarmCheck()
+
+            override fun onTestRing() {
+                if (!currentIsResumed()) return
+                val access = currentAlarmAccess
+                fun ringIfAllowed() {
+                    val blocker = armingBlocker(access.blockers)
+                    testRingBlocker = blocker
+                    if (blocker == null) viewModel.testRing()
+                }
+                if (AlarmBlocker.NOTIFICATIONS_OFF in access.blockers) {
+                    // Ask first; a "no" leaves the notice with its "Allow" fix.
+                    access.requestNotifications { allowed ->
+                        if (allowed) ringIfAllowed() else testRingBlocker = AlarmBlocker.NOTIFICATIONS_OFF
+                    }
+                } else {
+                    ringIfAllowed()
+                }
+            }
+
+            override fun onFixAlarmBlocker(blocker: AlarmBlocker) {
+                if (currentIsResumed()) currentAlarmAccess.fix(blocker)
+            }
         }
     }
 
-    SettingsContent(state = state, actions = actions, modifier = modifier)
+    SettingsContent(state = state, actions = actions, modifier = modifier, alarms = alarms)
+}
+
+/**
+ * What keeps something that rings (here the test ring) from being set, in the order it is checked (§5.0): blocked
+ * notifications first (no Stop button without them), then the "Alarm" category switched off. The other problems never
+ * block; Alarm check lists them. null = go ahead.
+ */
+internal fun armingBlocker(blockers: List<AlarmBlocker>): AlarmBlocker? = when {
+    AlarmBlocker.NOTIFICATIONS_OFF in blockers -> AlarmBlocker.NOTIFICATIONS_OFF
+    AlarmBlocker.RING_CHANNEL_OFF in blockers -> AlarmBlocker.RING_CHANNEL_OFF
+    else -> null
 }
 
 /** Opens the app's page in system notification settings (or its app-info page). False when neither exists. */

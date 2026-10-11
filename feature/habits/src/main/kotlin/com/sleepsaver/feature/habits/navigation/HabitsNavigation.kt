@@ -8,7 +8,6 @@ import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.sleepsaver.core.domain.model.HabitType
-import com.sleepsaver.feature.habits.EveningRoutineScreen
 import com.sleepsaver.feature.habits.HabitDetailScreen
 import com.sleepsaver.feature.habits.HabitsScreen
 import kotlinx.serialization.Serializable
@@ -21,27 +20,24 @@ data object HabitsRoute
 @Serializable
 data class HabitDetailRoute(val type: String)
 
-/** Evening routine activity grid. */
-@Serializable
-data object EveningRoutineRoute
-
 /**
- * The habit list, a habit's detail screen and the evening-routine picker. Taps on a screen that isn't
- * resumed (still animating in or out) are dropped, so a double tap can't open two screens or pop twice.
+ * The habit list and a habit's detail screen. Taps on a screen that isn't resumed (still animating in or out) are
+ * dropped, so a double tap can't open two screens or pop twice. [onOpenRoutineEditor] is the Night steps habit's
+ * "Edit Night steps": the routine editor (feature:winddown, every evening's list), wired in app.
  */
-fun NavGraphBuilder.habitsGraph(navController: NavController) = habitsGraph(
+fun NavGraphBuilder.habitsGraph(navController: NavController, onOpenRoutineEditor: () -> Unit = {}) = habitsGraph(
     navController = navController,
     list = { onBack, onOpenHabit -> HabitsScreen(onBack = onBack, onOpenHabit = onOpenHabit) },
-    detail = { onBack, onChooseActivities -> HabitDetailScreen(onBack = onBack, onChooseActivities = onChooseActivities) },
-    routine = { onClose, onDone -> EveningRoutineScreen(onClose = onClose, onDone = onDone) },
+    detail = { onBack, onEditNightSteps -> HabitDetailScreen(onBack = onBack, onEditNightSteps = onEditNightSteps) },
+    onOpenRoutineEditor = onOpenRoutineEditor,
 )
 
 /** [habitsGraph] with the screens passed in, so tests can drive the real routes without Hilt. */
 internal fun NavGraphBuilder.habitsGraph(
     navController: NavController,
     list: @Composable (onBack: () -> Unit, onOpenHabit: (HabitType) -> Unit) -> Unit,
-    detail: @Composable (onBack: () -> Unit, onChooseActivities: () -> Unit) -> Unit,
-    routine: @Composable (onClose: () -> Unit, onDone: () -> Unit) -> Unit,
+    detail: @Composable (onBack: () -> Unit, onEditNightSteps: () -> Unit) -> Unit,
+    onOpenRoutineEditor: () -> Unit = {},
 ) {
     composable<HabitsRoute> { entry ->
         list(
@@ -52,14 +48,7 @@ internal fun NavGraphBuilder.habitsGraph(
     composable<HabitDetailRoute> {
         detail(
             dropUnlessResumed { navController.popBackStack() },
-            dropUnlessResumed { navController.navigateToEveningRoutine() },
-        )
-    }
-    composable<EveningRoutineRoute> {
-        routine(
-            dropUnlessResumed { navController.popBackStack() },
-            // Pops only this screen, so it can't also pop the one below if it races a close tap.
-            { navController.popBackStack<EveningRoutineRoute>(inclusive = true) },
+            dropUnlessResumed(block = onOpenRoutineEditor),
         )
     }
 }
@@ -68,4 +57,3 @@ private fun NavBackStackEntry.isResumed(): Boolean = lifecycle.currentState.isAt
 
 fun NavController.navigateToHabits() = navigate(HabitsRoute) { launchSingleTop = true }
 fun NavController.navigateToHabitDetail(type: HabitType) = navigate(HabitDetailRoute(type.name))
-fun NavController.navigateToEveningRoutine() = navigate(EveningRoutineRoute) { launchSingleTop = true }

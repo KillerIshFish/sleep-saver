@@ -1,34 +1,27 @@
 package com.sleepsaver.feature.habits
 
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.hasScrollAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.model.HabitType
-import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.SampleData
-import com.sleepsaver.core.ui.components.CustomActivityForm
 import com.sleepsaver.core.ui.testing.PHONE_PORTRAIT_DARK
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.DayOfWeek
 
 /** Interactions on the stateless screens (no Hilt): the callbacks fire with the right arguments. */
 @RunWith(AndroidJUnit4::class)
@@ -93,7 +86,7 @@ class HabitsScreensTest {
                     onToggleReminder = {},
                     onTimingChange = {},
                     onResetTiming = {},
-                    onChooseActivities = {},
+                    onEditNightSteps = {},
                 )
             }
         }
@@ -103,103 +96,47 @@ class HabitsScreensTest {
     }
 
     @Test
-    fun `long-pressing a custom tile asks before removing it`() {
-        val deleted = mutableListOf<Long>()
+    fun `night steps opens the routine editor`() {
+        var edits = 0
         compose.setContent {
             SleepSaverTheme {
-                EveningRoutineContent(
-                    state = EveningRoutineUiState.Ready(ActivitiesWithCustom, routineEnabled = true),
-                    onClose = {},
-                    onToggle = { _, _ -> },
-                    onAddCustom = { _, _ -> },
-                    onDelete = { deleted += it },
-                    onAddToSchedule = {},
+                HabitDetailContent(
+                    state = habitDetailUiState(HabitType.EVENING_ROUTINE, SampleData.habits, ActivitiesWithCustom, SampleData.readyState()),
+                    onBack = {},
+                    onToggleHabit = {},
+                    onToggleReminder = {},
+                    onTimingChange = {},
+                    onResetTiming = {},
+                    onEditNightSteps = { edits++ },
                 )
             }
         }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Herbal tea"))
-        compose.onNodeWithText("Herbal tea").performTouchInput { longClick() }
-        compose.onNodeWithText("Remove “Herbal tea”?").assertIsDisplayed()
-        compose.onNodeWithText("Remove").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Edit Night steps"))
+        compose.onNodeWithText("Edit Night steps").performClick()
 
-        assertThat(deleted).containsExactly(8L)
+        assertThat(edits).isEqualTo(1)
+        compose.onNodeWithText("from your week plan", substring = true).assertDoesNotExist()
     }
 
     @Test
-    fun `tapping a tile toggles it and the custom tile opens the form`() {
-        val toggled = mutableListOf<Pair<Long, Boolean>>()
-        val added = mutableListOf<Pair<String, String>>()
+    fun `night steps says which evenings the week plan switches off`() {
+        val week = weekWithStepsOff(DayOfWeek.SATURDAY, DayOfWeek.FRIDAY)
         compose.setContent {
             SleepSaverTheme {
-                EveningRoutineContent(
-                    state = EveningRoutineUiState.Ready(FakeHabitsRepository.DEFAULT_ACTIVITIES, routineEnabled = false),
-                    onClose = {},
-                    onToggle = { id, selected -> toggled += id to selected },
-                    onAddCustom = { label, emoji -> added += label to emoji },
-                    onDelete = {},
-                    onAddToSchedule = {},
+                HabitDetailContent(
+                    state = habitDetailUiState(HabitType.EVENING_ROUTINE, SampleData.habits, ActivitiesWithCustom, SampleData.readyState(), week = week),
+                    onBack = {},
+                    onToggleHabit = {},
+                    onToggleReminder = {},
+                    onTimingChange = {},
+                    onResetTiming = {},
+                    onEditNightSteps = {},
                 )
             }
         }
 
-        compose.onNodeWithText("Stretching").performClick()
-        compose.onNodeWithText("Reading").performClick()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Custom"))
-        // Only checked as an action here: Robolectric never lets a focused text field in a dialog window settle.
-        // The form itself is tested on its own below.
-        compose.onNodeWithText("Custom").assert(hasClickLabel("Add your own activity"))
-
-        assertThat(toggled).containsExactly(2L to true, 1L to false).inOrder()
-        assertThat(added).isEmpty()
-    }
-
-    private fun hasClickLabel(label: String) =
-        SemanticsMatcher("click label is '$label'") { it.config.getOrNull(SemanticsActions.OnClick)?.label == label }
-
-    @Test
-    fun `the custom form adds the label with the picked emoji`() {
-        val added = mutableListOf<Pair<String, String>>()
-        var cancelled = false
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            SleepSaverTheme {
-                CustomActivityForm(
-                    onCancel = { cancelled = true },
-                    onAdd = { label, emoji -> added += label to emoji },
-                    initialLabel = "Herbal tea",
-                    autoFocus = false,
-                )
-            }
-        }
-        compose.mainClock.advanceTimeBy(500)
-
-        compose.onNodeWithText("🍵").performClick()
-        compose.mainClock.advanceTimeBy(500)
-        compose.onNodeWithText("Add").assertIsEnabled().performClick()
-
-        assertThat(added).containsExactly("Herbal tea" to "🍵")
-        assertThat(cancelled).isFalse()
-    }
-
-    @Test
-    fun `nothing picked means nothing to add`() {
-        compose.setContent {
-            SleepSaverTheme {
-                EveningRoutineContent(
-                    state = EveningRoutineUiState.Ready(
-                        FakeHabitsRepository.DEFAULT_ACTIVITIES.map { it.copy(selected = false) },
-                        routineEnabled = false,
-                    ),
-                    onClose = {},
-                    onToggle = { _, _ -> },
-                    onAddCustom = { _, _ -> },
-                    onDelete = {},
-                    onAddToSchedule = {},
-                )
-            }
-        }
-
-        compose.onNodeWithText("Add to schedule").assertIsNotEnabled()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Off on Fri, Sat · from your week plan"))
+        compose.onNodeWithText("Off on Fri, Sat · from your week plan").assertIsDisplayed()
     }
 }

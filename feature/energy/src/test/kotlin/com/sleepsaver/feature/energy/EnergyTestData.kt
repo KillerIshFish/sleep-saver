@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.energy
 
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.Night
@@ -7,6 +8,7 @@ import com.sleepsaver.core.domain.model.RawSleepSession
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.night.NightAssembler
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import java.time.Duration
 import java.time.Instant
@@ -30,10 +32,16 @@ internal object EnergyTestData {
         zone: ZoneId = this.zone,
         nights: List<Night> = SampleData.nights(today = now.atZone(zone).toLocalDate(), zone = zone),
         settings: UserSleepSettings = SampleData.settings,
+        alarms: List<PlannedAlarm> = emptyList(),
+        anchoredAt: Instant? = null,
     ): EnergyUiState.Ready {
         val insights = SampleData.insights(now = now, zone = zone, settings = settings, nights = nights)
-        return energyReadyState(insights, nights, settings.sleepNeed, now)
+        return energyReadyState(insights, nights, settings.sleepNeed, now, alarms = alarms, anchoredAt = anchoredAt)
     }
+
+    /** 11:30 PM, anchored at 10:55 PM, tomorrow's 6:45 AM alarm armed: the no-clock night. */
+    fun nightMode(): EnergyUiState.Ready =
+        ready(now = at(23, 30), alarms = listOf(PlanSamples.plannedAlarm()), anchoredAt = at(22, 55))
 
     /** Last night hasn't synced: nights end yesterday. */
     fun waiting(now: Instant = at(8, 40)): EnergyUiState.Ready =

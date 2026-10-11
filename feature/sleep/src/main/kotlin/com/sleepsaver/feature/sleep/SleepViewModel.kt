@@ -10,13 +10,17 @@ import com.sleepsaver.core.data.di.IoDispatcher
 import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
 import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DemoModeController
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.NightStepsRepository
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ReviewRepository
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncTrigger
@@ -24,24 +28,28 @@ import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
- * The home screen: insights + sync + settings + Health Connect status rolled into one [SleepUiState].
+ * The home screen: insights + sync + settings + Health Connect status rolled into one [SleepUiState], plus tonight
+ * (the upcoming alarms, tonight's Night steps and the night state's anchor) for the "Tonight" row and night mode.
  * One-shot actions are plain functions; the ones that leave the app return the [Intent] to launch.
  * Health Connect and PackageManager calls run on [ioDispatcher], never on the main thread.
  */
@@ -56,6 +64,9 @@ class SleepViewModel @Inject constructor(
     reviewRepository: ReviewRepository,
     private val demoModeController: DemoModeController,
     private val healthConnect: HealthConnectGateway,
+    scheduleRepository: ScheduleRepository,
+    nightStepsRepository: NightStepsRepository,
+    nightController: NightController,
     private val timeProvider: TimeProvider,
     @param:IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -79,7 +90,18 @@ class SleepViewModel @Inject constructor(
             savedStateHandle[KEY_SYNC_ON_RESUME] = value
         }
 
-    private val local = combine(healthConnectCheck, reviewRepository.pendingReview, refreshing, demoLoading, ::LocalState)
+    /**
+     * Tonight's alarm and Night steps never hold the home screen back: if either can't be read, the row simply shows
+     * less. Night mode reads the anchor from the night state (so "I'm up" ends it at once), never from the anchor table.
+     */
+    private val tonight = combine(
+        scheduleRepository.upcomingAlarms.catch { emit(emptyList()) },
+        nightStepsRepository.tonight.catch { emit(null) },
+        nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged(),
+        ::TonightInputs,
+    )
+
+    private val local = combine(healthConnectCheck, reviewRepository.pendingReview, refreshing, demoLoading, tonight, ::LocalState)
 
     val uiState: StateFlow<SleepUiState> = combine(
         insightsRepository.state,
@@ -112,6 +134,9 @@ class SleepViewModel @Inject constructor(
                 pendingReview = local.pendingReview,
                 source = sourceLabel(settings) { packageName -> appLabel(packageName) },
                 isRefreshing = local.refreshing,
+                alarms = local.tonight.alarms,
+                steps = local.tonight.steps,
+                anchoredAt = local.tonight.anchoredAt,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SleepUiState.Loading)
@@ -241,7 +266,10 @@ class SleepViewModel @Inject constructor(
         val pendingReview: LocalDate?,
         val refreshing: Boolean,
         val demoLoading: Boolean,
+        val tonight: TonightInputs,
     )
+
+    private data class TonightInputs(val alarms: List<PlannedAlarm>, val steps: NightStepsSession?, val anchoredAt: Instant?)
 
     private companion object {
         const val KEY_SYNC_ON_RESUME = "sleep.syncOnResume"

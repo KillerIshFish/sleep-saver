@@ -32,6 +32,9 @@ class HabitsNavigationTest {
 
     private lateinit var navController: NavHostController
 
+    /** How often "Edit Night steps" reached the app's routine-editor lambda. */
+    private var routineEditorOpened = 0
+
     /** Reads the habit type from the route, like HabitDetailViewModel. */
     class TypeViewModel(handle: SavedStateHandle) : ViewModel() {
         val type = handle.toRoute<HabitDetailRoute>().type
@@ -53,19 +56,14 @@ class HabitsNavigationTest {
                             Button(onClick = onBack) { Text("back from list") }
                         }
                     },
-                    detail = { onBack, onChooseActivities ->
+                    detail = { onBack, onEditNightSteps ->
                         val viewModel = viewModel { TypeViewModel(createSavedStateHandle()) }
                         Column {
                             Button(onClick = onBack) { Text("back from ${viewModel.type}") }
-                            Button(onClick = onChooseActivities) { Text("choose activities") }
+                            Button(onClick = onEditNightSteps) { Text("edit night steps") }
                         }
                     },
-                    routine = { onClose, onDone ->
-                        Column {
-                            Button(onClick = onClose) { Text("close routine") }
-                            Button(onClick = onDone) { Text("routine added") }
-                        }
-                    },
+                    onOpenRoutineEditor = { routineEditorOpened++ },
                 )
             }
         }
@@ -114,29 +112,15 @@ class HabitsNavigationTest {
     }
 
     @Test
-    fun `the routine picker returns to the habit when it's done`() {
+    fun `edit night steps hands over to the routine editor and stays on the habit`() {
         setUpNavHost()
         compose.onNodeWithText("open routine").performClick()
-        compose.onNodeWithText("choose activities").performClick()
 
-        compose.onNodeWithText("routine added").performClick()
+        compose.onNodeWithText("edit night steps").performClick()
 
+        compose.runOnIdle { assertThat(routineEditorOpened).isEqualTo(1) }
         currentIs { it.currentDestination?.hasRoute<HabitDetailRoute>() == true }
         compose.runOnIdle { assertThat(navController.currentBackStackEntry!!.toRoute<HabitDetailRoute>().type).isEqualTo("EVENING_ROUTINE") }
-    }
-
-    @Test
-    fun `finishing the routine twice pops it only once`() {
-        setUpNavHost()
-        compose.onNodeWithText("open routine").performClick()
-        compose.onNodeWithText("choose activities").performClick()
-
-        compose.runOnIdle {
-            navController.popBackStack<EveningRoutineRoute>(inclusive = true)
-            navController.popBackStack<EveningRoutineRoute>(inclusive = true)
-        }
-
-        currentIs { it.currentDestination?.hasRoute<HabitDetailRoute>() == true }
     }
 
     @Test
