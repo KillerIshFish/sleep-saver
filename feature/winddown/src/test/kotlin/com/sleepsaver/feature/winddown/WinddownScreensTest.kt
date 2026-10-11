@@ -234,10 +234,12 @@ class WinddownScreensTest {
     @Test
     fun `the editor toggles, removes after confirming, and opens the library`() {
         val calls = mutableListOf<String>()
+        // Built outside composition (lint: no StateFlow.value read while composing).
+        val state = routineEditorUiState(null, WeekPlan.DEFAULT, richActivities(), FakeHabitsRepository().settingsState.value)
         compose.setContent {
             SleepSaverTheme {
                 RoutineEditorContent(
-                    state = routineEditorUiState(null, WeekPlan.DEFAULT, richActivities(), FakeHabitsRepository().settingsState.value),
+                    state = state,
                     actions = RoutineEditorActions(
                         onIncludedChange = { id, on -> calls += "include $id $on" },
                         onRemove = { calls += "remove $it" },
