@@ -65,20 +65,24 @@ internal class AlarmReceiver : BroadcastReceiver() {
         RingWakeLock.acquire(context)
         val kind = intent.getStringExtra(AlarmActions.EXTRA_KIND) ?: AlarmActions.KIND_PLAN
         val occurrenceId = intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID)
+        // A RING_EXTRA's armed time: the ring is matched to the pending extra by it, however late an inexact (T2)
+        // window delivered the broadcast.
+        val atEpochMs = if (intent.hasExtra(AlarmActions.EXTRA_EPOCH_MS)) intent.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0L) else null
         val service = Intent(context, AlarmRingService::class.java)
             .setAction(AlarmActions.ACTION_RING)
             .putExtra(AlarmActions.EXTRA_KIND, kind)
             .putExtra(AlarmActions.EXTRA_OCCURRENCE_ID, occurrenceId)
+        if (atEpochMs != null) service.putExtra(AlarmActions.EXTRA_EPOCH_MS, atEpochMs)
         try {
             ContextCompat.startForegroundService(context, service)
         } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException is one
-            ringFallback(context, entry, kind, occurrenceId, e)
+            ringFallback(context, entry, kind, occurrenceId, atEpochMs, e)
         } catch (e: SecurityException) {
-            ringFallback(context, entry, kind, occurrenceId, e)
+            ringFallback(context, entry, kind, occurrenceId, atEpochMs, e)
         }
     }
 
-    private fun ringFallback(context: Context, entry: AlarmEntryPoint, kind: String, occurrenceId: String?, error: Exception) {
+    private fun ringFallback(context: Context, entry: AlarmEntryPoint, kind: String, occurrenceId: String?, atEpochMs: Long?, error: Exception) {
         Log.w(TAG, "Ring service not started ($kind $occurrenceId); showing the fallback notification", error)
         RingWakeLock.release()
         val source = when (kind) {
@@ -90,7 +94,8 @@ internal class AlarmReceiver : BroadcastReceiver() {
         val time = entry.time()
         val now = time.now()
         val decision = entry.coordinator().apply { m ->
-            val update = transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null, offset = time.zone().rules.getOffset(now))
+            val request = RingRequest(source, occurrenceId, atEpochMs = atEpochMs)
+            val update = transitions.onRing(m, request, now, sounding = null, offset = time.zone().rules.getOffset(now))
             val started = update.value as? RingDecision.Start ?: return@apply update
             val marked = transitions.markFallback(update.state, started.ringing.since).state
             update.copy(state = marked, value = started.copy(ringing = marked.ringing ?: started.ringing))

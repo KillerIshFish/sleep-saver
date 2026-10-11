@@ -23,8 +23,10 @@ import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.domain.schedule.WakeStyle
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
+import org.robolectric.shadows.ShadowAlarmManager
 import java.time.Duration
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
@@ -186,6 +188,34 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
     }
 
     // ---------------------------------------------------------------- T9
+
+    @Test
+    fun `without exact alarms a snooze end the platform delivers late still rings, matched by its armed time`() {
+        armAndReachWakeTime()
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        startRing(AlarmActions.KIND_PLAN, id).send(ringAction(AlarmActions.ACTION_SNOOZE))
+        val snooze = checkNotNull(m.extra)
+        val armed = scheduled(AlarmActions.RC_RING_EXTRA).single()
+        assertThat(armed.alarmClockInfo).isNull() // T2: setWindow(at, 1 min), which Android stretches to 10 min
+        now = snooze.at + Duration.ofMinutes(8)
+
+        // A broadcast that isn't this extra's alarm (no armed time, or another one) is still too late to ring.
+        startRing(AlarmActions.KIND_EXTRA)
+        val other = ringIntent(AlarmActions.KIND_EXTRA).putExtra(AlarmActions.EXTRA_EPOCH_MS, snooze.atEpochMs - 60_000)
+        Robolectric.buildService(AlarmRingService::class.java, other).create().startCommand(0, 1)
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra?.atEpochMs).isEqualTo(snooze.atEpochMs)
+
+        AlarmReceiver().onReceive(context, shadowOf(armed.operation).savedIntent)
+        val forwarded = startedServices.last()
+        assertThat(forwarded.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0)).isEqualTo(snooze.atEpochMs)
+        Robolectric.buildService(AlarmRingService::class.java, forwarded).create().startCommand(0, 1)
+
+        assertThat(m.ringing?.trigger).isEqualTo(ExtraTrigger.SNOOZE.name)
+        assertThat(m.ringing?.ringReason).isEqualTo(RingReason.SNOOZE_END)
+        assertThat(m.ringing?.snoozesUsed).isEqualTo(1)
+        assertThat(m.extra).isNull()
+    }
 
     @Test
     fun `stop records STOPPED, handles the occurrence, ends the night and reschedules`() {

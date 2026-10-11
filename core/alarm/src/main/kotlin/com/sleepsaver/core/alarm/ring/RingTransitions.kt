@@ -33,9 +33,10 @@ internal enum class RingSource { PLAN, EXTRA, CATNAP }
 
 /**
  * A ring broadcast as AlarmRingService receives it. [queued] = rung after the ring that was sounding stopped; a queued
- * EXTRA carries the [occurrenceId] of the planned extra it waited for.
+ * EXTRA carries the [occurrenceId] of the planned extra it waited for. [atEpochMs] = the time a RING_EXTRA was armed
+ * for (its PendingIntent's epochMs).
  */
-internal data class RingRequest(val source: RingSource, val occurrenceId: String?, val queued: Boolean = false)
+internal data class RingRequest(val source: RingSource, val occurrenceId: String?, val queued: Boolean = false, val atEpochMs: Long? = null)
 
 /** What T6 does with a ring broadcast. */
 internal sealed interface RingDecision {
@@ -76,7 +77,8 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
      *  - PLAN rings when its occurrence isn't handled. A duplicate (the sounding occurrence, or one with a pending
      *    planned extra) is ignored; a pending CATCH_UP that never rang is only a stand-in for this very ring, so the
      *    real ring replaces it.
-     *  - EXTRA rings `mirror.extra` when its time is within extraMatchTolerance of now.
+     *  - EXTRA rings `mirror.extra` when it is the alarm armed for it (up to missedGrace late), or its time is within
+     *    extraMatchTolerance of now.
      *  - CATNAP rings `mirror.catnap`.
      *  - While a ring sounds: a planned ring for another occurrence is queued; a catnap or test ring is dropped; a
      *    duplicate planned extra is cleared (the sounding ring answers it).
@@ -116,7 +118,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
         if (request.queued) {
             // Only the very ring that waited: the channel may hold another one by now, which rings at its own time.
             if (!extra.isPlanned || extra.occurrenceId != request.occurrenceId) return m.unchanged(RingDecision.Ignore("the queued ring is gone"))
-        } else if (Duration.between(extra.at, now).abs() > cfg.extraMatchTolerance) {
+        } else if (!answers(request, extra, now)) {
             return m.unchanged(RingDecision.Ignore("stale extra"))
         }
         val cleared = m.copy(extra = null)
@@ -142,6 +144,16 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
             isBackup = extra.isBackup || extra.extraTrigger == ExtraTrigger.BACKUP,
         )
         return start(cleared, ringing, cancel, catnapConsumed = false)
+    }
+
+    /**
+     * Whether a RING_EXTRA broadcast is [extra]'s ring. The very alarm armed for it (its epochMs) is, however late it
+     * came, up to missedGrace (reconcile's catch-up bound): without exact-alarm access (T2) the platform stretches its
+     * 1-min window to 10 min, and Doze defers it further. Otherwise its time must be within extraMatchTolerance.
+     */
+    private fun answers(request: RingRequest, extra: MirroredExtra, now: Instant): Boolean {
+        val late = Duration.between(extra.at, now)
+        return if (request.atEpochMs == extra.atEpochMs) late <= cfg.missedGrace else late.abs() <= cfg.extraMatchTolerance
     }
 
     private fun onCatnap(m: MirrorState, now: Instant, sounding: MirroredRinging?, offset: ZoneOffset): MirrorUpdate<RingDecision> {

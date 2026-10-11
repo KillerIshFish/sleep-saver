@@ -363,7 +363,8 @@ internal class AlarmRingService : Service() {
             AlarmActions.KIND_CATNAP -> RingSource.CATNAP
             else -> RingSource.PLAN
         }
-        return RingRequest(source, intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID))
+        val atEpochMs = if (intent.hasExtra(AlarmActions.EXTRA_EPOCH_MS)) intent.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0L) else null
+        return RingRequest(source, intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID), atEpochMs = atEpochMs)
     }
 
     internal companion object {
