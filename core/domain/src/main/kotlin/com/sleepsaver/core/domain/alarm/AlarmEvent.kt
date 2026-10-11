@@ -39,7 +39,19 @@ enum class RingReason {
 }
 
 /** How an occurrence ended: Stop, auto-silenced, never rang (MISSED), or switched off before it rang. */
-enum class RingOutcome { STOPPED, TIMED_OUT, MISSED, CANCELLED }
+enum class RingOutcome {
+    STOPPED,
+    TIMED_OUT,
+    MISSED,
+    CANCELLED,
+    ;
+
+    /**
+     * That morning's alarm is over: no other plan time rings on its wake date. Not for CANCELLED, which a plan edit
+     * records when it switches off or moves a pending ring (a snooze, say), so the time it moved to still rings.
+     */
+    val endsMorning: Boolean get() = this != CANCELLED
+}
 
 /**
  * One alarm occurrence's history (one row per occurrence; snoozes and the backup update it). Example: a 06:30
