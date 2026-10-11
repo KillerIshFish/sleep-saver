@@ -52,6 +52,12 @@ fun formatShift(shift: Duration?): String? {
     return if (minutes < 0) "↑$amount earlier" else "↓$amount later"
 }
 
+/**
+ * Joins every time to its AM/PM with a no-break space, so a line never wraps between "6:30" and "AM":
+ * "Night steps from 9:45 PM" keeps "9:45 PM" together. 24-hour text is unchanged.
+ */
+fun String.keepTimesTogether(): String = replace(" AM", "\u00A0AM").replace(" PM", "\u00A0PM")
+
 private fun Instant.localTime(zone: ZoneId): LocalTime = atZone(zone).toLocalTime()
 
 private fun LocalTime.hour12(): Int = (hour % 12).let { if (it == 0) 12 else it }

@@ -50,8 +50,8 @@ import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.ui.components.InfoChip
+import com.sleepsaver.core.ui.components.LocalTimeScrubber
 import com.sleepsaver.core.ui.components.MinuteStepper
-import com.sleepsaver.core.ui.components.TimeScrubber
 import com.sleepsaver.core.ui.components.color
 import com.sleepsaver.core.ui.components.label
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
@@ -60,10 +60,7 @@ import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import java.time.Duration
-import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneOffset
 
 /** The dialogs the settings screen can show. */
 enum class SettingsDialog { SLEEP_NEED, WAKE_TIME, BEDTIME, STREAK, DEBT_LEVELS, SOURCE, DEMO_OFF, RESET }
@@ -112,20 +109,6 @@ internal fun SleepNeedDialogCard(
 
 // ---------------------------------------------------------------- Wake time and bedtime
 
-/** The scrubber works on instants: a fixed UTC day stands in for "any day", so local time = UTC time. */
-private val ScrubberDay: LocalDate = LocalDate.of(2000, 1, 3)
-
-private fun LocalTime.onScrubberDay(): Instant = ScrubberDay.atTime(this).toInstant(ZoneOffset.UTC)
-
-/** Bedtimes run through the night: 16:00 on the scrubber day to 08:00 the next, so 00:30 sits after 23:30. */
-private fun LocalTime.onBedtimeScrubber(): Instant =
-    (if (isBefore(LocalTime.NOON)) ScrubberDay.plusDays(1) else ScrubberDay).atTime(this).toInstant(ZoneOffset.UTC)
-
-private val BedtimeScrubberMin: Instant = LocalTime.of(16, 0).onBedtimeScrubber()
-private val BedtimeScrubberMax: Instant = LocalTime.of(8, 0).onBedtimeScrubber()
-
-private fun Instant.timeOfDay(): LocalTime = atZone(ZoneOffset.UTC).toLocalTime()
-
 @Composable
 internal fun WakeTimeDialogCard(
     mode: WakeTimeMode,
@@ -164,12 +147,9 @@ internal fun WakeTimeDialogCard(
             onSelect = { draftMode = it },
         )
         OwnTimeLabel(fixed = draftMode == WakeTimeMode.FIXED)
-        TimeScrubber(
-            value = draft.onScrubberDay(),
-            onValueChange = { instant -> instant.timeOfDay().let { draftMinute = it.hour * 60 + it.minute } },
-            zone = ZoneOffset.UTC,
-            min = LocalTime.MIDNIGHT.onScrubberDay(),
-            max = LocalTime.of(23, 55).onScrubberDay(),
+        LocalTimeScrubber(
+            value = draft,
+            onValueChange = { draftMinute = it.hour * 60 + it.minute },
             stepMinutes = SettingsLimits.WAKE_STEP_MINUTES,
             modifier = Modifier
                 .fillMaxWidth()
@@ -224,12 +204,11 @@ internal fun BedtimeDialogCard(
         // The sleep-need bedtime is computed; the user's own time only matters for the other two.
         if (draftMode != BedtimeMode.SLEEP_NEED) {
             OwnTimeLabel(fixed = draftMode == BedtimeMode.FIXED)
-            TimeScrubber(
-                value = draft.onBedtimeScrubber(),
-                onValueChange = { instant -> instant.timeOfDay().let { draftMinute = it.hour * 60 + it.minute } },
-                zone = ZoneOffset.UTC,
-                min = BedtimeScrubberMin,
-                max = BedtimeScrubberMax,
+            // Bedtimes run through the night (4 PM to 8 AM), so 12:30 AM sits after 11:30 PM.
+            LocalTimeScrubber(
+                value = draft,
+                onValueChange = { draftMinute = it.hour * 60 + it.minute },
+                overnight = true,
                 stepMinutes = SettingsLimits.BEDTIME_STEP_MINUTES,
                 modifier = Modifier
                     .fillMaxWidth()

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Marks (night tags); the last three are derived, never set by hand -->
+    <string name="ss_mark_late_caffeine">Late caffeine</string>
+    <string name="ss_mark_alcohol">Alcohol</string>
+    <string name="ss_mark_late_meal">Late meal</string>
+    <string name="ss_mark_late_workout">Late workout</string>
+    <string name="ss_mark_stress">Stress</string>
+    <string name="ss_mark_screens_in_bed">Screens in bed</string>
+    <string name="ss_mark_away_from_home">Away from home</string>
+    <string name="ss_mark_unwell">Unwell</string>
+    <string name="ss_mark_night_steps_done">Night steps done</string>
+    <string name="ss_mark_hush_used">Hush on</string>
+    <string name="ss_mark_anchor_dropped">Anchor dropped</string>
+
+    <!-- Morning feel -->
+    <string name="ss_feel_question">How do you feel?</string>
+    <string name="ss_feel_foggy">Foggy</string>
+    <string name="ss_feel_slow">Slow</string>
+    <string name="ss_feel_okay">Okay</string>
+    <string name="ss_feel_clear">Clear</string>
+    <string name="ss_feel_bright">Bright</string>
+
+    <!-- Keel bands -->
+    <string name="ss_keel_even">Even keel</string>
+    <string name="ss_keel_fair">Fair</string>
+    <string name="ss_keel_choppy">Choppy</string>
+</resources>

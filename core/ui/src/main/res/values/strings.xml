@@ -42,7 +42,7 @@
     <string name="ss_habit_alcohol_cutoff">Alcohol cutoff</string>
     <string name="ss_habit_exercise_cutoff">Hard workout cutoff</string>
     <string name="ss_habit_dim_lights">Dim the lights</string>
-    <string name="ss_habit_evening_routine">Evening routine</string>
+    <string name="ss_habit_evening_routine">Night steps</string>
     <string name="ss_habit_bedtime">Bedtime</string>
     <string name="ss_habit_nap_window">Nap window</string>
 
@@ -52,7 +52,7 @@
     <string name="ss_habit_alcohol_cutoff_body">Drinks close to bed make sleep lighter and more broken.</string>
     <string name="ss_habit_exercise_cutoff_body">Keep intense workouts before this so your body can cool down.</string>
     <string name="ss_habit_dim_lights_body">Turn down lights and screens to help sleepiness arrive.</string>
-    <string name="ss_habit_evening_routine_body">Start the calming activities you picked for tonight.</string>
+    <string name="ss_habit_evening_routine_body">A reminder when your Night steps start.</string>
     <string name="ss_habit_bedtime_body">Head to bed now to catch your easiest window for falling asleep.</string>
     <string name="ss_habit_nap_window_body">If you need a nap, take it now and keep it under 30 minutes.</string>
 

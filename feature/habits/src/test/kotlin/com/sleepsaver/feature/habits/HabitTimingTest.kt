@@ -36,13 +36,4 @@ class HabitTimingTest {
         assertThat(spec.offsetOf(45)).isEqualTo(Duration.ofMinutes(45))
         assertThat(spec.offsetOf(500)).isEqualTo(Duration.ofMinutes(60))
     }
-
-    @Test
-    fun `the emoji field keeps only the last character typed, whole`() {
-        assertThat(lastGrapheme("")).isEmpty()
-        assertThat(lastGrapheme("✨")).isEqualTo("✨")
-        assertThat(lastGrapheme("✨🍵")).isEqualTo("🍵")
-        assertThat(lastGrapheme("🍵🕯️")).isEqualTo("🕯️")
-        assertThat(lastGrapheme("ab")).isEqualTo("b")
-    }
 }

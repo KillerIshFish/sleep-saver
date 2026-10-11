@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Wake-up style -->
+    <string name="ss_style_calm">Calm</string>
+    <string name="ss_style_calm_desc">A soft chime first, then a slow 90-second swell. Vibration after a minute.</string>
+    <string name="ss_style_standard">Standard</string>
+    <string name="ss_style_standard_desc">A 60-second swell. Vibration after 30 seconds.</string>
+    <string name="ss_style_firm">Firm</string>
+    <string name="ss_style_firm_desc">A quick 20-second swell, with vibration from the start.</string>
+    <string name="ss_style_quiet_bed">Quiet bed</string>
+    <string name="ss_style_quiet_bed_desc">Vibration only for 2 minutes, then sound. Kind to whoever shares your bed.</string>
+
+    <!-- Alarm sounds -->
+    <string name="ss_tone_soft_chimes">Soft chimes</string>
+    <string name="ss_tone_warm_rise">Warm rise</string>
+    <string name="ss_tone_bright_bells">Bright bells</string>
+    <string name="ss_tone_system_alarm">Phone\'s alarm sound</string>
+
+    <!-- Alarm mode -->
+    <string name="ss_alarm_mode_off">Off</string>
+    <string name="ss_alarm_mode_fixed">At wake time</string>
+    <string name="ss_alarm_mode_surfacing">Surfacing</string>
+    <string name="ss_alarm_mode_fixed_desc">Rings at your wake time.</string>
+    <string name="ss_alarm_mode_surfacing_desc">May ring at a restless moment in your window, never later than your wake time.</string>
+
+    <!-- Snooze -->
+    <string name="ss_snooze_tapering">Tapering</string>
+    <string name="ss_snooze_tapering_desc">9, 7, 5, 3, then 2 minutes</string>
+    <string name="ss_snooze_fixed">Fixed</string>
+    <string name="ss_snooze_none">No snooze</string>
+
+    <!-- Alarm check: what can stop an alarm from ringing, how to fix it, and the fix button -->
+    <string name="ss_blocker_notifications_title">Notifications are off</string>
+    <string name="ss_blocker_notifications_fix">Alarms need notifications to show the Stop button.</string>
+    <string name="ss_blocker_notifications_action">Allow</string>
+    <string name="ss_blocker_ring_channel_title">Alarm notifications are turned off</string>
+    <string name="ss_blocker_ring_channel_fix">Turn on the \"Alarm\" category in notification settings.</string>
+    <string name="ss_blocker_ring_channel_action">Open settings</string>
+    <string name="ss_blocker_exact_title">Alarms &amp; reminders is off</string>
+    <!-- %1$d: how many minutes early an inexact alarm may ring (10). -->
+    <string name="ss_blocker_exact_fix">Without it, your alarm may ring up to %1$d minutes early.</string>
+    <string name="ss_blocker_exact_action">Allow</string>
+    <string name="ss_blocker_full_screen_title">Full-screen alarms are off</string>
+    <string name="ss_blocker_full_screen_fix">The alarm shows as a banner instead of filling the screen.</string>
+    <string name="ss_blocker_full_screen_action">Allow</string>
+    <string name="ss_blocker_background_title">Battery use is restricted</string>
+    <string name="ss_blocker_background_fix">Android may stop the alarm. Set Sleep Saver\'s battery use to Unrestricted or Optimized.</string>
+    <string name="ss_blocker_background_action">Open settings</string>
+    <string name="ss_blocker_volume_title">Alarm volume is off</string>
+    <string name="ss_blocker_volume_fix">Turn up the alarm volume, or the alarm will be silent.</string>
+    <string name="ss_blocker_volume_action">Sound settings</string>
+    <string name="ss_blocker_silence_title">Do Not Disturb is on total silence</string>
+    <string name="ss_blocker_silence_fix">Total silence mutes alarms too.</string>
+    <string name="ss_blocker_silence_action">Open settings</string>
+    <string name="ss_blocker_battery_title">Battery optimisation is on</string>
+    <string name="ss_blocker_battery_fix">Usually fine. If alarms are late on this phone, turn it off for Sleep Saver.</string>
+    <string name="ss_blocker_battery_action">Open settings</string>
+    <string name="ss_blocker_bluetooth_title">Sound goes to a Bluetooth device</string>
+    <string name="ss_blocker_bluetooth_fix">Your alarm may play there instead of on the phone.</string>
+
+    <!-- Where the phone goes for the night -->
+    <string name="ss_placement">Place the phone face down on the mattress, away from your pillow. Never put it under pillows or covers.</string>
+</resources>

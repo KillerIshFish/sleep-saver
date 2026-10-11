@@ -22,6 +22,7 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.core.ui.components.CustomActivityForm
 import com.sleepsaver.core.ui.testing.PHONE_PORTRAIT_DARK
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import org.junit.Rule

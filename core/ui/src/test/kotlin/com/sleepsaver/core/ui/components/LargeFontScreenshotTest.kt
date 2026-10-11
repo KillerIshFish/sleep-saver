@@ -15,13 +15,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import com.sleepsaver.core.domain.alarm.HushColor
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.PhaseType
+import com.sleepsaver.core.domain.nightsteps.EvidenceLevel
+import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.testing.ScreenshotTest
 import com.sleepsaver.core.ui.testing.captureComponent
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneOffset
 
 /** The kit at large system font sizes ("Large" 115 % up to the 200 % maximum): nothing may clip or spill over. */
@@ -78,6 +85,78 @@ class LargeFontScreenshotTest : ScreenshotTest() {
                         PhaseCard(PhaseType.AFTERNOON_DIP, "2:00 – 4:30 PM", card, shift = "same as yesterday")
                     }
                 }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- v2 components
+
+    @Test
+    fun weekControls() = captureComponent("large_font_week_controls") {
+        FontScale(2f) {
+            Column(Modifier.width(379.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                DayChipRow(selected = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY), onToggle = {})
+                DayTabs(selected = DayOfWeek.WEDNESDAY, onSelect = {}, marked = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY))
+                LocalTimeScrubber(value = LocalTime.of(23, 50), onValueChange = {}, overnight = true, label = "Bedtime")
+                ToggleRow(
+                    "Night steps",
+                    checked = true,
+                    onCheckedChange = {},
+                    supporting = "Night steps from 9:45 PM".keepTimesTogether(),
+                    icon = Mark.NIGHT_STEPS_DONE.icon,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun choices() = captureComponent("large_font_choices") {
+        Column(Modifier.width(379.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Below 150 % the words stay side by side; from 150 % they stack.
+            FontScale(1.3f) { MorningFeelScale(value = MorningFeel.BRIGHT, onValueChange = {}) }
+            FontScale(2f) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    MorningFeelScale(value = MorningFeel.SLOW, onValueChange = {})
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        EvidenceBadge(EvidenceLevel.GOOD)
+                        EvidenceBadge(EvidenceLevel.LITTLE)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun marksAndNotice() = captureComponent("large_font_marks_notice") {
+        FontScale(2f) {
+            Column(Modifier.width(379.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                MarkChips(selected = setOf(Mark.SCREENS_IN_BED, Mark.AWAY_FROM_HOME), onToggle = {})
+                NoticeCard(
+                    title = "Notifications are off",
+                    body = "Alarms need notifications to show the Stop button.",
+                    actionLabel = "Allow",
+                    onAction = {},
+                    tone = NoticeTone.WARNING,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun hush() = captureComponent("large_font_hush") {
+        FontScale(2f) {
+            Column(Modifier.width(379.dp)) {
+                HushControls(
+                    HushControlsState(
+                        color = HushColor.BROWN,
+                        timer = null,
+                        volume = 0.25f,
+                        playing = false,
+                        untilWindowAvailable = true,
+                        mediaVolumeHigh = true,
+                    ),
+                    HushControlsActions(),
+                )
             }
         }
     }

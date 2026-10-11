@@ -42,6 +42,27 @@ fun formatDebtChange(change: Duration): String {
     return "$sign${formatTenths(tenths)} hrs"
 }
 
+/**
+ * Signed hours with one decimal, for changes: "+0.3", "−0.4" (with [MINUS]), "0.0" when it rounds to zero.
+ * Rounded half away from zero.
+ */
+fun formatSignedHours1(duration: Duration): String {
+    val tenths = duration.roundToTenthsOfHour()
+    return if (tenths > 0) "+" + formatTenths(tenths) else formatTenths(tenths)
+}
+
+/**
+ * A rough length for estimates: "about 15 min". Rounded to the nearest [ABOUT_STEP_MINUTES] minutes (half up), and
+ * never below that step, so a tiny or negative estimate reads "about 5 min" instead of "about 0 min".
+ */
+fun formatAboutMinutes(duration: Duration): String {
+    val steps = (duration.roundToMinutes() + ABOUT_STEP_MINUTES / 2) / ABOUT_STEP_MINUTES
+    val minutes = (steps * ABOUT_STEP_MINUTES).coerceAtLeast(ABOUT_STEP_MINUTES)
+    return "about $minutes min"
+}
+
+private const val ABOUT_STEP_MINUTES = 5L
+
 /** Whole minutes, rounded half away from zero. */
 internal fun Duration.roundToMinutes(): Long {
     val ms = toMillis()

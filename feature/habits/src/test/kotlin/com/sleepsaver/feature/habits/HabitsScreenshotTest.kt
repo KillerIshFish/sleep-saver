@@ -12,6 +12,7 @@ import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.core.ui.components.CustomActivityForm
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
 import com.sleepsaver.core.ui.testing.captureComponent

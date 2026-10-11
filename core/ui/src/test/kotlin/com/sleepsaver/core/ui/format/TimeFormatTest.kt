@@ -65,4 +65,12 @@ class TimeFormatTest {
         assertThat(formatShift(Duration.ofSeconds(61))).isEqualTo("↓1m later")
         assertThat(formatShift(null)).isNull()
     }
+
+    @Test
+    fun `times keep their AM or PM on the same line`() {
+        assertThat("Night steps from 9:45 PM · bedtime 11:15 PM".keepTimesTogether())
+            .isEqualTo("Night steps from 9:45 PM · bedtime 11:15 PM")
+        assertThat("Rings at 6:30 AM".keepTimesTogether()).isEqualTo("Rings at 6:30 AM")
+        assertThat("21:30 – 23:00".keepTimesTogether()).isEqualTo("21:30 – 23:00")
+    }
 }
