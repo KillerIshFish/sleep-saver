@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -196,13 +197,16 @@ val AlarmBlocker.titleRes: Int
         AlarmBlocker.BLUETOOTH_OUTPUT -> R.string.ss_blocker_bluetooth_title
     }
 
-/** Why it matters and what to do: "Turn up the alarm volume, or the alarm will be silent." EXACT_ALARMS_OFF takes the minutes. */
+/**
+ * Why it matters and what to do: "Turn up the alarm volume, or the alarm will be silent." Null for EXACT_ALARMS_OFF,
+ * whose line counts minutes ([R.plurals.ss_blocker_exact_fix]): use [fix].
+ */
 @get:StringRes
-val AlarmBlocker.fixRes: Int
+val AlarmBlocker.fixRes: Int?
     get() = when (this) {
         AlarmBlocker.NOTIFICATIONS_OFF -> R.string.ss_blocker_notifications_fix
         AlarmBlocker.RING_CHANNEL_OFF -> R.string.ss_blocker_ring_channel_fix
-        AlarmBlocker.EXACT_ALARMS_OFF -> R.string.ss_blocker_exact_fix
+        AlarmBlocker.EXACT_ALARMS_OFF -> null
         AlarmBlocker.FULL_SCREEN_OFF -> R.string.ss_blocker_full_screen_fix
         AlarmBlocker.BACKGROUND_RESTRICTED -> R.string.ss_blocker_background_fix
         AlarmBlocker.ALARM_VOLUME_ZERO -> R.string.ss_blocker_volume_fix
@@ -232,16 +236,15 @@ fun AlarmBlocker.title(): String = stringResource(titleRes)
 
 /**
  * The fix line. EXACT_ALARMS_OFF says how early an inexact alarm may ring: "… up to 10 minutes early"
- * (`config.alarm.inexactRingWindow`).
+ * (`config.alarm.inexactRingWindow`, "1 minute" when it is one).
  */
 @Composable
 @ReadOnlyComposable
-fun AlarmBlocker.fix(config: SleepConfig = SleepConfig.DEFAULT): String =
-    if (this == AlarmBlocker.EXACT_ALARMS_OFF) {
-        stringResource(fixRes, config.alarm.inexactRingWindow.toMinutes().toInt())
-    } else {
-        stringResource(fixRes)
-    }
+fun AlarmBlocker.fix(config: SleepConfig = SleepConfig.DEFAULT): String {
+    fixRes?.let { return stringResource(it) }
+    val minutes = config.alarm.inexactRingWindow.toMinutes().toInt()
+    return pluralStringResource(R.plurals.ss_blocker_exact_fix, minutes, minutes)
+}
 
 /** See [actionLabelRes]: null for BLUETOOTH_OUTPUT. */
 @Composable

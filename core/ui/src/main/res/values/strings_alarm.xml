@@ -37,8 +37,11 @@
     <string name="ss_blocker_ring_channel_fix">Turn on the \"Alarm\" category in notification settings.</string>
     <string name="ss_blocker_ring_channel_action">Open settings</string>
     <string name="ss_blocker_exact_title">Alarms &amp; reminders is off</string>
-    <!-- %1$d: how many minutes early an inexact alarm may ring (10). -->
-    <string name="ss_blocker_exact_fix">Without it, your alarm may ring up to %1$d minutes early.</string>
+    <!-- %1$d: how many minutes early an inexact alarm may ring (10). Quantity: those minutes. -->
+    <plurals name="ss_blocker_exact_fix">
+        <item quantity="one">Without it, your alarm may ring up to %1$d minute early.</item>
+        <item quantity="other">Without it, your alarm may ring up to %1$d minutes early.</item>
+    </plurals>
     <string name="ss_blocker_exact_action">Allow</string>
     <string name="ss_blocker_full_screen_title">Full-screen alarms are off</string>
     <string name="ss_blocker_full_screen_fix">The alarm shows as a banner instead of filling the screen.</string>
