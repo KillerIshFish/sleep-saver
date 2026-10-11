@@ -1,10 +1,8 @@
 package com.sleepsaver.core.ui.platform
 
 import android.Manifest
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -86,11 +84,11 @@ fun rememberNotificationAccess(): NotificationAccess {
 }
 
 /** False when the permission is missing (Android 13+) or the user blocked the app's notifications. */
-private fun notificationsAllowed(context: Context): Boolean =
+internal fun notificationsAllowed(context: Context): Boolean =
     NotificationManagerCompat.from(context).areNotificationsEnabled()
 
 /** Android 13+ without POST_NOTIFICATIONS granted. */
-private fun needsPermission(context: Context): Boolean =
+internal fun needsPermission(context: Context): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
@@ -98,36 +96,18 @@ private fun needsPermission(context: Context): Boolean =
  * Whether Android would still show the permission prompt after a refusal. After a first "Don't allow" it
  * would (the rationale flag is set); after a second, or a block in settings, it silently refuses.
  */
-private fun canAskAgain(context: Context): Boolean {
+internal fun canAskAgain(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
     val activity = context.findActivity() ?: return false
     return ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.POST_NOTIFICATIONS)
 }
 
 /** The app's notification settings page; the app-info page where that isn't available. */
-private fun openNotificationSettings(context: Context) {
+internal fun openNotificationSettings(context: Context) {
     val notificationSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
         .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-    for (intent in listOf(notificationSettings, appDetails)) {
-        // Outside an activity (e.g. a wrapped context) a new task is required to start one.
-        if (context.findActivity() == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try {
-            context.startActivity(intent)
-            return
-        } catch (e: ActivityNotFoundException) {
-            Log.w(LOG_TAG, "No activity for ${intent.action}", e)
-        }
-    }
-}
-
-private fun Context.findActivity(): Activity? {
-    var current: Context? = this
-    while (current != null) {
-        if (current is Activity) return current
-        current = (current as? ContextWrapper)?.baseContext
-    }
-    return null
+    if (!context.tryStartFirst(notificationSettings, appDetails)) Log.w(LOG_TAG, "No notification settings page")
 }
 
 private const val LOG_TAG = "NotificationAccess"

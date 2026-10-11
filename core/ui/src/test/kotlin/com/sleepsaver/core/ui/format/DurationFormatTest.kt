@@ -61,4 +61,27 @@ class DurationFormatTest {
         assertThat(formatDebtChange(min(2))).isEqualTo("0.0 hrs")
         assertThat(formatDebtChange(min(-2))).isEqualTo("0.0 hrs")
     }
+
+    @Test
+    fun `formatSignedHours1 always carries a sign unless it rounds to zero`() {
+        assertThat(formatSignedHours1(min(-24))).isEqualTo("−0.4")
+        assertThat(formatSignedHours1(min(18))).isEqualTo("+0.3")
+        assertThat(formatSignedHours1(min(66))).isEqualTo("+1.1")
+        assertThat(formatSignedHours1(Duration.ZERO)).isEqualTo("0.0")
+        assertThat(formatSignedHours1(min(2))).isEqualTo("0.0")
+        assertThat(formatSignedHours1(min(-2))).isEqualTo("0.0")
+        assertThat(formatSignedHours1(min(3))).isEqualTo("+0.1") // 0.05 h rounds away from zero
+    }
+
+    @Test
+    fun `formatAboutMinutes rounds to 5 minutes and never says 0`() {
+        assertThat(formatAboutMinutes(min(15))).isEqualTo("about 15 min")
+        assertThat(formatAboutMinutes(min(12))).isEqualTo("about 10 min")
+        assertThat(formatAboutMinutes(min(13))).isEqualTo("about 15 min")
+        assertThat(formatAboutMinutes(Duration.ofSeconds(12 * 60 + 30))).isEqualTo("about 15 min")
+        assertThat(formatAboutMinutes(min(92))).isEqualTo("about 90 min")
+        assertThat(formatAboutMinutes(min(2))).isEqualTo("about 5 min")
+        assertThat(formatAboutMinutes(Duration.ZERO)).isEqualTo("about 5 min")
+        assertThat(formatAboutMinutes(min(-10))).isEqualTo("about 5 min")
+    }
 }

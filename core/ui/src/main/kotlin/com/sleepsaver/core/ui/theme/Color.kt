@@ -26,6 +26,7 @@ internal val Coral = Color(0xFFFF6F61)
 
 /**
  * Colours that Material's scheme has no slot for. Read via `SleepSaverTheme.colors`.
+ * The ringing screen's warm glow is the only non-grey surface; it stays dark.
  */
 @Immutable
 data class SleepSaverExtendedColors(
@@ -50,6 +51,8 @@ data class SleepSaverExtendedColors(
     val textTertiary: Color,
     val card: Color,
     val cardRaised: Color,
+    /** The ringing screen's warm glow (`WarmGlow`): a dark ember, drawn at 35 % over Ink. Text stays far above 6:1 on it. */
+    val ringGlow: Color,
 )
 
 val DarkExtendedColors = SleepSaverExtendedColors(
@@ -74,6 +77,7 @@ val DarkExtendedColors = SleepSaverExtendedColors(
     textTertiary = TextTertiary,
     card = Surface2,
     cardRaised = Surface3,
+    ringGlow = Color(0xFF4A2814),
 )
 
 val LocalSleepSaverColors = staticCompositionLocalOf { DarkExtendedColors }

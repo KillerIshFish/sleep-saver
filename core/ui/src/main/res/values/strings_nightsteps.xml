@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Evidence badges -->
+    <string name="ss_evidence_good">Good evidence</string>
+    <string name="ss_evidence_moderate">Some evidence</string>
+    <string name="ss_evidence_early">Early evidence</string>
+    <string name="ss_evidence_little">Little evidence</string>
+
+    <!-- Step library groups -->
+    <string name="ss_step_category_breathing">Breathing</string>
+    <string name="ss_step_category_body">Body</string>
+    <string name="ss_step_category_mind">Mind</string>
+    <string name="ss_step_category_environment">Room</string>
+    <string name="ss_step_category_routine">Routine</string>
+
+    <!-- Techniques: title, how to do it, why it helps, and where the evidence comes from -->
+    <string name="ss_technique_warm_shower_title">Warm shower or bath</string>
+    <string name="ss_technique_warm_shower_how">Ten minutes or more, comfortably warm, about 1–2 hours before bed.</string>
+    <string name="ss_technique_warm_shower_why">Warming up helps your body shed heat afterwards, and that drop in core temperature comes with sleepiness.</string>
+    <string name="ss_technique_warm_shower_source">A 2019 review of 17 studies.</string>
+
+    <string name="ss_technique_screens_down_title">Screens down</string>
+    <string name="ss_technique_screens_down_how">Put the phone and laptop away and switch to something on paper, or nothing at all.</string>
+    <string name="ss_technique_screens_down_why">Bright screens late in the evening hold back melatonin and can push your body clock later.</string>
+    <string name="ss_technique_screens_down_source">Lab studies and a 2022 expert consensus.</string>
+
+    <string name="ss_technique_tomorrow_list_title">Tomorrow list</string>
+    <string name="ss_technique_tomorrow_list_how">Spend five minutes writing what you need to do tomorrow. Be specific.</string>
+    <string name="ss_technique_tomorrow_list_why">Parking tomorrow\'s tasks on paper can quiet the mind. In one study, people who wrote specific lists fell asleep sooner.</string>
+    <string name="ss_technique_tomorrow_list_source">One sleep-lab study of 57 adults (2018).</string>
+
+    <string name="ss_technique_slow_tide_title">Slow tide breathing</string>
+    <string name="ss_technique_slow_tide_how">Breathe in for about 4 seconds and out for about 6: around six breaths a minute.</string>
+    <string name="ss_technique_slow_tide_why">Slow breathing with a longer out-breath can help you feel calmer. People report better sleep after a few weeks of practice.</string>
+    <string name="ss_technique_slow_tide_source">Small studies and a 2026 review; mostly self-reported.</string>
+
+    <string name="ss_technique_body_scan_title">Body scan</string>
+    <string name="ss_technique_body_scan_how">Move your attention slowly from your feet to your head, noticing without changing anything.</string>
+    <string name="ss_technique_body_scan_why">Mindfulness practice improved sleep quality in several trials, mostly in how rested people felt.</string>
+    <string name="ss_technique_body_scan_source">Randomised trials from 2014 and 2015.</string>
+
+    <string name="ss_technique_muscle_release_title">Muscle release</string>
+    <string name="ss_technique_muscle_release_how">Tense one muscle group for about 5 seconds, then let it go for 15, from hands to feet.</string>
+    <string name="ss_technique_muscle_release_why">Letting go of tension can help you settle. Treat it as something pleasant, not a task.</string>
+    <string name="ss_technique_muscle_release_source">Listed as an option in 2021 sleep-medicine guidelines.</string>
+
+    <string name="ss_technique_read_on_paper_title">Read on paper</string>
+    <string name="ss_technique_read_on_paper_how">A book or magazine under a warm, low lamp.</string>
+    <string name="ss_technique_read_on_paper_why">A quiet, screen-free activity in dim light makes winding down easier.</string>
+    <string name="ss_technique_read_on_paper_source">Indirect: studies on evening light and screens.</string>
+
+    <string name="ss_technique_stretching_title">Gentle stretching</string>
+    <string name="ss_technique_stretching_how">Slow, easy stretches for about ten minutes. Nothing strenuous.</string>
+    <string name="ss_technique_stretching_why">Gentle movement can ease the day\'s tension. Direct sleep studies are few.</string>
+    <string name="ss_technique_stretching_source">Small studies only.</string>
+
+    <string name="ss_technique_journaling_title">Journaling</string>
+    <string name="ss_technique_journaling_how">A few lines about the day, or three good things.</string>
+    <string name="ss_technique_journaling_why">Writing things down may ease bedtime worry. The evidence is early.</string>
+    <string name="ss_technique_journaling_source">Pilot studies and surveys.</string>
+
+    <string name="ss_technique_cool_dark_room_title">Cool, dark room</string>
+    <string name="ss_technique_cool_dark_room_how">Air the room, dim the lights and choose bedding that won\'t make you too warm.</string>
+    <string name="ss_technique_cool_dark_room_why">A hot room makes sleep lighter and more broken.</string>
+    <string name="ss_technique_cool_dark_room_source">Reviews of bedroom temperature and sleep.</string>
+
+    <string name="ss_technique_hush_title">Hush</string>
+    <string name="ss_technique_hush_how">Low, steady noise with a timer, if your room is noisy.</string>
+    <string name="ss_technique_hush_why">Steady noise can mask sudden sounds. Earplugs often work better, and the evidence for noise is very limited.</string>
+    <string name="ss_technique_hush_source">A 2021 review rated it very low; a 2026 lab study found pink noise cut REM sleep.</string>
+
+    <string name="ss_technique_tv_title">TV</string>
+    <string name="ss_technique_tv_how">Watching something to relax.</string>
+    <string name="ss_technique_tv_why">Bright screens late in the evening can delay your body clock.</string>
+    <string name="ss_technique_tv_source">Studies on evening light and screens.</string>
+
+    <string name="ss_technique_gaming_title">Gaming</string>
+    <string name="ss_technique_gaming_how">Playing a game to relax.</string>
+    <string name="ss_technique_gaming_why">Games and bright screens can keep your mind and body clock up.</string>
+    <string name="ss_technique_gaming_source">Studies on evening light and screens.</string>
+
+    <!-- Hush: generated noise with a fade-out timer -->
+    <string name="ss_hush_title">Hush</string>
+    <string name="ss_hush_white">White</string>
+    <string name="ss_hush_white_desc">Even and bright, like a fan</string>
+    <string name="ss_hush_pink">Pink</string>
+    <string name="ss_hush_pink_desc">Softer, like steady rain</string>
+    <string name="ss_hush_brown">Brown</string>
+    <string name="ss_hush_brown_desc">Deep and low, like distant surf</string>
+    <string name="ss_hush_tip">Hush masks background noise. Keep it low; for sudden noises, earplugs work better.</string>
+    <string name="ss_hush_play">Play</string>
+    <string name="ss_hush_stop">Stop</string>
+    <string name="ss_hush_until_window">Until my window</string>
+    <!-- A timer chip: "45 min". -->
+    <string name="ss_hush_minutes">%1$d min</string>
+    <string name="ss_hush_volume">Volume</string>
+    <!-- %1$s: the timer, "45 min". -->
+    <string name="ss_hush_fades_after">Fades out after %1$s</string>
+    <string name="ss_hush_fades_before_window">Fades out before your window</string>
+    <string name="ss_hush_media_loud">Your media volume is high. Turn it down for Hush.</string>
+
+    <!-- "Add your own" Night step -->
+    <string name="ss_custom_activity_title">Add your own</string>
+    <string name="ss_custom_activity_body">Anything calm you enjoy before bed.</string>
+    <string name="ss_custom_activity_label">Activity</string>
+    <string name="ss_custom_activity_label_placeholder">e.g. Herbal tea</string>
+    <string name="ss_custom_activity_emoji">Emoji</string>
+    <string name="ss_custom_activity_add">Add</string>
+    <string name="ss_custom_activity_cancel">Cancel</string>
+</resources>

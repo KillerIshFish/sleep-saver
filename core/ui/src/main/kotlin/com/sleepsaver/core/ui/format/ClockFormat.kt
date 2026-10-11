@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 
 /** true = "23:47", false = "11:47 PM". The app provides it from the clock-format setting (or the system's). */
@@ -13,6 +14,11 @@ val LocalUse24HourClock = staticCompositionLocalOf { false }
 @Composable
 @ReadOnlyComposable
 fun clockTime(instant: Instant, zone: ZoneId): String = formatClockTime(instant, zone, LocalUse24HourClock.current)
+
+/** [formatClockTime] of a wall-clock time ("6:30 AM", "06:30") using [LocalUse24HourClock]. */
+@Composable
+@ReadOnlyComposable
+fun clockTime(time: LocalTime): String = formatClockTime(time, LocalUse24HourClock.current)
 
 /** [formatTimeRange] using [LocalUse24HourClock]. */
 @Composable

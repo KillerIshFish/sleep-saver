@@ -1,4 +1,4 @@
-package com.sleepsaver.feature.habits
+package com.sleepsaver.core.ui.components
 
 import android.icu.text.BreakIterator
 import androidx.compose.foundation.background
@@ -24,8 +24,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,27 +41,33 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sleepsaver.core.ui.components.TextLinkButton
+import com.sleepsaver.core.ui.R
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 
 /** Quick picks for a custom activity's emoji; any emoji can also be typed. */
 internal val SuggestedEmoji = listOf("✨", "🍵", "🛁", "🕯️", "🎵", "🧩", "🎨", "🧶", "🐈", "🌿", "🙏", "🌙")
 
+/** Labels longer than this are cut while typing (the routine list and the Night steps checklist show them whole). */
+private const val DEFAULT_MAX_LABEL_LENGTH = 24
+
 /**
- * The "Add your own" dialog body: an emoji (typed or picked) and a label. [onAdd] gets the trimmed label;
- * Add stays disabled until there is one.
+ * The "Add your own" dialog body for a Night step: an emoji (typed or picked) and a label ("🍵 Herbal tea").
+ * [onAdd] gets the trimmed label; Add stays disabled until there is one. Labels are capped at [maxLabelLength]
+ * characters while typing. Show it inside a `Dialog`.
  */
 @Composable
-internal fun CustomActivityForm(
+fun CustomActivityForm(
     onCancel: () -> Unit,
     onAdd: (label: String, emoji: String) -> Unit,
     modifier: Modifier = Modifier,
     initialLabel: String = "",
     initialEmoji: String = SuggestedEmoji.first(),
     autoFocus: Boolean = true,
+    maxLabelLength: Int = DEFAULT_MAX_LABEL_LENGTH,
 ) {
     var label by rememberSaveable { mutableStateOf(initialLabel) }
     var emoji by rememberSaveable { mutableStateOf(initialEmoji) }
@@ -78,12 +84,12 @@ internal fun CustomActivityForm(
     ) {
         Column(Modifier.padding(start = Spacing.xl, end = Spacing.xl, top = Spacing.xl, bottom = Spacing.m)) {
             Text(
-                stringResource(R.string.habits_routine_custom_title),
+                stringResource(R.string.ss_custom_activity_title),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                stringResource(R.string.habits_routine_custom_body),
+                stringResource(R.string.ss_custom_activity_body),
                 style = MaterialTheme.typography.bodyMedium,
                 color = SleepSaverTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = Spacing.xs),
@@ -96,16 +102,16 @@ internal fun CustomActivityForm(
                 OutlinedTextField(
                     value = emoji,
                     onValueChange = { emoji = lastGrapheme(it) },
-                    label = { Text(stringResource(R.string.habits_routine_custom_emoji)) },
+                    label = { Text(stringResource(R.string.ss_custom_activity_emoji)) },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.titleLarge.copy(textAlign = TextAlign.Center),
                     modifier = Modifier.width(84.dp),
                 )
                 OutlinedTextField(
                     value = label,
-                    onValueChange = { label = it.take(EveningRoutineViewModel.MAX_LABEL_LENGTH) },
-                    label = { Text(stringResource(R.string.habits_routine_custom_label)) },
-                    placeholder = { Text(stringResource(R.string.habits_routine_custom_label_placeholder)) },
+                    onValueChange = { label = it.take(maxLabelLength) },
+                    label = { Text(stringResource(R.string.ss_custom_activity_label)) },
+                    placeholder = { Text(stringResource(R.string.ss_custom_activity_label_placeholder)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { submit() }),
@@ -130,11 +136,11 @@ internal fun CustomActivityForm(
                 horizontalArrangement = Arrangement.End,
             ) {
                 TextLinkButton(
-                    stringResource(R.string.habits_cancel),
+                    stringResource(R.string.ss_custom_activity_cancel),
                     onClick = onCancel,
                     color = SleepSaverTheme.colors.textSecondary,
                 )
-                TextLinkButton(stringResource(R.string.habits_routine_custom_add), onClick = submit, enabled = canAdd)
+                TextLinkButton(stringResource(R.string.ss_custom_activity_add), onClick = submit, enabled = canAdd)
             }
         }
     }
@@ -167,4 +173,17 @@ internal fun lastGrapheme(text: String): String {
     val end = boundaries.last()
     val start = boundaries.previous()
     return if (start == BreakIterator.DONE) text else text.substring(start, end)
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0C10)
+@Composable
+private fun CustomActivityFormPreview() = SleepSaverTheme {
+    CustomActivityForm(
+        onCancel = {},
+        onAdd = { _, _ -> },
+        modifier = Modifier.padding(16.dp),
+        initialLabel = "Herbal tea",
+        initialEmoji = "🍵",
+        autoFocus = false,
+    )
 }

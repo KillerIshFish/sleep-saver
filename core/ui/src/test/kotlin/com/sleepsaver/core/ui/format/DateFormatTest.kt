@@ -2,6 +2,14 @@ package com.sleepsaver.core.ui.format
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import java.time.DayOfWeek
+import java.time.DayOfWeek.FRIDAY
+import java.time.DayOfWeek.MONDAY
+import java.time.DayOfWeek.SATURDAY
+import java.time.DayOfWeek.SUNDAY
+import java.time.DayOfWeek.THURSDAY
+import java.time.DayOfWeek.TUESDAY
+import java.time.DayOfWeek.WEDNESDAY
 import java.time.LocalDate
 
 class DateFormatTest {
@@ -40,5 +48,44 @@ class DateFormatTest {
             .isEqualTo("Sep 22 – Oct 5")
         assertThat(formatWindowHeader(LocalDate.of(2025, 12, 22), LocalDate.of(2026, 1, 4)))
             .isEqualTo("Dec 22, 2025 – Jan 4, 2026")
+    }
+
+    @Test
+    fun `day names come short, narrow and long`() {
+        assertThat(formatDayShort(DayOfWeek.MONDAY)).isEqualTo("Mon")
+        assertThat(formatDayShort(DayOfWeek.THURSDAY)).isEqualTo("Thu")
+        assertThat(formatDayNarrow(DayOfWeek.MONDAY)).isEqualTo("M")
+        assertThat(formatDayNarrow(DayOfWeek.SUNDAY)).isEqualTo("S")
+        assertThat(formatDayLong(DayOfWeek.WEDNESDAY)).isEqualTo("Wednesday")
+        assertThat(DayOfWeek.entries.map(::formatDayNarrow)).containsExactly("M", "T", "W", "T", "F", "S", "S").inOrder()
+    }
+
+    @Test
+    fun `formatDays names the common sets`() {
+        assertThat(formatDays(DayOfWeek.entries.toSet())).isEqualTo("Every day")
+        assertThat(formatDays(setOf(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY))).isEqualTo("Weekdays")
+        assertThat(formatDays(setOf(SATURDAY, SUNDAY))).isEqualTo("Weekends")
+        assertThat(formatDays(emptySet())).isEqualTo("No days")
+    }
+
+    @Test
+    fun `formatDays turns a run of three or more into a range`() {
+        assertThat(formatDays(setOf(MONDAY, TUESDAY, WEDNESDAY, THURSDAY))).isEqualTo("Mon–Thu")
+        assertThat(formatDays(setOf(FRIDAY, SATURDAY, SUNDAY))).isEqualTo("Fri–Sun")
+        assertThat(formatDays(setOf(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY))).isEqualTo("Mon–Sat")
+        assertThat(formatDays(setOf(TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY))).isEqualTo("Tue–Sun")
+    }
+
+    @Test
+    fun `formatDays lists everything else Monday first`() {
+        assertThat(formatDays(setOf(FRIDAY, MONDAY, WEDNESDAY))).isEqualTo("Mon, Wed, Fri")
+        assertThat(formatDays(setOf(TUESDAY, WEDNESDAY))).isEqualTo("Tue, Wed")
+        assertThat(formatDays(setOf(SUNDAY))).isEqualTo("Sun")
+        assertThat(formatDays(setOf(MONDAY))).isEqualTo("Mon")
+        // A run doesn't wrap past Sunday.
+        assertThat(formatDays(setOf(SATURDAY, SUNDAY, MONDAY))).isEqualTo("Mon, Sat, Sun")
+        // Six days with a gap.
+        assertThat(formatDays(setOf(MONDAY, TUESDAY, WEDNESDAY, FRIDAY, SATURDAY, SUNDAY)))
+            .isEqualTo("Mon, Tue, Wed, Fri, Sat, Sun")
     }
 }
