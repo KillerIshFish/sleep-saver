@@ -160,6 +160,11 @@ class SleepScreenshotTest : ScreenshotTest() {
     fun nightModeScrolled() = captureScreen("sleep_home_night_mode_scrolled") { Scrolled(atNight()) }
 
     @Test
+    fun nightMode24h() = captureScreen("sleep_home_night_mode_24h") {
+        CompositionLocalProvider(LocalUse24HourClock provides true) { SleepContent(atNight(), SleepActions()) }
+    }
+
+    @Test
     fun nightModeLargeFont() = captureScreen("sleep_home_night_mode_large_font") {
         LargeFont { SleepContent(atNight(), SleepActions()) }
     }

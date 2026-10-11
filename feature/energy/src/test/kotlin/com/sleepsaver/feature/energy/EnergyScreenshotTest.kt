@@ -151,6 +151,11 @@ class EnergyScreenshotTest : ScreenshotTest() {
     fun nightMode() = captureScreen("energy_night_mode") { Screen(EnergyTestData.nightMode()) }
 
     @Test
+    fun nightMode24h() = captureScreen("energy_night_mode_24h") {
+        CompositionLocalProvider(LocalUse24HourClock provides true) { Screen(EnergyTestData.nightMode()) }
+    }
+
+    @Test
     fun nightModeLargeFont() = captureScreen("energy_night_mode_large_font") {
         CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
             Screen(EnergyTestData.nightMode())
