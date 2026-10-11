@@ -186,11 +186,9 @@
     </plurals>
     <string name="settings_test_ring">Test ring in 1 minute</string>
     <string name="settings_test_ring_body">Hear your alarm the way it will ring. Your real alarms don\'t change.</string>
-    <!-- "Set for 9:14 PM" -->
-    <string name="settings_test_ring_pending">Set for %1$s</string>
-    <!-- Snackbars: "Test ring set for 9:14 PM" -->
-    <string name="settings_test_ring_set">Test ring set for %1$s</string>
-    <string name="settings_test_ring_set_plain">Test ring set</string>
+    <!-- No clock time: Settings can be open at night (SPEC §0.2). -->
+    <string name="settings_test_ring_pending">Set · rings in about a minute</string>
+    <string name="settings_test_ring_set">Test ring in about a minute</string>
     <string name="settings_test_ring_busy">A ring is already set or sounding</string>
     <string name="settings_alarm_sounds_note">Alarm sounds and Hush are made on this phone. Nothing is downloaded.</string>
 

@@ -204,7 +204,7 @@ enum class SettingsMessage {
     SAVE_FAILED,
     SETTINGS_UNAVAILABLE,
 
-    /** "Test ring set for 9:14 PM" (the time is [SettingsUiState.testRingAt]). */
+    /** "Test ring in about a minute" (never a clock time: Settings can be open at night). */
     TEST_RING_SET,
 
     /** A ring is already set or sounding, so the test ring wasn't set. */

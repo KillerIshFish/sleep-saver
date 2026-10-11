@@ -97,6 +97,7 @@ import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
+import java.time.LocalTime
 
 /** The screen's groups, in order. Each is one list item, right after the title. */
 internal enum class SettingsSection { SLEEP, ALARMS, GOALS, DATA, NOTIFICATIONS, DISPLAY, ABOUT, RESET }
@@ -124,12 +125,7 @@ internal fun SettingsContent(
     var dialog by rememberSaveable { mutableStateOf(initialDialog) }
     val snackbar = remember { SnackbarHostState() }
     val currentActions by rememberUpdatedState(actions)
-    val testRingAt = state.testRingAt
-    val messageText = when {
-        state.message == SettingsMessage.TEST_RING_SET && testRingAt != null ->
-            stringResource(R.string.settings_test_ring_set, clockTime(testRingAt, state.zone))
-        else -> state.message?.let { stringResource(it.textRes) }
-    }
+    val messageText = state.message?.let { stringResource(it.textRes) }
     LaunchedEffect(state.message) {
         if (messageText != null) {
             snackbar.showSnackbar(messageText)
@@ -356,12 +352,12 @@ private fun AlarmsGroup(state: SettingsUiState, alarms: AlarmsStatus, actions: S
                 trailing = { ValueChevron() },
             )
             RowDivider()
-            val testRingAt = state.testRingAt
             SettingsRow(
                 icon = Icons.Rounded.Alarm,
                 title = stringResource(R.string.settings_test_ring),
-                supporting = if (testRingAt != null) {
-                    stringResource(R.string.settings_test_ring_pending, clockTime(testRingAt, state.zone))
+                // No clock time: Settings can be open at night.
+                supporting = if (state.testRingAt != null) {
+                    stringResource(R.string.settings_test_ring_pending)
                 } else {
                     stringResource(R.string.settings_test_ring_body)
                 },
@@ -591,6 +587,9 @@ private fun NotificationsGroup(state: SettingsUiState, actions: SettingsActions,
     }
 }
 
+/** The time the format example shows (an afternoon time, so 12- and 24-hour look different). */
+private val TimeFormatExample: LocalTime = LocalTime.of(18, 30)
+
 @Composable
 private fun DisplayGroup(state: SettingsUiState, actions: SettingsActions, modifier: Modifier) {
     val formats = ClockFormat.entries
@@ -598,7 +597,8 @@ private fun DisplayGroup(state: SettingsUiState, actions: SettingsActions, modif
         SettingsRow(
             icon = Icons.Rounded.Schedule,
             title = stringResource(R.string.settings_time_format),
-            supporting = stringResource(R.string.settings_time_format_example, clockTime(state.now, state.zone)),
+            // A fixed example, never the current time: Settings can be open at night (SPEC §0.2).
+            supporting = stringResource(R.string.settings_time_format_example, clockTime(TimeFormatExample)),
         )
         SegmentedControl(
             options = formats.map { stringResource(it.textRes) },
@@ -721,7 +721,7 @@ private val SettingsMessage.textRes: Int
         SettingsMessage.RESET_FAILED -> R.string.settings_reset_failed
         SettingsMessage.SAVE_FAILED -> R.string.settings_save_failed
         SettingsMessage.SETTINGS_UNAVAILABLE -> R.string.settings_no_settings_app
-        SettingsMessage.TEST_RING_SET -> R.string.settings_test_ring_set_plain
+        SettingsMessage.TEST_RING_SET -> R.string.settings_test_ring_set
         SettingsMessage.TEST_RING_BUSY -> R.string.settings_test_ring_busy
     }
 

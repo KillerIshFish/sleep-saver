@@ -325,11 +325,12 @@ class SettingsContentTest {
     }
 
     @Test
-    fun `a pending test ring says when`() {
+    fun `a pending test ring says when without a clock time`() {
         show(SettingsSamples.testRingSet.copy(message = SettingsMessage.TEST_RING_SET))
-        compose.onNodeWithText("Test ring set for 10:21", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Test ring in about a minute").assertIsDisplayed()
         scrollTo("Test ring in 1 minute")
-        compose.onNodeWithText("Set for 10:21", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Set · rings in about a minute").assertIsDisplayed()
+        compose.onNodeWithText("10:21", substring = true).assertDoesNotExist()
     }
 
     @Test
