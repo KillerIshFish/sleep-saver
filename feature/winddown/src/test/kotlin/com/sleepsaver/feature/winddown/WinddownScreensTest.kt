@@ -359,6 +359,23 @@ class WinddownScreensTest {
     }
 
     @Test
+    fun `tomorrow list keeps what was typed after Done when the save comes back`() {
+        var state by mutableStateOf<TomorrowListUiState>(TomorrowListUiState.Ready(PlanSamples.today, ""))
+        compose.setContent { SleepSaverTheme { TomorrowListContent(state = state, onDone = {}, onClose = {}) } }
+        val field = compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText))
+
+        field.performTextReplacement("Call Sam")
+        compose.onNodeWithText("Done").performScrollTo().performClick()
+        field.performTextReplacement("Call Sam\nBuy milk")
+        state = TomorrowListUiState.Ready(PlanSamples.today, "Call Sam", saved = true)
+        compose.waitForIdle()
+
+        assertThat(field.fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)?.text).isEqualTo("Call Sam\nBuy milk")
+        // Changed since the save: Done again, not Close.
+        compose.onNodeWithText("Done").assertExists()
+    }
+
+    @Test
     fun `night reset skips the breathing, then goes back to the night without showing a time`() {
         val calls = mutableListOf<String>()
         var stage by mutableStateOf(ResetStage.BREATHING)

@@ -122,7 +122,8 @@ internal fun TomorrowListContent(
     modifier: Modifier = Modifier,
 ) {
     val ready = state as? TomorrowListUiState.Ready
-    var text by rememberSaveable(ready?.nightOf, ready?.text) { mutableStateOf(ready?.text.orEmpty()) }
+    // Keyed on the evening only: the save echoing the text back must not wipe what was typed after Done.
+    var text by rememberSaveable(ready?.nightOf) { mutableStateOf(ready?.text.orEmpty()) }
     ToolFrame(onClose = onClose, dim = ToolDim.AFTER_DELAY, wakeKey = text, modifier = modifier) {
         if (ready == null) {
             LoadingBody()

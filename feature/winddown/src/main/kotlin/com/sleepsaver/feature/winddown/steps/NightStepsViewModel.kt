@@ -32,7 +32,6 @@ import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.hushControlsState
-import com.sleepsaver.feature.winddown.safely
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -257,9 +256,12 @@ internal class NightStepsViewModel @Inject constructor(
         viewModelScope.launch { writer.save("Marking $mark") { journal.setMark(state.wakeDate, mark, on) } }
     }
 
+    /** Through the writer (app scope): leaving the screen at that instant can't cancel the anchor half-way. */
     fun dropAnchor(wholeNightLog: Boolean) {
         viewModelScope.launch {
-            val id = safely("Dropping anchor") { nightController.dropAnchor(AnchorSource.NIGHT_STEPS, wholeNightLog) }
+            val id = writer.saveFor("Dropping anchor") {
+                Result.success(nightController.dropAnchor(AnchorSource.NIGHT_STEPS, wholeNightLog))
+            }?.getOrNull()
             events.send(if (id != null) NightStepsEvent.ANCHOR_DROPPED else NightStepsEvent.ANCHOR_FAILED)
         }
     }
