@@ -3,6 +3,7 @@ package com.sleepsaver.feature.review.morning
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.MorningReview
@@ -56,6 +57,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZonedDateTime
+import com.sleepsaver.core.testing.FakeTimeProvider as TickingTime
 
 @RunWith(AndroidJUnit4::class)
 class MorningReviewViewModelTest {
@@ -90,7 +92,7 @@ class MorningReviewViewModelTest {
 
     private val healthConnect = FakeHealthConnectGateway()
 
-    private fun viewModel(date: LocalDate = today) = MorningReviewViewModel(
+    private fun viewModel(date: LocalDate = today, clock: TimeProvider = time) = MorningReviewViewModel(
         SavedStateHandle(mapOf("wakeDate" to date.toString())),
         sleep,
         insights,
@@ -98,7 +100,7 @@ class MorningReviewViewModelTest {
         sync,
         reviews,
         notifier,
-        time,
+        clock,
         healthConnect,
         journal,
         nightLog,
@@ -458,6 +460,20 @@ class MorningReviewViewModelTest {
         vm.onFeel(MorningFeel.OKAY)
         advanceUntilIdle()
         assertThat(journal.feelsSet).isEmpty()
+    }
+
+    @Test
+    fun `today follows the date when the review stays open past midnight`() = runTest {
+        // A clock whose minute ticks move on.
+        val clock = TickingTime(now = at(today, 23, 50), zone = SampleData.zone)
+        val vm = viewModel(today, clock)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.today).isEqualTo(today)
+
+        clock.advance(Duration.ofMinutes(20))
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.today).isEqualTo(today.plusDays(1))
     }
 
     @Test

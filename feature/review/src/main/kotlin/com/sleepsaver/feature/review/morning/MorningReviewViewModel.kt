@@ -215,7 +215,8 @@ class MorningReviewViewModel @Inject constructor(
         val extras = flags.extras
         MorningReviewUiState(
             wakeDate = wakeDate,
-            today = today,
+            // The journal window is re-checked every minute: a review left open past midnight moves on to the new day.
+            today = extras.window?.today ?: today,
             step = step(phase, loaded, editor, update, flags),
             finished = flags.finished,
             feel = extras.feel,

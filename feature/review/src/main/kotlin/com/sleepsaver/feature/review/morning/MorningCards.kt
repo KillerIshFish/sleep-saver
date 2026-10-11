@@ -49,6 +49,10 @@ import com.sleepsaver.feature.review.R
 import com.sleepsaver.feature.review.common.alignTextStart
 import java.time.Duration
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+/** How many nights back formatNightLabel still names a night (core:ui: "Last night", then the weekday). */
+private const val NAMED_NIGHTS = 6L
 
 /**
  * Morning feel at the top of the summary. Unanswered (or answered here before): "How do you feel this morning?" with
@@ -204,9 +208,11 @@ internal fun NightMarksCard(
     onMarkToggle: (Mark) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = formatNightLabel(wakeDate, today)
-    val title = if (label.endsWith(" night")) {
-        stringResource(R.string.review_marks_title_named, label)
+    // formatNightLabel names the night ("Last night", "Tuesday night") up to NAMED_NIGHTS back; older ones are a date,
+    // which doesn't read as a title, so they get the plain one. Decided from the dates, never from the label's text.
+    val nightsAgo = ChronoUnit.DAYS.between(wakeDate.minusDays(1), today)
+    val title = if (nightsAgo in 1..NAMED_NIGHTS) {
+        stringResource(R.string.review_marks_title_named, formatNightLabel(wakeDate, today))
     } else {
         stringResource(R.string.review_marks_title)
     }
