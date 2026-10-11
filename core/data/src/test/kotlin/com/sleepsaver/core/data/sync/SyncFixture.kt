@@ -7,8 +7,10 @@ import com.sleepsaver.core.data.db.SessionWithStages
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.demo.DemoDataWriter
 import com.sleepsaver.core.data.demo.DemoEditBackupFile
+import com.sleepsaver.core.data.demo.DemoJournalWriter
 import com.sleepsaver.core.data.demo.DemoModeControllerImpl
 import com.sleepsaver.core.data.demo.FakeSleepDataSource
+import com.sleepsaver.core.data.repository.RoutineActivityStore
 import com.sleepsaver.core.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
@@ -50,6 +52,7 @@ class SyncFixture(dataStoreDir: File) {
     val demoMode = DemoModeControllerImpl(
         settingsRepository = settings,
         writer = demoWriter,
+        journalWriter = DemoJournalWriter(db, RoutineActivityStore(db, ApplicationProvider.getApplicationContext()), demoSource, time),
         database = db,
         timeProvider = time,
         backup = DemoEditBackupFile(File(dataStoreDir, DemoEditBackupFile.FILE_NAME)),

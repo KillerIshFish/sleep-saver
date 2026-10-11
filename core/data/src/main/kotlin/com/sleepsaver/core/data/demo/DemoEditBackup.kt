@@ -3,8 +3,12 @@ package com.sleepsaver.core.data.demo
 import android.content.Context
 import com.sleepsaver.core.data.db.AddedAwakeEntity
 import com.sleepsaver.core.data.db.ManualNapEntity
+import com.sleepsaver.core.data.db.MorningFeelEntity
 import com.sleepsaver.core.data.db.MorningReviewEntity
+import com.sleepsaver.core.data.db.NightMarkEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
+import com.sleepsaver.core.data.db.NightStepLogEntity
+import com.sleepsaver.core.data.db.TomorrowListEntity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -14,8 +18,10 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * The user's real edits, set aside while demo mode runs: every row of the four edit tables, column for column, so
- * they come back exactly (ids included). Its own format (not the Room entities), versioned.
+ * The user's real edits, set aside while demo mode runs: every row of the four edit tables and (version 2) of the
+ * four journal tables (marks, Morning feel, Night steps logs, Tomorrow lists), column for column, so they come back
+ * exactly (ids included). Its own format (not the Room entities), versioned; a version 1 file reads with empty journal
+ * lists.
  */
 @Serializable
 internal data class DemoEditBackup(
@@ -24,6 +30,10 @@ internal data class DemoEditBackup(
     val addedAwake: List<AddedAwakeRow> = emptyList(),
     val manualNaps: List<ManualNapRow> = emptyList(),
     val reviews: List<ReviewRow> = emptyList(),
+    val nightMarks: List<MarkRow> = emptyList(),
+    val morningFeel: List<FeelRow> = emptyList(),
+    val nightStepLogs: List<StepLogRow> = emptyList(),
+    val tomorrowLists: List<TomorrowListRow> = emptyList(),
 ) {
     @Serializable
     data class OverrideRow(
@@ -56,14 +66,38 @@ internal data class DemoEditBackup(
         fun toEntity() = MorningReviewEntity(wakeDate, status, atEpochMs, debtBeforeMin, debtAfterMin)
     }
 
+    @Serializable
+    data class MarkRow(val wakeDate: String, val mark: String, val createdAtEpochMs: Long, val offsetSec: Int) {
+        fun toEntity() = NightMarkEntity(wakeDate, mark, createdAtEpochMs, offsetSec)
+    }
+
+    @Serializable
+    data class FeelRow(val wakeDate: String, val level: Int, val atEpochMs: Long, val offsetSec: Int, val source: String) {
+        fun toEntity() = MorningFeelEntity(wakeDate, level, atEpochMs, offsetSec, source)
+    }
+
+    @Serializable
+    data class StepLogRow(val nightOf: String, val activityId: Long, val techniqueKey: String?, val doneAtEpochMs: Long, val offsetSec: Int) {
+        fun toEntity() = NightStepLogEntity(nightOf, activityId, techniqueKey, doneAtEpochMs, offsetSec)
+    }
+
+    @Serializable
+    data class TomorrowListRow(val nightOf: String, val text: String, val updatedAtEpochMs: Long, val offsetSec: Int) {
+        fun toEntity() = TomorrowListEntity(nightOf, text, updatedAtEpochMs, offsetSec)
+    }
+
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
 
         fun of(
             overrides: List<NightOverrideEntity>,
             addedAwake: List<AddedAwakeEntity>,
             manualNaps: List<ManualNapEntity>,
             reviews: List<MorningReviewEntity>,
+            nightMarks: List<NightMarkEntity> = emptyList(),
+            morningFeel: List<MorningFeelEntity> = emptyList(),
+            nightStepLogs: List<NightStepLogEntity> = emptyList(),
+            tomorrowLists: List<TomorrowListEntity> = emptyList(),
         ) = DemoEditBackup(
             overrides = overrides.map {
                 OverrideRow(
@@ -74,6 +108,10 @@ internal data class DemoEditBackup(
             addedAwake = addedAwake.map { AddedAwakeRow(it.id, it.wakeDate, it.startEpochMs, it.endEpochMs, it.createdAtEpochMs) },
             manualNaps = manualNaps.map { ManualNapRow(it.id, it.startEpochMs, it.endEpochMs, it.offsetSec, it.createdAtEpochMs) },
             reviews = reviews.map { ReviewRow(it.wakeDate, it.status, it.atEpochMs, it.debtBeforeMin, it.debtAfterMin) },
+            nightMarks = nightMarks.map { MarkRow(it.wakeDate, it.mark, it.createdAtEpochMs, it.offsetSec) },
+            morningFeel = morningFeel.map { FeelRow(it.wakeDate, it.level, it.atEpochMs, it.offsetSec, it.source) },
+            nightStepLogs = nightStepLogs.map { StepLogRow(it.nightOf, it.activityId, it.techniqueKey, it.doneAtEpochMs, it.offsetSec) },
+            tomorrowLists = tomorrowLists.map { TomorrowListRow(it.nightOf, it.text, it.updatedAtEpochMs, it.offsetSec) },
         )
     }
 }

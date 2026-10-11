@@ -12,12 +12,16 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.data.db.AnchorEntity
 import com.sleepsaver.core.data.db.MorningReviewEntity
+import com.sleepsaver.core.data.db.NightMarkEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.demo.DemoEditBackup
 import com.sleepsaver.core.data.demo.DemoEditBackupFile
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.ReminderPlanner
+import com.sleepsaver.core.data.testing.RecordingAlarmScheduler
+import com.sleepsaver.core.data.testing.RecordingNightController
 import com.sleepsaver.core.data.testing.inMemoryDatabase
 import com.sleepsaver.core.data.testing.preferencesStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +47,10 @@ class DataResetterImplTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val db = inMemoryDatabase(context)
-    private val planner = RecordingPlanner()
+    private val calls = mutableListOf<String>()
+    private val planner = RecordingPlanner(calls)
+    private val alarms = RecordingAlarmScheduler(calls)
+    private val night = RecordingNightController(calls)
     private val notifier = RecordingNotifier()
     private val sync = RecordingSync()
 
@@ -59,13 +66,16 @@ class DataResetterImplTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `reset wipes data and settings and stops background work`() = runTest {
+    fun `reset stops the night and the alarms first, then wipes data and settings and stops background work`() = runTest {
         val store = preferencesStore(backgroundScope, tmp.root)
         val settings = SettingsRepositoryImpl(store)
         settings.setOnboardingDone(true)
         settings.setSleepNeed(Duration.ofHours(9))
         db.nightOverrideDao().upsert(NightOverrideEntity("2026-10-06", null, null, 10, null, false, 0, 0))
         db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "CONFIRMED", 0, null, null))
+        // A v2 table: clearAllTables covers it.
+        db.nightMarkDao().insert(NightMarkEntity("2026-10-06", "ALCOHOL", 0, 0))
+        db.anchorDao().insert(AnchorEntity(atEpochMs = 0, offsetSec = 0, wakeDate = "2026-10-06", source = "TONIGHT", wholeNightLog = false))
         val workManager = WorkManager.getInstance(context)
         val request = OneTimeWorkRequestBuilder<NoOpWorker>().setInitialDelay(1, TimeUnit.HOURS).build()
         workManager.enqueue(request).result.get()
@@ -73,14 +83,17 @@ class DataResetterImplTest {
         val demoBackup = File(context.filesDir, DemoEditBackupFile.FILE_NAME)
         DemoEditBackupFile(demoBackup).write(DemoEditBackup())
 
-        DataResetterImpl(context, db, store, planner, notifier, sync, StandardTestDispatcher(testScheduler)).resetAll()
+        DataResetterImpl(context, db, store, planner, notifier, sync, { alarms }, { night }, StandardTestDispatcher(testScheduler)).resetAll()
 
         assertThat(demoBackup.exists()).isFalse()
         assertThat(db.nightOverrideDao().getAll()).isEmpty()
         assertThat(db.morningReviewDao().getAll()).isEmpty()
+        assertThat(db.nightMarkDao().getAll()).isEmpty()
+        assertThat(db.anchorDao().getAll()).isEmpty()
         assertThat(settings.current()).isEqualTo(AppSettings())
         assertThat(workManager.getWorkInfoById(request.id).get()?.state).isEqualTo(WorkInfo.State.CANCELLED)
-        assertThat(planner.cancelled).isTrue()
+        // The night services stop before the alarms (and their mirror) go, and both before anything else.
+        assertThat(calls).containsExactly("stopEverything", "cancelAll", "reminders").inOrder()
         assertThat(notifier.cancelled).isTrue()
         assertThat(sync.reset).isTrue()
     }
@@ -89,11 +102,10 @@ class DataResetterImplTest {
         override fun doWork(): Result = Result.success()
     }
 
-    private class RecordingPlanner : ReminderPlanner {
-        var cancelled = false
+    private class RecordingPlanner(private val calls: MutableList<String>) : ReminderPlanner {
         override suspend fun replan() = Unit
         override fun cancelAll() {
-            cancelled = true
+            calls += "reminders"
         }
     }
 

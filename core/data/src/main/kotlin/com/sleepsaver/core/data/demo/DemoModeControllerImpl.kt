@@ -21,16 +21,18 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Demo nights are separate rows (SourceKind.DEMO) and are simply deleted again, but the user's edits (night
- * overrides, added awake time, manual naps, morning reviews) live in tables keyed by wake date that demo mode uses
- * too. So turning demo mode on moves those four tables aside into [DemoEditBackupFile] and empties them; turning it
- * off empties them again (dropping whatever was edited during the demo) and puts the saved rows back exactly.
- * Health Connect is never touched.
+ * overrides, added awake time, manual naps, morning reviews) and journal (marks, Morning feel, Night steps logs,
+ * Tomorrow lists) live in tables keyed by date that demo mode uses too. So turning demo mode on moves those eight
+ * tables aside into [DemoEditBackupFile], empties them and fills the journal with [DemoJournalWriter]'s synthetic
+ * rows; turning it off empties them again (dropping the demo journal and whatever was edited during the demo) and puts
+ * the saved rows back exactly. Configuration and device logs (week plan, routine activities, anchors, movement, alarm
+ * history, tuning, Hush plays) are left alone. Health Connect is never touched.
  *
  * Both directions are idempotent and safe to interrupt at any point (every interrupted state has the flag on):
  *  - On: the flag first, then in one transaction (so no edit can slip in between) save the backup, unless one is
- *    already there, and empty the tables; then the demo nights. A backup found while turning on comes from an
- *    interrupted switch and is kept as it is. Already on: nothing moves, unless the move never ran (no backup yet).
- *    If the move fails, nothing moved and real mode stays on.
+ *    already there, and empty the tables; then the demo nights, then the demo journal. A backup found while turning on
+ *    comes from an interrupted switch and is kept as it is. Already on: nothing moves, unless the move never ran (no
+ *    backup yet). If the move fails, nothing moved and real mode stays on.
  *  - Off: the backup is read first (nothing changes if it can't be), then the demo rows go, then in one transaction
  *    the tables are emptied and refilled from the backup, then the backup is deleted, then the flag cleared.
  *    Without a backup the tables are left alone: they hold real edits.
@@ -44,20 +46,22 @@ import kotlin.coroutines.cancellation.CancellationException
 class DemoModeControllerImpl internal constructor(
     private val settingsRepository: SettingsRepository,
     private val writer: DemoDataWriter,
+    private val journalWriter: DemoJournalWriter,
     private val database: SleepSaverDatabase,
     private val timeProvider: TimeProvider,
     private val backup: DemoEditBackupFile,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : DemoModeController {
 
-    @Inject constructor(
+    @Inject internal constructor(
         settingsRepository: SettingsRepository,
         writer: DemoDataWriter,
+        journalWriter: DemoJournalWriter,
         database: SleepSaverDatabase,
         timeProvider: TimeProvider,
         @ApplicationContext context: Context,
         @IoDispatcher ioDispatcher: CoroutineDispatcher,
-    ) : this(settingsRepository, writer, database, timeProvider, DemoEditBackupFile.inFilesDir(context), ioDispatcher)
+    ) : this(settingsRepository, writer, journalWriter, database, timeProvider, DemoEditBackupFile.inFilesDir(context), ioDispatcher)
 
     private val mutex = Mutex()
 
@@ -89,7 +93,8 @@ class DemoModeControllerImpl internal constructor(
     private suspend fun enable() {
         val wasOn = settingsRepository.current().demoMode
         if (!wasOn) settingsRepository.setDemoModeFlag(true, timeProvider.now())
-        if (!wasOn || !backup.exists()) {
+        val moving = !wasOn || !backup.exists()
+        if (moving) {
             try {
                 moveEditsAside()
             } catch (e: Exception) {
@@ -99,6 +104,8 @@ class DemoModeControllerImpl internal constructor(
             }
         }
         writer.writeAll()
+        // Only right after the tables were emptied: a second "on" keeps what was edited during the demo.
+        if (moving) writeDemoJournal()
     }
 
     /** The flag is on but the real edits are still in the tables (no backup): moves them aside now. */
@@ -109,11 +116,23 @@ class DemoModeControllerImpl internal constructor(
             if (e is CancellationException) throw e
             // The demo nights still roll forward; the next sync tries again.
             Log.e(TAG, "Setting the real edits aside failed", e)
+            return
+        }
+        writeDemoJournal()
+    }
+
+    /** The demo journal is a nicety: demo mode works without it, so a failure is only logged. */
+    private suspend fun writeDemoJournal() {
+        try {
+            journalWriter.writeAll()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Writing the demo journal failed", e)
         }
     }
 
     /**
-     * Saves the four tables to the backup (unless one is already there) and empties them, as one step: if it throws,
+     * Saves the eight tables to the backup (unless one is already there) and empties them, as one step: if it throws,
      * the tables are as they were and no backup written by this call is left behind. Must not be cancelled midway
      * (callers run it NonCancellable), so an exception always means the transaction rolled back.
      */
@@ -128,6 +147,10 @@ class DemoModeControllerImpl internal constructor(
                             addedAwake = database.addedAwakeDao().getAll(),
                             manualNaps = database.manualNapDao().getAll(),
                             reviews = database.morningReviewDao().getAll(),
+                            nightMarks = database.nightMarkDao().getAll(),
+                            morningFeel = database.morningFeelDao().getAll(),
+                            nightStepLogs = database.nightStepLogDao().getAll(),
+                            tomorrowLists = database.tomorrowListDao().getAll(),
                         ),
                     )
                     wrote = true
@@ -158,6 +181,10 @@ class DemoModeControllerImpl internal constructor(
                 database.addedAwakeDao().insertAll(saved.addedAwake.map { it.toEntity() })
                 database.manualNapDao().insertAll(saved.manualNaps.map { it.toEntity() })
                 database.morningReviewDao().upsertAll(saved.reviews.map { it.toEntity() })
+                database.nightMarkDao().insertAll(saved.nightMarks.map { it.toEntity() })
+                database.morningFeelDao().insertAll(saved.morningFeel.map { it.toEntity() })
+                database.nightStepLogDao().insertAll(saved.nightStepLogs.map { it.toEntity() })
+                database.tomorrowListDao().insertAll(saved.tomorrowLists.map { it.toEntity() })
             }
         }
         backup.delete()
@@ -169,6 +196,10 @@ class DemoModeControllerImpl internal constructor(
         database.addedAwakeDao().deleteAll()
         database.manualNapDao().deleteAll()
         database.morningReviewDao().deleteAll()
+        database.nightMarkDao().deleteAll()
+        database.morningFeelDao().deleteAll()
+        database.nightStepLogDao().deleteAll()
+        database.tomorrowListDao().deleteAll()
     }
 
     private companion object {

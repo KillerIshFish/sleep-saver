@@ -2,15 +2,26 @@ package com.sleepsaver.core.data.export
 
 import com.sleepsaver.core.domain.model.Night
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
+/** The v2 CSV columns for one wake date; marks are stored mark names. */
+internal data class CsvExtras(val morningFeel: Int?, val marks: List<String>, val anchorLatencyMin: Long?) {
+    companion object {
+        /** No Morning feel, no marks, no anchor latency. */
+        val NONE = CsvExtras(morningFeel = null, marks = emptyList(), anchorLatencyMin = null)
+    }
+}
+
 /**
  * The nights CSV: a header row, then one row per assembled night (a day with only naps has empty sleep times).
  * RFC 4180: CRLF line ends, fields containing a comma, quote, CR or LF are quoted with inner quotes doubled.
  * Local times use the offset they were recorded in; stage columns are empty for nights without stage data.
+ * The last three columns come from [CsvExtras]: Morning feel (1..5), the stored marks (lowercased, `;`-joined, e.g.
+ * "alcohol;late_meal") and the Drop anchor latency as shown ("about 15 min" → 15); each is empty when absent.
  */
 internal object NightsCsv {
     val HEADER = listOf(
@@ -30,17 +41,20 @@ internal object NightsCsv {
         "source",
         "edited",
         "manual",
+        "morning_feel",
+        "marks",
+        "anchor_latency_min",
     )
 
     private const val LINE_END = "\r\n"
     private val LOCAL_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
-    fun write(nights: List<Night>, out: Appendable) {
+    fun write(nights: List<Night>, out: Appendable, extras: (LocalDate) -> CsvExtras = { CsvExtras.NONE }) {
         out.appendRow(HEADER)
-        nights.forEach { out.appendRow(row(it)) }
+        nights.forEach { out.appendRow(row(it, extras(it.wakeDate))) }
     }
 
-    fun row(night: Night): List<String> {
+    fun row(night: Night, extras: CsvExtras = CsvExtras.NONE): List<String> {
         val stages = night.stageTotals?.takeIf { it.hasStageData }
         return listOf(
             night.wakeDate.toString(),
@@ -59,6 +73,9 @@ internal object NightsCsv {
             night.origin.orEmpty(),
             night.isEdited.toString(),
             night.isManual.toString(),
+            extras.morningFeel?.toString().orEmpty(),
+            extras.marks.joinToString(";") { it.lowercase() },
+            extras.anchorLatencyMin?.toString().orEmpty(),
         )
     }
 
