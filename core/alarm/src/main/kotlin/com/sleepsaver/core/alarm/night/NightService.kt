@@ -632,7 +632,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
 
     /**
      * 301 on the night channel: "Hush · Pink" / "Movement log on" / "Getting ready for your alarm", and "Never later
-     * than 6:30" while an alarm is armed. Ongoing, silent, no time shown; Stop Hush and +15 min while Hush plays.
+     * than 6:30" while this night's alarm is armed ([MirroredAlarm.endsNightOf]). Ongoing, silent, no time shown; Stop
+     * Hush and +15 min while Hush plays.
      */
     private fun notification(mask: Int): Notification {
         val mirror = coordinator.read()
@@ -651,7 +652,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             .setShowWhen(false)
             .setContentIntent(AlarmPendingIntents.night(this))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        mirror.armed?.let { armed ->
+        // Only this night's alarm: before a free Saturday, Monday's 6:30 would read as a promise for the morning.
+        mirror.armed?.takeIf { it.endsNightOf(time.now(), time.zone(), config) }?.let { armed ->
             builder.setContentText(getString(R.string.alarm_night_never_later, AlarmText.clock(armed.target, time.zone(), mirror.use24h)))
         }
         if (playing != null) {

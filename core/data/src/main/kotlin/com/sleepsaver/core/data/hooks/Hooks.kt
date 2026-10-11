@@ -129,6 +129,11 @@ interface NightController {
 
     /** After the movement log stopped unexpectedly (UI tap only). */
     fun resumeMovementLog()
+
+    /**
+     * [timer] null = "Until my window": until shortly before this night's alarm window (the alarm of the wake date
+     * NightRules.wakeDateOf now), else for hush.defaultTimer when this night has no alarm.
+     */
     fun startHush(color: HushColor, timer: Duration?, volume: Float)
     fun extendHush(by: Duration)
     fun setHushVolume(volume: Float)

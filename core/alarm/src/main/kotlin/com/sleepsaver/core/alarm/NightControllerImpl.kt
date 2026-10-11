@@ -188,16 +188,22 @@ internal class NightControllerImpl @Inject constructor(
 
     override fun startHush(color: HushColor, timer: Duration?, volume: Float) {
         val now = time.now()
+        val zone = time.zone()
         val hush = config.hush
         coordinator.apply { m ->
-            // "Until my window" fades out before sensing starts (the window start − lead-in; the wake time for FIXED).
-            val untilWindow = m.armed?.let { it.windowStart - config.surfacing.sensingLeadIn }?.takeIf { it > now }
-            val endsAt = timer?.let { now + it } ?: untilWindow ?: (now + hush.defaultTimer)
+            // "Until my window" fades out before sensing starts (the window start − lead-in; the wake time for FIXED),
+            // and only before this night's own alarm. Without one (a free Saturday, Monday's alarm armed) it plays the
+            // default timer, so the noise never runs on through the weekend.
+            val untilWindow = m.armed?.takeIf { it.endsNightOf(now, zone, config) }
+                ?.let { it.windowStart - config.surfacing.sensingLeadIn }
+                ?.takeIf { it > now }
+            val played = if (timer == null && untilWindow == null) hush.defaultTimer else timer
+            val endsAt = played?.let { now + it } ?: untilWindow
             val mirrored = MirroredHush(
                 color = color.name,
                 volume = volume.coerceIn(hush.minVolume, 1f),
-                timerMin = timer?.toMinutes(),
-                endsAtEpochMs = endsAt.toEpochMilli(),
+                timerMin = played?.toMinutes(),
+                endsAtEpochMs = endsAt?.toEpochMilli(),
                 playId = m.hush?.takeIf { it.color == color.name }?.playId,
             )
             MirrorUpdate(m.copy(hush = mirrored), Unit)
