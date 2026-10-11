@@ -13,6 +13,7 @@ import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.AlarmSettings
 import com.sleepsaver.core.domain.schedule.AlarmTone
+import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.SnoozeSettings
 import com.sleepsaver.core.domain.schedule.SnoozeStyle
 import com.sleepsaver.core.domain.schedule.WakeStyle
@@ -21,6 +22,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 // The device-protected mirror's DTOs (SPEC_V2 §4.3). Kotlinx JSON of these internal types only: domain types are never
@@ -82,6 +84,14 @@ internal data class MirroredAlarm(
             fixedCount = snoozeFixedCount,
             overrun = Duration.ofMinutes(overrunMin),
         )
+
+    /**
+     * Whether this alarm ends the night [now] belongs to: its wake date is [NightRules.wakeDateOf] now (the next date
+     * from 14:00), the rule Hush plays and anchors are dated by. Example: at 23:00 on Friday a Saturday alarm does; when
+     * Saturday has none, Monday's doesn't.
+     */
+    fun endsNightOf(now: Instant, zone: ZoneId, config: SleepConfig = SleepConfig.DEFAULT): Boolean =
+        wakeDate == NightRules.wakeDateOf(now, zone.rules.getOffset(now), config)
 
     /** Moves the alarm to [target] (a zone change), keeping the window's length. */
     fun resolvedTo(target: Instant, offset: ZoneOffset): MirroredAlarm {

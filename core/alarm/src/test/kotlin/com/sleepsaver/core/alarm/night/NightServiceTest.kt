@@ -103,6 +103,21 @@ internal class NightServiceTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `the night notification promises no alarm days away`() {
+        // Friday 23:00: Saturday has no alarm, so Monday's 6:30 is the one armed.
+        val friday = today.plusDays(3)
+        now = at(friday, "23:00")
+        plan(planned(friday.plusDays(3), "06:30"))
+        reschedule()
+
+        val night = hush()
+
+        val notification = shadowOf(night.get()).lastForegroundNotification
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Hush · Pink")
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TEXT)).isNull()
+    }
+
+    @Test
     fun `Hush fades in, then stops at the end of its timer`() {
         val night = hush(timer = Duration.ofMinutes(15))
         val noise = graph.hushOutputs.sounds.single()

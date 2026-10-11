@@ -106,10 +106,13 @@ The formulas and constants are written up in [`docs/PLAN.md`](docs/PLAN.md).
 
 - Sleep Saver reads sleep sessions from Health Connect, plus resting heart rate, heart-rate variability and steps if
   you allow them. It stores what it needs in a local database on the phone.
-- Around your alarm (only while its surfacing window or the optional movement log runs) it reads the phone's motion
-  sensor, reduced to one movement number per 30 seconds; it never uses the microphone. It also stores what you enter
-  (marks, Morning feel, Night steps check-offs and Tomorrow lists) and what it records: your alarm history (when it
-  rang, snoozes and stops), when you dropped anchor, and when Hush played. Your next alarm is also kept in a small file
-  the phone can read before you unlock it after a restart, so it still rings. All of it stays on the phone.
+- Around your alarm (only from 15 minutes before its surfacing window opens until it rings, or while the optional
+  movement log runs) it reads the phone's motion sensor, reduced to one movement number per 30 seconds; it never uses
+  the microphone. It also stores what you enter (marks, Morning feel, Night steps check-offs and Tomorrow lists) and
+  what it records: your alarm history (when it rang, snoozes and stops), when you dropped anchor, and when Hush played.
+  So that alarms still ring after a restart, a small file the phone can read before you unlock it also holds your next
+  alarms and any snooze or catnap, tonight's anchor and Hush settings, a summary of when your watch usually records
+  deep sleep, and, until they move into the database, the alarm rings, movement result and Morning feel from before you
+  unlock. All of it stays on the phone.
 - It has no internet permission, so nothing leaves the device unless you export a CSV and share it yourself.
 - Uninstalling the app, or **Reset all data** in Settings, removes all of its data.

@@ -154,6 +154,9 @@ class SettingsContentTest {
         compose.onNodeWithText("Use demo data").performClick()
 
         compose.onNodeWithText("Turn off demo data?").assertIsDisplayed()
+        // Everything the demo swap drops is named, Tomorrow lists included.
+        compose.onNodeWithText("Edits, marks, Morning feel, Night steps check-offs and Tomorrow lists made in demo mode will be removed.")
+            .assertIsDisplayed()
         assertThat(actions.calls).isEmpty()
         compose.onNodeWithText("Keep demo").performClick()
         assertThat(actions.calls).isEmpty()

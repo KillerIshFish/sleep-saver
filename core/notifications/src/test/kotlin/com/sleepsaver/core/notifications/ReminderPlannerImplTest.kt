@@ -130,6 +130,26 @@ class ReminderPlannerImplTest {
     }
 
     @Test
+    fun `after an early Drop anchor tonight's cutoffs stay quiet, another evening's still post`() = runTest {
+        // Bedtime 00:30: the exercise cutoff (2 h before it) falls at 22:30, after dropping anchor at 21:45.
+        insights.state.value = InsightsState.Ready(insights(time.now, todayHabits + habit(HabitType.EXERCISE_CUTOFF, at(TODAY, "22:30"))))
+        habitsByDate[tomorrow] = listOf(habit(HabitType.CAFFEINE_CUTOFF, at(tomorrow, "12:45")))
+        planner.replan()
+        nightController.anchor(anchorId = 7, at = at(TODAY, "21:45"))
+        time.now = at(TODAY, "22:30:10")
+
+        planner.onAlarm()
+
+        assertThat(notifications.getNotification(NotificationIds.habit(HabitType.EXERCISE_CUTOFF))).isNull()
+        assertThat(ReminderStore(context).lastPosted.keys).contains(HabitType.EXERCISE_CUTOFF)
+
+        // Tomorrow's caffeine cutoff leads up to tomorrow's evening: it posts even while the night state holds.
+        time.now = at(tomorrow, "12:45:10")
+        planner.onAlarm()
+        assertThat(notifications.getNotification(NotificationIds.habit(HabitType.CAFFEINE_CUTOFF))).isNotNull()
+    }
+
+    @Test
     fun `the Night steps reminder lists tonight's unchecked steps`() = runTest {
         val bedtime = at(TODAY, "22:45")
         nightSteps.tonightState.value = NightStepsSession(

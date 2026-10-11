@@ -389,4 +389,28 @@ class GuidedToolsTest {
         // No alarm this morning, Friday's next: the default timer, not two days of noise.
         assertThat(playUntilWindow(PlanSamples.today.plusDays(3)).nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
     }
+
+    @Test
+    fun `night reset's Until my window waits for this night's alarm, never one days away`() = runTest {
+        // 2 AM on Saturday; Saturday has no alarm and Monday's is the next.
+        val saturday = PlanSamples.today.plusDays(4)
+        val monday = PlanSamples.plannedAlarm(date = saturday.plusDays(2))
+        val schedule = FakeScheduleRepository(upcoming = listOf(monday))
+        val time = FakeTimeProvider(PlanSamples.at(saturday, LocalTime.of(2, 0)))
+        val nightController = FakeNightController()
+        val viewModel = NightResetViewModel(nightController, schedule, time, haptics, testClock())
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        runCurrent()
+
+        assertThat(viewModel.uiState.value.hush.untilWindowAvailable).isFalse()
+        viewModel.hushActions.onTimer(null)
+        viewModel.hushActions.onPlay()
+        runCurrent()
+        assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
+
+        // With an alarm this morning, Hush can wait for its window.
+        schedule.upcomingState.value = listOf(PlanSamples.plannedAlarm(date = saturday), monday)
+        runCurrent()
+        assertThat(viewModel.uiState.value.hush.untilWindowAvailable).isTrue()
+    }
 }
