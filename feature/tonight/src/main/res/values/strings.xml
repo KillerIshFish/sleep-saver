@@ -98,7 +98,7 @@
     </plurals>
     <!-- %1$d: evenings with steps done; %2$d: evenings counted. Quantity: evenings counted. -->
     <plurals name="tonight_adherence">
-        <item quantity="one">%1$d of the last night</item>
+        <item quantity="one">%1$d of %2$d night so far</item>
         <item quantity="other">%1$d of the last %2$d nights</item>
     </plurals>
 

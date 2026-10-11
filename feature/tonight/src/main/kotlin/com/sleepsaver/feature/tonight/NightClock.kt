@@ -142,8 +142,11 @@ internal fun nightClock(
     // Last night's anchor stays in the night state until its alarm is stopped; once that night has ended (its window
     // opened) the anchor says nothing about the coming night.
     val anchor = anchoredAt?.takeUnless { nightOf == today && lastNightEnd != null && it < lastNightEnd }
-    // "I'm up" ends this night's no-clock time until the user drops anchor again.
+    // "I'm up" ends this night's no-clock time until the user drops anchor again. Only the night it was tapped in
+    // (same wake date): a tap at 5:30 must not cancel the coming night's bedtime, which is less than
+    // nightBedtimeMaxLead (18 h) away.
     val ended = endedAt != null && endedAt <= now && (anchor == null || anchor < endedAt) &&
+        NightRules.wakeDateOf(endedAt, zone.rules.getOffset(endedAt), config) == wakeDate &&
         (bedtime == null || endedAt >= bedtime - config.week.nightBedtimeMaxLead)
     val isNight = NightRules.isNight(now, if (ended) null else bedtime, end, anchor, config)
 

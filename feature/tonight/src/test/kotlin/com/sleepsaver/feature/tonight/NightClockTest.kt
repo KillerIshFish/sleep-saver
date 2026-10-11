@@ -111,6 +111,23 @@ class NightClockTest {
     }
 
     @Test
+    fun `I'm up ends only the night it was tapped in`() {
+        val thursday = wednesday.plusDays(1)
+        assertThat(clock(at(23, 30, date = wednesday)).isNight).isTrue()
+
+        // Up at 5:30, before the window: the rest of that night shows the clock ...
+        val beforeWindow = at(5, 30, date = wednesday)
+        assertThat(clock(at(5, 40, date = wednesday), endedAt = beforeWindow).isNight).isFalse()
+        // ... but the next bedtime (less than 18 h later) is night as usual.
+        val next = clock(at(23, 30, date = wednesday), endedAt = beforeWindow)
+        assertThat(next.wakeDate).isEqualTo(thursday)
+        assertThat(next.isNight).isTrue()
+
+        // The same for a tap while the window is open (the anchor lasts until the alarm is stopped).
+        assertThat(clock(at(23, 30, date = wednesday), endedAt = at(6, 20, date = wednesday)).isNight).isTrue()
+    }
+
+    @Test
     fun `a stopped alarm ends the night and starts the morning`() {
         val now = at(6, 20, date = wednesday)
         val handled = s.alarms(now).filterNot { it.occurrence.date == wednesday }
