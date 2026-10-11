@@ -64,10 +64,10 @@ class WeekPlanContentTest {
     fun `rows read as morning and evening`() {
         show(s.weekPlanState())
 
-        compose.onNodeWithText("Next: Wed 6:45 AM · window 30 min").assertExists()
-        compose.onNodeWithText("Tue · 6:45 AM · Surfacing 30 min").assertExists()
-        compose.onNodeWithText("Sat · usual 8:10 AM · no alarm").assertExists()
-        compose.onAllNodesWithText("Evening · Night steps from 9:30 PM · 3 steps").assertCountEquals(7)
+        compose.onNodeWithText("Next: Wed 6:45\u00A0AM · window 30 min").assertExists()
+        compose.onNodeWithText("Tue · 6:45\u00A0AM · Surfacing 30 min").assertExists()
+        compose.onNodeWithText("Sat · usual 8:10\u00A0AM · no alarm").assertExists()
+        compose.onAllNodesWithText("Evening · Night steps from 9:30\u00A0PM · 3 steps").assertCountEquals(7)
     }
 
     @Test
@@ -76,13 +76,13 @@ class WeekPlanContentTest {
             s.week.day(DayOfWeek.FRIDAY).let { it.copy(evening = it.evening.copy(bedtime = LocalTime.of(22, 45), nightStepsOn = false)) },
         )
         show(s.weekPlanState(week = week))
-        compose.onNodeWithText("Evening · Night steps off · bedtime 10:45 PM").assertExists()
+        compose.onNodeWithText("Evening · Night steps off · bedtime 10:45\u00A0PM").assertExists()
     }
 
     @Test
     fun `at night the subtitle drops Next`() {
         show(s.weekPlanState(night = true))
-        compose.onNodeWithText("Wed 6:45 AM · window 30 min").assertExists()
+        compose.onNodeWithText("Wed 6:45\u00A0AM · window 30 min").assertExists()
     }
 
     @Test
@@ -91,8 +91,8 @@ class WeekPlanContentTest {
             if (plan.morning.alarm.mode == AlarmMode.OFF) week else week.with(plan.copy(morning = plan.morning.copy(alarm = plan.morning.alarm.copy(mode = AlarmMode.FIXED))))
         }
         show(s.weekPlanState(week = fixed))
-        compose.onNodeWithText("Next: Wed 6:45 AM").assertExists()
-        compose.onNodeWithText("Tue · 6:45 AM · At wake time").assertExists()
+        compose.onNodeWithText("Next: Wed 6:45\u00A0AM").assertExists()
+        compose.onNodeWithText("Tue · 6:45\u00A0AM · At wake time").assertExists()
     }
 
     @Test
@@ -101,7 +101,7 @@ class WeekPlanContentTest {
 
         compose.onNodeWithContentDescription("Alarm on Saturday").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Alarm on Monday").performScrollTo().performClick()
-        compose.onNodeWithText("Tue · 6:45 AM · Surfacing 30 min").performClick()
+        compose.onNodeWithText("Tue · 6:45\u00A0AM · Surfacing 30 min").performClick()
         compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
 
         assertThat(calls).containsExactly(
@@ -124,7 +124,7 @@ class WeekPlanContentTest {
         show(s.weekPlanState(oneOffs = oneOffs))
 
         compose.onNodeWithText("Wed, Oct 7: day off").assertExists()
-        compose.onNodeWithText("Thu, Oct 8: 5:30 AM just this once").assertExists()
+        compose.onNodeWithText("Thu, Oct 8: 5:30\u00A0AM just this once").assertExists()
         compose.onNodeWithText("Paused until Mon, Oct 12").assertExists()
         compose.onNodeWithText("Alarms paused until Mon").assertExists()
         compose.onAllNodesWithText("Undo")[0].performScrollTo().performClick()
@@ -140,7 +140,7 @@ class WeekPlanContentTest {
     fun `the plan check and its notice`() {
         show(s.weekPlanState(planCheck = PlanSamples.planCheck(warn = true)))
 
-        compose.onNodeWithText("Planned keel 66 · Choppy · last 14 days: 84").assertExists()
+        compose.onNodeWithText("Planned keel 66 · Choppy · last\u00A014\u00A0days:\u00A084").assertExists()
         compose.onNodeWithText(
             "Free days wake 1 h 45 m later than alarm days. Keeping it within an hour steadies your Keel; " +
                 "a short early-afternoon catnap is one alternative.",

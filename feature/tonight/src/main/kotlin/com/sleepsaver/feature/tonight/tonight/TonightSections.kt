@@ -151,7 +151,8 @@ private fun AlarmSection(
             Gap()
             NoticeCard(
                 title = stringResource(R.string.tonight_blocked_title),
-                body = first.fix(),
+                // "Alarms & reminders is off. Without it, …": the fix line alone wouldn't say what "it" is.
+                body = stringResource(R.string.tonight_blocked_body, first.title(), first.fix()),
                 icon = first.icon,
                 actionLabel = stringResource(R.string.tonight_action_alarm_check),
                 onAction = actions.onOpenAlarmCheck,

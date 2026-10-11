@@ -205,7 +205,7 @@ class TonightContentTest {
     fun `a running catnap can be cancelled`() {
         show(s.ready(s.inputs(at(14, 10), night = PlanSamples.nightState(NightVariant.CATNAP_PENDING))))
 
-        compose.onNodeWithText("Catnap · rings at 2:25 PM").assertExists()
+        compose.onNodeWithText("Catnap · rings at 2:25\u00A0PM").assertExists()
         tap("Cancel")
 
         assertThat(calls).containsExactly("catnapCancel")
@@ -272,7 +272,7 @@ class TonightContentTest {
 
         show(state)
 
-        compose.onNodeWithText("Alarm set · never later than 6:45 AM").assertExists()
+        compose.onNodeWithText("Alarm set · never later than 6:45\u00A0AM").assertExists()
         compose.onNodeWithText("Movement log stopped").assertExists()
         assertNoClock("6:45")
     }

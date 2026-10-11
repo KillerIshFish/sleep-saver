@@ -93,7 +93,7 @@ class AlarmCheckContentTest {
     fun `the last test ring and the test button`() {
         show(ready(tested = true))
 
-        scrollTo("Last test: rang at 6:45 AM on Oct 6")
+        scrollTo("Last test: rang at 6:45\u00A0AM on Oct\u00A06")
         scrollTo("Test ring in 1 minute")
         compose.onNodeWithText("Test ring in 1 minute").performClick()
 
@@ -104,7 +104,7 @@ class AlarmCheckContentTest {
     fun `a tuned trigger can be reset`() {
         show(ready(tuning = TuningReason.RAISED_AFTER_DEEP_RINGS))
 
-        scrollTo("Waits for a clearer restless moment (since Oct 6)")
+        scrollTo("Waits for a clearer restless moment (since Oct\u00A06)")
         scrollTo("Reset to default")
         compose.onNodeWithText("Reset to default").performClick()
 
@@ -114,7 +114,7 @@ class AlarmCheckContentTest {
     @Test
     fun `a lowered trigger`() {
         show(ready(tuning = TuningReason.LOWERED_AFTER_LATE_RINGS))
-        scrollTo("Reacts to smaller movements (since Oct 6)")
+        scrollTo("Reacts to smaller movements (since Oct\u00A06)")
     }
 
     @Test

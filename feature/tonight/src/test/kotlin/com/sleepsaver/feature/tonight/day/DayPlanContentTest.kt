@@ -86,7 +86,7 @@ class DayPlanContentTest {
 
         compose.onNodeWithText("Tuesday morning").assertExists()
         compose.onNodeWithText("Days with an alarm use a set time, so the alarm never moves on its own.").assertExists()
-        compose.onNodeWithText("May ring up to 30 min before 6:45 AM when you're restless. Always rings by 6:45 AM.")
+        compose.onNodeWithText("May ring up to 30 min before 6:45\u00A0AM when you're restless. Always rings by 6:45\u00A0AM.")
             .performScrollTo()
         compose.onNodeWithText("Tuesday evening (before Wednesday)").performScrollTo()
     }
@@ -95,7 +95,7 @@ class DayPlanContentTest {
     fun `usual wake is offered only without an alarm, with its source`() {
         show(s.dayPlan(day = DayOfWeek.SATURDAY))
 
-        compose.onNodeWithText("8:10 AM (learned)", substring = true).assertExists()
+        compose.onNodeWithText("8:10\u00A0AM (learned)", substring = true).assertExists()
         tap("Usual wake time")
         // The morning's (the evening's bedtime has one too).
         compose.onAllNodesWithText("Set a time")[0].performClick()
@@ -152,7 +152,7 @@ class DayPlanContentTest {
 
         scrollTo("3 steps · same as every evening")
         compose.onNodeWithText("1 h 30 m").assertExists()
-        compose.onNodeWithText("before bedtime · From 9:30 PM").assertExists()
+        compose.onNodeWithText("before bedtime · From 9:30\u00A0PM").assertExists()
         tap("Settings rule")
         tap("Edit steps")
         // The last stepper on the screen is "Night steps start".

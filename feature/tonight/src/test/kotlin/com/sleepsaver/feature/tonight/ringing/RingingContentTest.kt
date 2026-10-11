@@ -46,9 +46,9 @@ class RingingContentTest {
         // The big clock is a plain time.
         compose.onNodeWithText("6:27 AM").assertExists()
         compose.onNodeWithText("Good morning").assertExists()
-        compose.onNodeWithText("A restless moment · 18 min before 6:45 AM").assertExists()
+        compose.onNodeWithText("A restless moment · 18 min before 6:45\u00A0AM").assertExists()
         compose.onNodeWithText("Last ring").assertDoesNotExist()
-        compose.onNodeWithText("Snooze until 6:36 AM").performClick()
+        compose.onNodeWithText("Snooze until 6:36\u00A0AM").performClick()
         compose.onNodeWithText("Stop").performClick()
 
         assertThat(calls).containsExactly("snooze", "stop").inOrder()
@@ -72,7 +72,7 @@ class RingingContentTest {
     @Test
     fun `the other reasons`() {
         show(TonightSamples.sounding(NightVariant.RINGING_PLANNED) { it.copy(reason = RingReason.CATCH_UP) })
-        compose.onNodeWithText("Your 6:45 AM alarm, a little late").assertExists()
+        compose.onNodeWithText("Your 6:45\u00A0AM alarm, a little late").assertExists()
     }
 
     @Test
@@ -81,7 +81,7 @@ class RingingContentTest {
 
         compose.onNodeWithText("Catnap over").assertExists()
         compose.onNodeWithText("Time to get up").assertExists()
-        compose.onNodeWithText("Snooze until 2:30 PM").assertExists()
+        compose.onNodeWithText("Snooze until 2:30\u00A0PM").assertExists()
         compose.onNodeWithText("After this snooze, the next ring is the last ring.").assertExists()
     }
 

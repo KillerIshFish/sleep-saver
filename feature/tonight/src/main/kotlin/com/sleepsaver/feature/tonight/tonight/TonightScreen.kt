@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -251,7 +251,7 @@ internal fun TonightContent(
             }
             TonightUiState.Unavailable -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 EmptyState(
-                    icon = Icons.Rounded.CloudOff,
+                    icon = Icons.Rounded.ErrorOutline,
                     title = stringResource(R.string.tonight_unavailable_title),
                     body = stringResource(R.string.tonight_unavailable_body),
                     modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),

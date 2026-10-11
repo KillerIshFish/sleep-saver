@@ -4,6 +4,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,8 +24,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -192,7 +194,7 @@ internal fun DayPlanContent(
             DayPlanUiState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingOrb() }
             DayPlanUiState.Unavailable -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 EmptyState(
-                    icon = Icons.Rounded.CloudOff,
+                    icon = Icons.Rounded.ErrorOutline,
                     title = stringResource(R.string.tonight_unavailable_title),
                     body = stringResource(R.string.tonight_unavailable_body),
                 )
@@ -335,10 +337,10 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
     val card = ScreenPadding.fillMaxWidth()
     GroupLabel(stringResource(R.string.tonight_alarm_label), ScreenPadding)
     Spacer(Modifier.height(Spacing.s))
-    SegmentedControl(
+    Choice(
         options = modes.map { it.title() },
         selectedIndex = modes.indexOf(alarm.mode),
-        onSelectedChange = { actions.onAlarmMode(modes[it]) },
+        onSelect = { actions.onAlarmMode(modes[it]) },
         modifier = card,
     )
     alarm.mode.description()?.let { Caption(it, ScreenPadding.padding(top = Spacing.s)) }
@@ -425,18 +427,18 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
     val snoozeStyles = listOf(SnoozeStyle.TAPERING, SnoozeStyle.FIXED, SnoozeStyle.NONE)
     GroupLabel(stringResource(R.string.tonight_snooze_title), ScreenPadding)
     Spacer(Modifier.height(Spacing.s))
-    SegmentedControl(
+    Choice(
         options = snoozeStyles.map { it.title() },
         selectedIndex = snoozeStyles.indexOf(alarm.snooze.style),
-        onSelectedChange = { actions.onSnoozeStyle(snoozeStyles[it]) },
+        onSelect = { actions.onSnoozeStyle(snoozeStyles[it]) },
         modifier = card,
     )
     val snooze = alarm.snooze
+    snooze.style.description()?.let { Caption(it, ScreenPadding.padding(top = Spacing.s)) }
     if (snooze.style == SnoozeStyle.NONE) return
     Spacer(Modifier.height(Spacing.cardGap))
     val minuteLabel = stringResource(R.string.tonight_minutes_format)
     SleepSaverCard(card) {
-        snooze.style.description()?.let { Caption(it) }
         if (snooze.style == SnoozeStyle.FIXED) {
             CardTitle(stringResource(R.string.tonight_snooze_length))
             MinuteStepper(
@@ -448,6 +450,7 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
                 format = { minuteLabel.format(it) },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            Spacer(Modifier.height(Spacing.m))
             CardTitle(stringResource(R.string.tonight_snooze_count))
             val countLabels = (config.alarm.fixedSnoozeCountMin..config.alarm.fixedSnoozeCountMax)
                 .associateWith { pluralStringResource(R.plurals.tonight_snoozes, it, it) }
@@ -460,6 +463,7 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
                 format = { countLabels[it] ?: it.toString() },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+            Spacer(Modifier.height(Spacing.m))
         }
         CardTitle(stringResource(R.string.tonight_overrun_title))
         MinuteStepper(
@@ -567,6 +571,28 @@ private fun CardTitle(text: String, modifier: Modifier = Modifier) {
 private fun Caption(text: String, modifier: Modifier = Modifier) {
     Text(text, style = MaterialTheme.typography.bodySmall, color = SleepSaverTheme.colors.textSecondary, modifier = modifier)
 }
+
+/**
+ * One of a few options: a segmented control, or with large system fonts (where its labels would be cut off) a card
+ * of radio rows.
+ */
+@Composable
+private fun Choice(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier) {
+    if (LocalDensity.current.fontScale >= STACKED_FONT_SCALE) {
+        SleepSaverCard(modifier, contentPadding = PaddingValues(horizontal = 20.dp, vertical = Spacing.s)) {
+            Column(Modifier.selectableGroup()) {
+                options.forEachIndexed { index, option ->
+                    RadioRow(option, selected = index == selectedIndex, onClick = { onSelect(index) })
+                }
+            }
+        }
+    } else {
+        SegmentedControl(options = options, selectedIndex = selectedIndex, onSelectedChange = onSelect, modifier = modifier)
+    }
+}
+
+/** The system font scale from which [Choice] stacks its options (as core:ui's choice rows do). */
+private const val STACKED_FONT_SCALE = 1.5f
 
 /** A radio choice: the whole row selects it; an optional [trailing] control (the ▶ preview). */
 @Composable

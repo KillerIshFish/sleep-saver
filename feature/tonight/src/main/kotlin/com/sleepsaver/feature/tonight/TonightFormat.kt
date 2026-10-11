@@ -23,8 +23,12 @@ private val English = Locale.US
 internal fun dayAndTime(date: LocalDate, time: LocalTime): String =
     "${formatDayShort(date.dayOfWeek)} ${clockTime(time)}".keepTimesTogether()
 
-/** "Oct 6": a date in the current year without its weekday ("Last test: rang at 9:14 PM on Oct 6"). */
-internal fun formatMonthDay(date: LocalDate): String = "${date.month.getDisplayName(TextStyle.SHORT, English)} ${date.dayOfMonth}"
+/**
+ * "Oct 6": a date in the current year without its weekday ("Last test: rang at 9:14 PM on Oct 6"), with a no-break
+ * space so the day never wraps away from its month.
+ */
+internal fun formatMonthDay(date: LocalDate): String =
+    "${date.month.getDisplayName(TextStyle.SHORT, English)}\u00A0${date.dayOfMonth}"
 
 /** "1 h 40 m", "2 h", "45 m": the spaced form the plan notices use ("Free days wake 1 h 40 m later …"). */
 internal fun formatHoursSpaced(duration: Duration): String {

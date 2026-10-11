@@ -24,7 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AlarmOff
-import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -175,7 +175,7 @@ internal fun WeekPlanContent(
                 BackTopBar(stringResource(R.string.tonight_week_plan_title), actions.onBack)
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     EmptyState(
-                        icon = Icons.Rounded.CloudOff,
+                        icon = Icons.Rounded.ErrorOutline,
                         title = stringResource(R.string.tonight_unavailable_title),
                         body = stringResource(R.string.tonight_unavailable_body),
                     )
@@ -329,7 +329,7 @@ private fun DayRow(row: WeekDayRow, state: WeekPlanUiState.Ready, actions: WeekP
             .fillMaxWidth()
             .clickable(onClick = { actions.onOpenDay(row.day) })
             .heightIn(min = 64.dp)
-            .padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).padding(end = Spacing.m)) {

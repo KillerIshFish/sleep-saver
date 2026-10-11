@@ -60,11 +60,14 @@
     <!-- %1$s: the short day name, e.g. "Tue". -->
     <string name="tonight_action_set_one">Set one for %1$s</string>
     <string name="tonight_blocked_title">Your alarm might not ring</string>
+    <!-- %1$s: what is wrong, e.g. "Alarms &amp; reminders is off"; %2$s: its fix line. -->
+    <string name="tonight_blocked_body">%1$s. %2$s</string>
     <string name="tonight_action_alarm_check">Alarm check</string>
 
     <!-- Debt preview -->
     <!-- %1$s: asleep-by time, e.g. "11:10 PM"; %2$s: "tomorrow" or "on Thu"; %3$s: hours, e.g. "3.1"; %4$s: signed change, e.g. "−0.4". -->
-    <string name="tonight_debt_preview">Asleep by %1$s → debt %2$s about %3$s h (%4$s h)</string>
+    <!-- The hours keep their "h" on the same line (no-break spaces). -->
+    <string name="tonight_debt_preview">Asleep by %1$s → debt %2$s about %3$s h (%4$s h)</string>
     <string name="tonight_debt_tomorrow">tomorrow</string>
     <!-- %1$s: the short day name, e.g. "Thu". -->
     <string name="tonight_debt_on_day">on %1$s</string>
@@ -193,7 +196,8 @@
     <!-- %1$d: the planned keel score (0–100). -->
     <string name="tonight_planned_keel">Planned keel %1$d</string>
     <!-- %1$d: days measured (14); %2$d: the measured Keel. -->
-    <string name="tonight_planned_keel_last">" · last %1$d days: %2$d"</string>
+    <!-- No-break spaces keep "last 14 days: 76" on one line. -->
+    <string name="tonight_planned_keel_last">" · last\u00A0%1$d\u00A0days:\u00A0%2$d"</string>
     <string name="tonight_plan_notice_title">Social jetlag</string>
     <!-- %1$s: e.g. "1 h 40 m". -->
     <string name="tonight_plan_free_shift">Free days wake %1$s later than alarm days. Keeping it within an hour steadies your Keel; a short early-afternoon catnap is one alternative.</string>

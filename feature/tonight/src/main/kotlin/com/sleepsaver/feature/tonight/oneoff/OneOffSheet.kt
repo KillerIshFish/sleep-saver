@@ -25,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -166,7 +167,7 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
         if (state.dates.isNotEmpty()) {
             Spacer(Modifier.height(Spacing.m))
             Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                modifier = Modifier.chipRow(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.s),
             ) {
                 state.dates.forEach { date ->
@@ -216,7 +217,7 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
         SectionTitle(stringResource(R.string.tonight_oneoff_pause_title))
         Spacer(Modifier.height(Spacing.s))
         Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            modifier = Modifier.chipRow(),
             horizontalArrangement = Arrangement.spacedBy(Spacing.s),
         ) {
             state.pauseDates.forEach { date ->
@@ -234,6 +235,23 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+/**
+ * A row of date chips that scrolls sideways across the whole sheet, edge to edge, while its first chip lines up with
+ * the text (the sheet's content is inset by [Spacing.xl]).
+ */
+@Composable
+private fun Modifier.chipRow(): Modifier {
+    val inset = Spacing.xl
+    return layout { measurable, constraints ->
+        val bleed = if (constraints.hasBoundedWidth) inset.roundToPx() else 0
+        val wide = constraints.copy(minWidth = constraints.minWidth + 2 * bleed, maxWidth = constraints.maxWidth + 2 * bleed)
+        val placeable = measurable.measure(wide)
+        layout((placeable.width - 2 * bleed).coerceAtLeast(0), placeable.height) { placeable.place(-bleed, 0) }
+    }
+        .horizontalScroll(rememberScrollState())
+        .padding(horizontal = inset)
 }
 
 /** Just this once's modes, in the order shown: At wake time, Surfacing, "No alarm, just the time". */

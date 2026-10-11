@@ -44,6 +44,9 @@ class TonightScreenshotTest : ScreenshotTest() {
     fun evening() = captureScreen("tonight_evening") { Tonight(evening) }
 
     @Test
+    fun eveningMarks() = captureScreen("tonight_evening_marks") { Tonight(evening, scrollTo = 1500) }
+
+    @Test
     fun eveningScrolled() = captureScreen("tonight_evening_scrolled") { Tonight(evening, scrollTo = Int.MAX_VALUE) }
 
     @Test
