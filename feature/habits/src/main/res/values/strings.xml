@@ -56,8 +56,9 @@
     <string name="habits_detail_reset">Reset to default</string>
     <!-- "Default: 10h" -->
     <string name="habits_detail_default">Default: %1$s</string>
-    <string name="habits_detail_activities">Your activities</string>
-    <string name="habits_detail_activities_none">You haven\'t picked any activities yet.</string>
+    <!-- The every-evening Night steps (an evening can have its own list in the week plan) -->
+    <string name="habits_detail_activities">Every evening</string>
+    <string name="habits_detail_activities_none">You haven\'t picked any steps yet.</string>
     <string name="habits_detail_edit_night_steps">Edit Night steps</string>
     <!-- Evenings the week plan switches Night steps off for. "Off on Fri, Sat · from your week plan" -->
     <string name="habits_detail_steps_off">Off on %1$s · from your week plan</string>
