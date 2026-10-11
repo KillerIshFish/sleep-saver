@@ -11,7 +11,10 @@ import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.InsightsRepository
+import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.MorningReview
+import com.sleepsaver.core.data.repository.NightLogRepository
+import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.data.repository.ReviewRepository
 import com.sleepsaver.core.data.repository.ReviewStatus
 import com.sleepsaver.core.data.repository.SettingsRepository
@@ -19,11 +22,22 @@ import com.sleepsaver.core.data.repository.SleepRepository
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncRepository
 import com.sleepsaver.core.data.repository.SyncTrigger
+import com.sleepsaver.core.domain.alarm.AlarmTuning
+import com.sleepsaver.core.domain.alarm.WakeLanding
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
+import com.sleepsaver.core.domain.journal.FeelSource
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
+import com.sleepsaver.core.domain.journal.MorningFeelEntry
+import com.sleepsaver.core.domain.journal.PromptKind
+import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.Night
+import com.sleepsaver.core.domain.patterns.OddNight
+import com.sleepsaver.feature.review.common.JournalWindow
 import com.sleepsaver.feature.review.common.NightSource
+import com.sleepsaver.feature.review.common.journalWindow
 import com.sleepsaver.feature.review.common.loadEditor
 import com.sleepsaver.feature.review.common.parseWakeDate
 import com.sleepsaver.feature.review.common.today
@@ -31,18 +45,22 @@ import com.sleepsaver.feature.review.edit.NightEditorState
 import com.sleepsaver.feature.review.edit.NightSave
 import com.sleepsaver.feature.review.edit.apply
 import com.sleepsaver.feature.review.edit.isVisibleIn
+import com.sleepsaver.feature.review.landing.noteAsOf
 import com.sleepsaver.feature.review.navigation.MorningReviewRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -77,12 +95,34 @@ data class DebtUpdate(
     val statusAfter: DebtStatus,
 )
 
+/**
+ * The review screen. Besides [step], the cards around it: Morning feel, the odd-night prompt and the Tomorrow list
+ * on the summary; Wake landing and the night's marks on the result.
+ */
 data class MorningReviewUiState(
     val wakeDate: LocalDate,
     val today: LocalDate,
     val step: ReviewStep,
     /** Recorded and done: the screen closes. */
     val finished: Boolean = false,
+    /** This morning's Morning feel (null = not answered yet). */
+    val feel: MorningFeelEntry? = null,
+    /** `feelEditable`: the scale and "Change" show only while true; afterwards the answer is read-only. */
+    val feelEditable: Boolean = true,
+    /** "Anything different last night?", while it's up (null = an ordinary night, already asked, or skipped). */
+    val oddNight: OddNight? = null,
+    /** The Tomorrow list written the evening before (nightOf = wakeDate − 1), when it has items. */
+    val tomorrowList: TomorrowList? = null,
+    /** Where the planned alarm landed (null = no planned alarm rang for this wake date). */
+    val landing: WakeLanding? = null,
+    /** The restless-trigger change to explain on the landing card (RAISED/LOWERED this week), else null. */
+    val tuningNote: AlarmTuning? = null,
+    /** The night as loaded, for the Wake landing chart's stages. */
+    val night: Night? = null,
+    /** The marks set for this wake date. */
+    val marks: Set<Mark> = emptySet(),
+    /** `markEditable`: marks can still be changed. */
+    val marksEditable: Boolean = true,
 )
 
 @HiltViewModel
@@ -96,6 +136,9 @@ class MorningReviewViewModel @Inject constructor(
     private val notifier: MorningReviewNotifier,
     private val timeProvider: TimeProvider,
     private val healthConnect: HealthConnectGateway,
+    private val journalRepository: JournalRepository,
+    private val nightLogRepository: NightLogRepository,
+    private val patternsRepository: PatternsRepository,
 ) : ViewModel() {
 
     private val wakeDate: LocalDate = timeProvider.parseWakeDate(savedStateHandle.toRoute<MorningReviewRoute>().wakeDate)
@@ -125,25 +168,93 @@ class MorningReviewViewModel @Inject constructor(
 
     private class Loaded(val night: Night?)
 
-    private data class Flags(val syncError: SyncError?, val saveFailed: Boolean, val finished: Boolean)
+    // ---------------------------------------------------------------- Journal, odd night, landing
+
+    /** Can feel and marks still change (re-checked every minute; feel stays editable until today's wake time). */
+    private val window: StateFlow<JournalWindow?> = journalWindow(wakeDate, timeProvider, patternsRepository)
+        .catch { emit(JournalWindow(today, timeProvider.now(), feelEditable = false, marksEditable = false)) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val marks: StateFlow<Set<Mark>> = journalRepository.marks(wakeDate)
+        .catch { emit(emptySet()) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** The odd-night prompt once it has been shown: it stays up until Skip, even after promptShown turns true. */
+    private val oddPrompt = MutableStateFlow<OddNight?>(null)
+    private val oddDismissed = MutableStateFlow(false)
+
+    private data class Extras(
+        val feel: MorningFeelEntry? = null,
+        val window: JournalWindow? = null,
+        val tomorrowList: TomorrowList? = null,
+        val landing: WakeLanding? = null,
+        val tuning: AlarmTuning? = null,
+        val marks: Set<Mark> = emptySet(),
+        val oddNight: OddNight? = null,
+    )
+
+    private val extras: Flow<Extras> = combine(
+        journalRepository.feel(wakeDate).orNull(),
+        window,
+        journalRepository.tomorrowList(wakeDate.minusDays(1)).orNull(),
+        combine(nightLogRepository.landing(wakeDate).orNull(), nightLogRepository.tuning.orNull(), ::Pair),
+        combine(marks, oddPrompt, oddDismissed) { marks, odd, dismissed -> marks to odd?.takeUnless { dismissed } },
+    ) { feel, window, list, (landing, tuning), (marks, odd) ->
+        Extras(feel, window, list?.takeIf { it.items.isNotEmpty() }, landing, tuning, marks, odd)
+    }
+
+    private data class Flags(val syncError: SyncError?, val saveFailed: Boolean, val finished: Boolean, val extras: Extras)
 
     val uiState: StateFlow<MorningReviewUiState> = combine(
         phase,
         night,
         editor,
         update,
-        combine(syncError, saveFailed, finished, ::Flags),
+        combine(syncError, saveFailed, finished, extras, ::Flags),
     ) { phase, loaded, editor, update, flags ->
+        val extras = flags.extras
         MorningReviewUiState(
             wakeDate = wakeDate,
             today = today,
             step = step(phase, loaded, editor, update, flags),
             finished = flags.finished,
+            feel = extras.feel,
+            feelEditable = extras.window?.feelEditable ?: false,
+            oddNight = extras.oddNight,
+            tomorrowList = extras.tomorrowList,
+            landing = extras.landing,
+            tuningNote = extras.landing?.let { extras.tuning.noteAsOf(extras.window?.now ?: timeProvider.now()) },
+            night = loaded?.night,
+            marks = extras.marks,
+            marksEditable = extras.window?.marksEditable ?: false,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, MorningReviewUiState(wakeDate, today, ReviewStep.Loading(false)))
 
     init {
-        sync()
+        sync(first = true)
+        watchOddNight()
+    }
+
+    /**
+     * Puts up "Anything different last night?" the first time the summary shows a night that differed from the usual
+     * (oddNight != null) and the prompt wasn't shown for this wake date before. Showing it records markPromptShown,
+     * so it is asked at most once a day.
+     */
+    private fun watchOddNight() {
+        viewModelScope.launch {
+            val odd = runCatching {
+                combine(
+                    phase,
+                    night,
+                    patternsRepository.oddNight(wakeDate),
+                    journalRepository.promptShown(wakeDate, PromptKind.ODD_NIGHT),
+                ) { phase, loaded, odd, shown ->
+                    odd.takeIf { phase == Phase.REVIEW && loaded?.night?.isPresent == true && !shown }
+                }.filterNotNull().first()
+            }.getOrNull() ?: return@launch
+            oddPrompt.value = odd
+            runCatching { journalRepository.markPromptShown(wakeDate, PromptKind.ODD_NIGHT) }
+        }
     }
 
     private fun step(phase: Phase, loaded: Loaded?, editor: NightEditorState?, update: DebtUpdate?, flags: Flags): ReviewStep =
@@ -179,7 +290,8 @@ class MorningReviewViewModel @Inject constructor(
         if (phase.value == Phase.REVIEW) sync()
     }
 
-    private fun sync() {
+    /** [first]: the sync on opening, after which the alarm tuning is refreshed once (last night's landing counts). */
+    private fun sync(first: Boolean = false) {
         phase.value = Phase.SYNCING
         work = viewModelScope.launch {
             coroutineScope {
@@ -193,7 +305,31 @@ class MorningReviewViewModel @Inject constructor(
                 }
             }
             phase.value = Phase.REVIEW
+            if (first) runCatching { nightLogRepository.refreshTuning() }
         }
+    }
+
+    /** Morning feel from the review's scale, saved over an earlier answer so the latest one counts. */
+    fun onFeel(feel: MorningFeel) {
+        if (window.value?.feelEditable != true) return
+        viewModelScope.launch { runCatching { journalRepository.setFeel(wakeDate, feel, FeelSource.REVIEW) } }
+    }
+
+    /** Ticks or unticks one of the eight marks for this wake date (derived marks and old nights are read-only). */
+    fun onMarkToggle(mark: Mark) {
+        if (mark.derived || window.value?.marksEditable != true) return
+        val on = mark !in marks.value
+        viewModelScope.launch { runCatching { journalRepository.setMark(wakeDate, mark, on) } }
+    }
+
+    /** "Skip" on the odd-night prompt. */
+    fun onOddNightDismiss() {
+        oddDismissed.value = true
+    }
+
+    /** Wake landing's "Reset to default": the restless trigger goes back to its standard threshold. */
+    fun onResetTuning() {
+        viewModelScope.launch { runCatching { nightLogRepository.resetTuning() } }
     }
 
     /** "Looks right": recalculate with the night as it is. */
@@ -363,3 +499,9 @@ class MorningReviewViewModel @Inject constructor(
         const val PROPAGATION_TIMEOUT_MS = 3_000L
     }
 }
+
+/**
+ * A flow that reads as "nothing" until it has a value and instead of failing, so a slow or broken extra never holds up
+ * or takes down the review.
+ */
+private fun <T> Flow<T?>.orNull(): Flow<T?> = onStart { emit(null) }.catch { emit(null) }

@@ -4,26 +4,44 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.MorningReview
+import com.sleepsaver.core.data.repository.NightLogRepository
 import com.sleepsaver.core.data.repository.ReviewStatus
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncResult
 import com.sleepsaver.core.data.repository.SyncTrigger
+import com.sleepsaver.core.domain.alarm.AlarmTuning
+import com.sleepsaver.core.domain.alarm.LandingStage
+import com.sleepsaver.core.domain.alarm.TuningReason
+import com.sleepsaver.core.domain.alarm.WakeLanding
+import com.sleepsaver.core.domain.journal.FeelSource
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
+import com.sleepsaver.core.domain.journal.MorningFeelEntry
+import com.sleepsaver.core.domain.journal.PromptKind
+import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeJournalRepository
+import com.sleepsaver.core.testing.FakeNightLogRepository
+import com.sleepsaver.core.testing.FakePatternsRepository
 import com.sleepsaver.core.testing.FakeReviewRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.review.FailingWritesSleepRepository
 import com.sleepsaver.feature.review.FakeMorningReviewNotifier
 import com.sleepsaver.feature.review.FakeTimeProvider
 import com.sleepsaver.feature.review.edit.EditKind
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -36,6 +54,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZonedDateTime
 
 @RunWith(AndroidJUnit4::class)
 class MorningReviewViewModelTest {
@@ -57,7 +77,10 @@ class MorningReviewViewModelTest {
     private val sync = FakeSyncRepository()
     private val reviews = FakeReviewRepository()
     private val notifier = FakeMorningReviewNotifier()
-    private val time = FakeTimeProvider()
+    private var time = FakeTimeProvider()
+    private val journal = FakeJournalRepository()
+    private val nightLog = FakeNightLogRepository()
+    private val patterns = FakePatternsRepository()
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -77,6 +100,9 @@ class MorningReviewViewModelTest {
         notifier,
         time,
         healthConnect,
+        journal,
+        nightLog,
+        patterns,
     )
 
     private val MorningReviewViewModel.step get() = uiState.value.step
@@ -305,7 +331,7 @@ class MorningReviewViewModelTest {
             object : com.sleepsaver.core.data.repository.SyncRepository by sync {
                 override suspend fun sync(trigger: SyncTrigger): SyncResult = error("boom")
             },
-            reviews, notifier, time, healthConnect,
+            reviews, notifier, time, healthConnect, journal, nightLog, patterns,
         )
         advanceUntilIdle()
 
@@ -317,7 +343,7 @@ class MorningReviewViewModelTest {
         val failing = FailingWritesSleepRepository(sleep)
         val vm = MorningReviewViewModel(
             SavedStateHandle(mapOf("wakeDate" to today.toString())),
-            failing, insights, settings, sync, reviews, notifier, time, healthConnect,
+            failing, insights, settings, sync, reviews, notifier, time, healthConnect, journal, nightLog, patterns,
         )
         advanceUntilIdle()
         vm.onAdjust()
@@ -353,7 +379,7 @@ class MorningReviewViewModelTest {
     fun `a bad date falls back to today`() = runTest {
         val vm = MorningReviewViewModel(
             SavedStateHandle(mapOf("wakeDate" to "not-a-date")),
-            sleep, insights, settings, sync, reviews, notifier, time, healthConnect,
+            sleep, insights, settings, sync, reviews, notifier, time, healthConnect, journal, nightLog, patterns,
         )
         advanceUntilIdle()
 
@@ -369,5 +395,270 @@ class MorningReviewViewModelTest {
         settings.state.value = settings.state.value.let { it.copy(sleep = it.sleep.copy(source = SourceSelection.Single("com.example.other"))) }
         advanceUntilIdle()
         assertThat(vm.garminSyncIntent()).isNull()
+    }
+
+    // ---------------------------------------------------------------- Morning feel
+
+    private fun at(date: LocalDate, hour: Int, minute: Int = 0) =
+        ZonedDateTime.of(date, LocalTime.of(hour, minute), SampleData.zone).toInstant()
+
+    @Test
+    fun `an unanswered morning feel is asked and saved from the review`() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.feel).isNull()
+        assertThat(vm.uiState.value.feelEditable).isTrue()
+
+        vm.onFeel(MorningFeel.CLEAR)
+        advanceUntilIdle()
+
+        val call = journal.feelsSet.single()
+        assertThat(call.wakeDate).isEqualTo(today)
+        assertThat(call.feel).isEqualTo(MorningFeel.CLEAR)
+        assertThat(call.source).isEqualTo(FeelSource.REVIEW)
+        assertThat(vm.uiState.value.feel?.feel).isEqualTo(MorningFeel.CLEAR)
+    }
+
+    @Test
+    fun `a feel answered on the ringing screen is shown and can be changed`() = runTest {
+        journal.feelsState.value = mapOf(today to MorningFeelEntry(today, MorningFeel.SLOW, SampleData.now, SampleData.zone.rules.getOffset(SampleData.now), FeelSource.RING))
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.feel?.source).isEqualTo(FeelSource.RING)
+
+        vm.onFeel(MorningFeel.BRIGHT)
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.feel?.feel).isEqualTo(MorningFeel.BRIGHT)
+        assertThat(vm.uiState.value.feel?.source).isEqualTo(FeelSource.REVIEW)
+    }
+
+    @Test
+    fun `feel stays editable when the review is opened at 00·30 after midnight`() = runTest {
+        // Tuesday's review opened early on Wednesday: Wednesday's wake time (06:45 in the week plan) is still ahead.
+        patterns.debtPreviewInputsState.value = PlanSamples.debtPreviewInputs()
+        time = FakeTimeProvider(now = at(today.plusDays(1), 0, 30))
+        val vm = viewModel(today)
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.feelEditable).isTrue()
+        vm.onFeel(MorningFeel.OKAY)
+        advanceUntilIdle()
+        assertThat(journal.feelsSet.single().wakeDate).isEqualTo(today)
+    }
+
+    @Test
+    fun `feel is read-only once the next wake time has passed`() = runTest {
+        patterns.debtPreviewInputsState.value = PlanSamples.debtPreviewInputs()
+        time = FakeTimeProvider(now = at(today.plusDays(1), 7, 0))
+        val vm = viewModel(today)
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.feelEditable).isFalse()
+        vm.onFeel(MorningFeel.OKAY)
+        advanceUntilIdle()
+        assertThat(journal.feelsSet).isEmpty()
+    }
+
+    @Test
+    fun `without schedule inputs feel locks at midnight`() = runTest {
+        time = FakeTimeProvider(now = at(today.plusDays(1), 0, 30))
+        val vm = viewModel(today)
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.feelEditable).isFalse()
+    }
+
+    // ---------------------------------------------------------------- Odd night
+
+    @Test
+    fun `an odd night is asked about once and stays up until skipped`() = runTest {
+        patterns.oddNightsState.value = mapOf(today to PlanSamples.oddNight(today))
+        val vm = viewModel()
+        advanceTimeBy(500)
+        assertThat(vm.uiState.value.oddNight).isNull() // not while syncing
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.oddNight).isEqualTo(PlanSamples.oddNight(today))
+        assertThat(journal.promptsMarked).containsExactly(today to PromptKind.ODD_NIGHT)
+
+        vm.onMarkToggle(Mark.STRESS)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.oddNight).isNotNull()
+        assertThat(vm.uiState.value.marks).containsExactly(Mark.STRESS)
+
+        vm.onOddNightDismiss()
+        assertThat(vm.uiState.value.oddNight).isNull()
+    }
+
+    @Test
+    fun `an odd night already asked about today stays hidden`() = runTest {
+        patterns.oddNightsState.value = mapOf(today to PlanSamples.oddNight(today))
+        journal.promptsState.value = setOf(today to PromptKind.ODD_NIGHT)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.oddNight).isNull()
+        assertThat(journal.promptsMarked).isEmpty()
+    }
+
+    @Test
+    fun `an ordinary night or a missing one asks nothing`() = runTest {
+        sleep.nightsState.value = SampleData.nights(includeLastNight = false)
+        patterns.oddNightsState.value = mapOf(today to PlanSamples.oddNight(today))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.step).isInstanceOf(ReviewStep.Missing::class.java)
+        assertThat(vm.uiState.value.oddNight).isNull()
+        assertThat(journal.promptsMarked).isEmpty()
+    }
+
+    // ---------------------------------------------------------------- Tomorrow list
+
+    @Test
+    fun `last night's tomorrow list comes back in the morning`() = runTest {
+        val offset = SampleData.zone.rules.getOffset(SampleData.now)
+        journal.tomorrowListsState.value = mapOf(
+            today.minusDays(1) to TomorrowList(today.minusDays(1), "- call Sam\n\n• book the dentist", SampleData.now, offset),
+            today to TomorrowList(today, "tonight's list", SampleData.now, offset),
+        )
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.tomorrowList?.nightOf).isEqualTo(today.minusDays(1))
+        assertThat(vm.uiState.value.tomorrowList?.items).containsExactly("call Sam", "book the dentist").inOrder()
+    }
+
+    @Test
+    fun `a blank list shows nothing`() = runTest {
+        val offset = SampleData.zone.rules.getOffset(SampleData.now)
+        journal.tomorrowListsState.value = mapOf(today.minusDays(1) to TomorrowList(today.minusDays(1), " \n - ", SampleData.now, offset))
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.tomorrowList).isNull()
+    }
+
+    // ---------------------------------------------------------------- Wake landing and tuning
+
+    @Test
+    fun `opening the review refreshes the alarm tuning once, after the sync`() = runTest {
+        val vm = viewModel()
+        advanceTimeBy(500)
+        assertThat(nightLog.refreshTuningCalls).isEqualTo(0)
+        advanceUntilIdle()
+        assertThat(nightLog.refreshTuningCalls).isEqualTo(1)
+
+        vm.onSyncNow()
+        advanceUntilIdle()
+        assertThat(nightLog.refreshTuningCalls).isEqualTo(1)
+    }
+
+    @Test
+    fun `the landing comes with this week's tuning note, and reset clears it`() = runTest {
+        nightLog.landingsState.value = mapOf(today to PlanSamples.landing(LandingStage.LIGHT, today))
+        nightLog.tuningState.value = PlanSamples.tuning() // raised at 08:00 today
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.landing?.stageAtRing).isEqualTo(LandingStage.LIGHT)
+        assertThat(vm.uiState.value.night?.wakeDate).isEqualTo(today)
+        assertThat(vm.uiState.value.tuningNote?.reason).isEqualTo(TuningReason.RAISED_AFTER_DEEP_RINGS)
+
+        vm.onResetTuning()
+        advanceUntilIdle()
+        assertThat(nightLog.resetTuningCalls).isEqualTo(1)
+        assertThat(vm.uiState.value.tuningNote).isNull()
+    }
+
+    @Test
+    fun `an old change or a reset row explains nothing`() = runTest {
+        nightLog.landingsState.value = mapOf(today to PlanSamples.landing(LandingStage.LIGHT, today))
+        val offset = SampleData.zone.rules.getOffset(SampleData.now)
+        nightLog.tuningState.value = AlarmTuning(2.75, TuningReason.RAISED_AFTER_DEEP_RINGS, SampleData.now.minus(Duration.ofDays(8)), offset)
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.tuningNote).isNull()
+
+        nightLog.tuningState.value = AlarmTuning(2.5, TuningReason.RESET, SampleData.now.minus(Duration.ofHours(1)), offset)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.tuningNote).isNull()
+    }
+
+    @Test
+    fun `no planned alarm means no landing`() = runTest {
+        nightLog.tuningState.value = PlanSamples.tuning()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertThat(vm.uiState.value.landing).isNull()
+        assertThat(vm.uiState.value.tuningNote).isNull()
+    }
+
+    // ---------------------------------------------------------------- Marks
+
+    @Test
+    fun `marks toggle on and off for the night`() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onMarkToggle(Mark.ALCOHOL)
+        advanceUntilIdle()
+        assertThat(vm.uiState.value.marks).containsExactly(Mark.ALCOHOL)
+        vm.onMarkToggle(Mark.ALCOHOL)
+        advanceUntilIdle()
+
+        assertThat(journal.marksSet).containsExactly(Triple(today, Mark.ALCOHOL, true), Triple(today, Mark.ALCOHOL, false)).inOrder()
+        assertThat(vm.uiState.value.marks).isEmpty()
+    }
+
+    @Test
+    fun `derived marks and old nights can't be changed`() = runTest {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onMarkToggle(Mark.ANCHOR_DROPPED)
+
+        val old = viewModel(today.minusDays(9))
+        advanceUntilIdle()
+        assertThat(old.uiState.value.marksEditable).isFalse()
+        old.onMarkToggle(Mark.STRESS)
+        advanceUntilIdle()
+
+        assertThat(journal.marksSet).isEmpty()
+    }
+
+    @Test
+    fun `failing journal reads leave the review working`() = runTest {
+        val vm = MorningReviewViewModel(
+            SavedStateHandle(mapOf("wakeDate" to today.toString())),
+            sleep, insights, settings, sync, reviews, notifier, time, healthConnect,
+            object : JournalRepository by journal {
+                override fun feel(wakeDate: LocalDate) = flow<MorningFeelEntry?> { error("disk") }
+                override fun tomorrowList(nightOf: LocalDate) = flow<TomorrowList?> { error("disk") }
+            },
+            nightLog, patterns,
+        )
+        advanceUntilIdle()
+
+        assertThat(vm.step).isInstanceOf(ReviewStep.Summary::class.java)
+        assertThat(vm.uiState.value.feel).isNull()
+        assertThat(vm.uiState.value.tomorrowList).isNull()
+    }
+
+    @Test
+    fun `a landing that never arrives doesn't hold up the review`() = runTest {
+        val vm = MorningReviewViewModel(
+            SavedStateHandle(mapOf("wakeDate" to today.toString())),
+            sleep, insights, settings, sync, reviews, notifier, time, healthConnect, journal,
+            object : NightLogRepository by nightLog {
+                override fun landing(wakeDate: LocalDate) = flow<WakeLanding?> { awaitCancellation() }
+            },
+            patterns,
+        )
+        advanceUntilIdle()
+
+        assertThat(vm.step).isInstanceOf(ReviewStep.Summary::class.java)
+        assertThat(vm.uiState.value.landing).isNull()
     }
 }

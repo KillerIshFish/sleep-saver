@@ -5,15 +5,23 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.patterns.EffectMetric
+import com.sleepsaver.core.domain.patterns.KeelResult
+import com.sleepsaver.core.domain.patterns.MarkEffect
+import com.sleepsaver.core.domain.patterns.PatternLabel
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakePatternsRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -43,6 +51,7 @@ class ProgressViewModelTest {
     private val settings = FakeSettingsRepository(AppSettings(onboardingDone = true))
     private val sync = FakeSyncRepository()
     private val clock = FakeTimeProvider()
+    private val patterns = FakePatternsRepository()
     private val savedState = SavedStateHandle()
 
     @Before
@@ -54,7 +63,7 @@ class ProgressViewModelTest {
     private fun TestScope.viewModel(
         compute: CoroutineDispatcher = UnconfinedTestDispatcher(testScheduler),
     ): ProgressViewModel {
-        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, compute)
+        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, compute, patterns)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
         return vm
     }
@@ -264,5 +273,76 @@ class ProgressViewModelTest {
 
         val state = vm.uiState.first { (it as? ProgressUiState.Ready)?.nightRows?.first()?.isMissing == false }
         assertThat((state as ProgressUiState.Ready).sleepTimes.columns.last().isMissing).isFalse()
+    }
+
+    // ---------------------------------------------------------------- Keel and marks
+
+    @Test
+    fun `keel, social jetlag and mark patterns come in as of today`() = runTest {
+        patterns.keelState.value = PlanSamples.keelReady()
+        patterns.socialJetlagState.value = PlanSamples.socialJetlag()
+        patterns.markEffectsState.value = PlanSamples.markEffects() + MarkEffect(
+            Mark.NIGHT_STEPS_DONE, EffectMetric.TOTAL_SLEEP, PatternLabel.CLEAR, 12, 30, difference = 20.0, low = 9.0, high = 31.0,
+        )
+        val vm = viewModel()
+
+        val state = vm.uiState.first { (it as? ProgressUiState.Ready)?.keel is KeelResult.Ready } as ProgressUiState.Ready
+
+        assertThat(state.keel).isEqualTo(PlanSamples.keelReady())
+        assertThat(state.socialJetlag).isEqualTo(PlanSamples.socialJetlag())
+        // Night steps done is Night steps' own comparison: never listed here.
+        assertThat(state.marks.shown.map { it.mark }).containsExactly(Mark.ALCOHOL, Mark.LATE_CAFFEINE).inOrder()
+        assertThat(state.marks.waiting.single().mark).isEqualTo(Mark.STRESS)
+    }
+
+    @Test
+    fun `keel stays on today's value while paging back`() = runTest {
+        patterns.keelState.value = PlanSamples.keelCalibrating()
+        val vm = viewModel()
+        vm.uiState.first { (it as? ProgressUiState.Ready)?.keel != null }
+
+        vm.showPreviousWindow()
+
+        val previous = vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today.minusDays(14) } as ProgressUiState.Ready
+        assertThat(previous.keel).isEqualTo(PlanSamples.keelCalibrating())
+    }
+
+    @Test
+    fun `paging reuses the patterns instead of recomputing them`() = runTest {
+        var keelSubscriptions = 0
+        var markSubscriptions = 0
+        val counting = object : com.sleepsaver.core.data.repository.PatternsRepository by patterns {
+            override val keel = patterns.keel.onStart { keelSubscriptions++ }
+            override val markEffects = patterns.markEffects.onStart { markSubscriptions++ }
+        }
+        patterns.keelState.value = PlanSamples.keelReady()
+        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, UnconfinedTestDispatcher(testScheduler), counting)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+        vm.uiState.first { (it as? ProgressUiState.Ready)?.keel != null }
+
+        vm.showPreviousWindow()
+        val previous = vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today.minusDays(14) } as ProgressUiState.Ready
+        vm.showNextWindow()
+        vm.uiState.first { (it as? ProgressUiState.Ready)?.window?.to == today }
+
+        assertThat(previous.keel).isEqualTo(PlanSamples.keelReady())
+        assertThat(keelSubscriptions).isEqualTo(1)
+        assertThat(markSubscriptions).isEqualTo(1)
+    }
+
+    @Test
+    fun `failing patterns never hold up the charts`() = runTest {
+        val failing = object : com.sleepsaver.core.data.repository.PatternsRepository by patterns {
+            override val keel = kotlinx.coroutines.flow.flow<KeelResult> { error("disk") }
+            override val markEffects = kotlinx.coroutines.flow.flow<List<MarkEffect>> { error("disk") }
+        }
+        val vm = ProgressViewModel(savedState, sleep, insights, settings, sync, clock, UnconfinedTestDispatcher(testScheduler), failing)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect {} }
+
+        val state = vm.ready()
+
+        assertThat(state.keel).isNull()
+        assertThat(state.marks.shown).isEmpty()
+        assertThat(state.hasNightsInWindow).isTrue()
     }
 }

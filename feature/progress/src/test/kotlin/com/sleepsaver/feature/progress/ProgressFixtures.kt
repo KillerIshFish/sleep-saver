@@ -8,6 +8,9 @@ import com.sleepsaver.core.domain.model.RawSleepSession
 import com.sleepsaver.core.domain.model.SleepStage
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.patterns.KeelResult
+import com.sleepsaver.core.domain.patterns.MarkEffect
+import com.sleepsaver.core.domain.patterns.SocialJetlag
 import com.sleepsaver.core.domain.night.NightAssembler
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +93,9 @@ object ProgressFixtures {
         windowsBack: Int = 0,
         withVitals: Boolean = true,
         settings: UserSleepSettings = this.settings,
+        keel: KeelResult? = null,
+        socialJetlag: SocialJetlag? = null,
+        markEffects: List<MarkEffect> = emptyList(),
     ): ProgressUiState.Ready {
         val window = ProgressWindow.of(today, windowsBack, oldestNight = null)
         return ProgressStateBuilder.build(
@@ -100,6 +106,9 @@ object ProgressFixtures {
             debtSeries = SampleData.debtSeries(window.from, window.to, nights, settings),
             vitals = if (withVitals) SampleData.vitals(nights) else emptyList(),
             settings = settings,
+            keel = keel,
+            socialJetlag = socialJetlag,
+            markEffects = markEffects,
         ) as ProgressUiState.Ready
     }
 }

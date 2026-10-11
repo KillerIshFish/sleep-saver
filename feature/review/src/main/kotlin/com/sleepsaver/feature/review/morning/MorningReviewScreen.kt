@@ -58,6 +58,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sleepsaver.core.data.repository.SyncError
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.model.DebtStatus
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.ui.components.ChangeChip
@@ -92,6 +94,7 @@ import com.sleepsaver.feature.review.edit.EditActions
 import com.sleepsaver.feature.review.edit.EditKind
 import com.sleepsaver.feature.review.edit.NightEditorCallbacks
 import com.sleepsaver.feature.review.edit.NightEditorForm
+import com.sleepsaver.feature.review.landing.WakeLandingCard
 import kotlinx.coroutines.delay
 import java.time.Duration
 import kotlin.math.roundToLong
@@ -110,6 +113,14 @@ class MorningReviewActions(
     val onOpenSettings: (() -> Unit)? = null,
     /** Fix-it for "Health Connect isn't installed / allowed"; falls back to [onOpenSettings]. */
     val onOpenHealthConnect: (() -> Unit)? = null,
+    /** A Morning feel word picked on the summary. */
+    val onFeel: (MorningFeel) -> Unit = {},
+    /** A mark ticked or unticked (odd-night prompt or the result's marks). */
+    val onMarkToggle: (Mark) -> Unit = {},
+    /** "Skip" on the odd-night prompt. */
+    val onOddNightDismiss: () -> Unit = {},
+    /** Wake landing's "Reset to default". */
+    val onResetTuning: () -> Unit = {},
 ) {
     companion object {
         val Noop = MorningReviewActions({}, {}, {}, {}, {}, {}, {}, {}, NightEditorCallbacks.Noop)
@@ -161,6 +172,10 @@ internal fun MorningReviewScreen(
             ),
             onOpenSettings = onOpenSettings,
             onOpenHealthConnect = onOpenHealthConnect,
+            onFeel = viewModel::onFeel,
+            onMarkToggle = viewModel::onMarkToggle,
+            onOddNightDismiss = viewModel::onOddNightDismiss,
+            onResetTuning = viewModel::onResetTuning,
         ),
     )
 }
@@ -308,6 +323,7 @@ private fun SummaryStep(
     ) {
         PageHeader(title = nightTitle(state.wakeDate, state.today), subtitle = nightDates(state.wakeDate, state.today))
         Spacer(Modifier.height(Spacing.l))
+        MorningExtras(state, actions)
         NightSummaryCard(night = night, onEdit = actions.onAdjust)
         Spacer(Modifier.height(Spacing.cardGap))
         SleepSaverCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)) {
@@ -343,6 +359,30 @@ private fun SummaryStep(
         Row(Modifier.fillMaxWidth().padding(top = Spacing.s), horizontalArrangement = Arrangement.Center) {
             TextLinkButton(text = stringResource(R.string.review_how_calculated), onClick = onHowCalculated)
         }
+    }
+}
+
+/** The summary's first cards, each only when it has something to say: Morning feel, the odd-night prompt, the list. */
+@Composable
+private fun MorningExtras(state: MorningReviewUiState, actions: MorningReviewActions) {
+    val feel = state.feel
+    if (state.feelEditable || feel != null) {
+        MorningFeelCard(feel = feel, editable = state.feelEditable, onFeel = actions.onFeel)
+        Spacer(Modifier.height(Spacing.cardGap))
+    }
+    state.oddNight?.let { odd ->
+        OddNightCard(
+            oddNight = odd,
+            marks = state.marks,
+            marksEditable = state.marksEditable,
+            onMarkToggle = actions.onMarkToggle,
+            onSkip = actions.onOddNightDismiss,
+        )
+        Spacer(Modifier.height(Spacing.cardGap))
+    }
+    state.tomorrowList?.let { list ->
+        TomorrowListCard(list)
+        Spacer(Modifier.height(Spacing.cardGap))
     }
 }
 
@@ -540,6 +580,23 @@ private fun ResultStep(state: MorningReviewUiState, update: DebtUpdate, actions:
                 )
             }
         }
+        state.landing?.let { landing ->
+            Spacer(Modifier.height(Spacing.cardGap))
+            WakeLandingCard(
+                landing = landing,
+                night = state.night,
+                tuningNote = state.tuningNote,
+                onResetTuning = actions.onResetTuning,
+            )
+        }
+        Spacer(Modifier.height(Spacing.cardGap))
+        NightMarksCard(
+            wakeDate = state.wakeDate,
+            today = state.today,
+            marks = state.marks,
+            editable = state.marksEditable,
+            onMarkToggle = actions.onMarkToggle,
+        )
         Spacer(Modifier.height(Spacing.xl))
         WellnessDisclaimer()
     }
