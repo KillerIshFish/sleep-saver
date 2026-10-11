@@ -114,10 +114,16 @@
     <!-- "Your watch scored 12% of the window as deep sleep." -->
     <string name="review_landing_window_deep">Your watch scored %1$d%% of the window as deep sleep.</string>
     <string name="review_landing_no_stages">No stage data from your watch for this night.</string>
-    <!-- %1$d = the deep rings that triggered the change (3) -->
-    <string name="review_landing_tuned_raised">Sleep Saver now waits for a clearer restless moment, after %1$d rings this week during watch-scored deep sleep.</string>
-    <!-- %1$d = the wake-time rings that triggered the change (5) -->
-    <string name="review_landing_tuned_lowered">Sleep Saver now reacts to smaller movements, after %1$d rings at your wake time this week while your watch saw lighter sleep.</string>
+    <!-- %1$d = the deep rings that triggered the change (3). Quantity: those rings. -->
+    <plurals name="review_landing_tuned_raised">
+        <item quantity="one">Sleep Saver now waits for a clearer restless moment, after %1$d ring this week during watch-scored deep sleep.</item>
+        <item quantity="other">Sleep Saver now waits for a clearer restless moment, after %1$d rings this week during watch-scored deep sleep.</item>
+    </plurals>
+    <!-- %1$d = the wake-time rings that triggered the change (5). Quantity: those rings. -->
+    <plurals name="review_landing_tuned_lowered">
+        <item quantity="one">Sleep Saver now reacts to smaller movements, after %1$d ring at your wake time this week while your watch saw lighter sleep.</item>
+        <item quantity="other">Sleep Saver now reacts to smaller movements, after %1$d rings at your wake time this week while your watch saw lighter sleep.</item>
+    </plurals>
     <string name="review_landing_reset">Reset to default</string>
     <string name="review_landing_legend_window">Your window</string>
     <string name="review_landing_legend_ring">Rang</string>
