@@ -54,9 +54,8 @@ internal class TonightFakes(
     )
     val nightController = FakeNightController(clock = { time.now() }, zone = TonightSamples.zone)
     val settings = FakeSettingsRepository(AppSettings(sleep = TonightSamples.sleepSettings.copy(week = week, oneOffs = oneOffs)))
-    val endedNights = EndedNights()
 
     /** The night clock the Week plan and Alarm check read, from these fakes. */
     fun clockSource(): NightClockSource =
-        NightClockSource(insights, schedule, nightSteps, nightLog, patterns, nightController, time, endedNights)
+        NightClockSource(insights, schedule, nightSteps, nightLog, patterns, nightController, time)
 }

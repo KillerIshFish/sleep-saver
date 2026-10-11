@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -90,6 +91,9 @@ internal class NightControllerImpl @Inject constructor(
     private var mirror = MirrorState()
     private var ringing: Ringing? = null
     private var sensing: SensingState? = null
+
+    /** The last "I'm up" in this process ([NightState.endedAt]). */
+    private var endedAt: Instant? = null
     private val mutableState = MutableStateFlow(NightState())
     private var preview: RingSound? = null
     private var previewJob: Job? = null
@@ -170,6 +174,11 @@ internal class NightControllerImpl @Inject constructor(
     }
 
     override fun endNight() {
+        // First, so no screen sees the anchor gone without the "I'm up" (past bedtime that would still read as night).
+        synchronized(lock) {
+            endedAt = time.now()
+            recompute()
+        }
         val ended = coordinator.apply { m -> MirrorUpdate(m.copy(night = null), m.night) }
         val service = NightService.current
         if (service != null) {
@@ -380,6 +389,7 @@ internal class NightControllerImpl @Inject constructor(
         synchronized(lock) {
             ringing = null
             sensing = null
+            endedAt = null
             mirror = MirrorState()
             recompute()
         }
@@ -461,6 +471,7 @@ internal class NightControllerImpl @Inject constructor(
             ringing = ringing,
             snoozedUntil = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.SNOOZE }?.at,
             testPendingAt = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.TEST }?.at,
+            endedAt = endedAt,
         )
     }
 

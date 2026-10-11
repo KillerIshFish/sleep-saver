@@ -150,8 +150,9 @@ internal fun emptyReason(demoMode: Boolean, check: HealthConnectCheck): EmptyRea
 /**
  * Builds the ready state from the repositories' current values. Pure, so screenshot tests can use it too.
  * [alarms] are the upcoming planned alarms, [steps] tonight's Night steps, [anchoredAt] the night state's anchor
- * (`NightController.state.night?.anchoredAt`) and [morningStop] when this morning's planned alarm was stopped or timed
- * out; together they give the "Tonight" row and night mode.
+ * (`NightController.state.night?.anchoredAt`), [morningStop] when this morning's planned alarm was stopped or timed
+ * out and [endedAt] the last "I'm up" (`NightController.state.endedAt`); together they give the "Tonight" row and night
+ * mode.
  */
 internal fun readyState(
     insights: DailyInsights,
@@ -166,6 +167,7 @@ internal fun readyState(
     steps: NightStepsSession? = null,
     anchoredAt: Instant? = null,
     morningStop: Instant? = null,
+    endedAt: Instant? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): SleepUiState.Ready {
     val banner = when (insights.lastNightState) {
@@ -197,7 +199,7 @@ internal fun readyState(
         listOfNotNull(current).map { PhaseItem(it, isCurrent = true) } + upcoming.map { PhaseItem(it, isCurrent = false) }
     }
 
-    val night = homeNight(insights.schedule, insights.now, alarms, anchoredAt, morningStop, config)
+    val night = homeNight(insights.schedule, insights.now, alarms, anchoredAt, morningStop, endedAt, config)
 
     val nextHabit = insights.nextHabit?.let { habit ->
         NextHabit(

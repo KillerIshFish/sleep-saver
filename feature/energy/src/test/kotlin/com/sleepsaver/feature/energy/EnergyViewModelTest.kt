@@ -164,11 +164,11 @@ class EnergyViewModelTest {
 
         assertThat(nightMode()).isFalse()
 
-        // Drop anchor before bedtime: night at once, and "I'm up" ends it at once.
+        // Drop anchor before bedtime: night at once.
         night.clock = { evening }
         night.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
         assertThat(nightMode()).isTrue()
-        night.endNight()
+        night.undoAnchor(checkNotNull(night.state.value.night).anchorId)
         assertThat(nightMode()).isFalse()
 
         // Past bedtime it is night without an anchor, until tomorrow's 6:15 window opens.
@@ -176,6 +176,30 @@ class EnergyViewModelTest {
         assertThat(nightMode()).isTrue()
         time.ticks.value = PlanSamples.plannedAlarm().window.start
         assertThat(nightMode()).isFalse()
+    }
+
+    @Test
+    fun `I'm up ends night mode at once, also past bedtime, until the next anchor, as on Tonight`() = runTest {
+        val late = SampleData.insights().schedule.targetBedtime + Duration.ofMinutes(20)
+        time.ticks.value = late
+        insights.mutableState.value = SampleData.readyState(now = late)
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        fun nightMode() = (viewModel.uiState.value as EnergyUiState.Ready).nightMode
+
+        // Past bedtime it is night without an anchor; "I'm up" ends it at once, and it stays ended ...
+        assertThat(nightMode()).isTrue()
+        night.clock = { late }
+        night.endNight()
+        assertThat(nightMode()).isFalse()
+        val later = late + Duration.ofMinutes(30)
+        time.ticks.value = later
+        assertThat(nightMode()).isFalse()
+
+        // ... until the next anchor.
+        night.clock = { later }
+        night.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
+        assertThat(nightMode()).isTrue()
     }
 
     @Test

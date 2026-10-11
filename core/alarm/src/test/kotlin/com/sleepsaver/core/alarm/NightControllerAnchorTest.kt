@@ -10,7 +10,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.Duration
 
-/** Drop anchor and its Undo (SPEC_V2 §0.1 feature 9): Undo works only for tonight's anchor, within the undo window. */
+/**
+ * Drop anchor and its Undo (SPEC_V2 §0.1 feature 9): Undo works only for tonight's anchor, within the undo window.
+ * "I'm up" ends the night state and publishes when it was tapped.
+ */
 @RunWith(AndroidJUnit4::class)
 internal class NightControllerAnchorTest : AlarmRobolectricTest() {
 
@@ -52,5 +55,21 @@ internal class NightControllerAnchorTest : AlarmRobolectricTest() {
 
         assertThat(m.night?.anchorId).isEqualTo(id)
         assertThat(graph.nightLog.anchorsDeleted).isEmpty()
+    }
+
+    @Test
+    fun `I'm up ends the night state and tells every screen when, also without an anchor`() {
+        now = at(today, "02:10")
+        graph.nightController.endNight()
+        assertThat(graph.nightController.state.value.endedAt).isEqualTo(now)
+
+        now = at(today, "22:30")
+        drop()
+        now = at(today, "23:40")
+        graph.nightController.endNight()
+
+        assertThat(m.night).isNull()
+        assertThat(graph.nightController.state.value.night).isNull()
+        assertThat(graph.nightController.state.value.endedAt).isEqualTo(at(today, "23:40"))
     }
 }

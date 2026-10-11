@@ -16,8 +16,9 @@ internal data class HomeNight(val wakeDate: LocalDate, val alarm: PlannedAlarm?,
  *
  * [morningStop] is when this morning's planned alarm was stopped or timed out ([NightRules.morningStop]): it ends last
  * night at once, even when an early surfacing ring came before the wake zone. [anchoredAt] is
- * `NightController.state.night?.anchoredAt`. Only that night's own alarm and anchor count, so an alarm days away never
- * stretches the night and last night's anchor doesn't keep the morning dark.
+ * `NightController.state.night?.anchoredAt` and [endedAt] `NightController.state.endedAt` (the last "I'm up", which
+ * ends that night's no-clock time until the next anchor, as on Tonight). Only that night's own alarm and anchor count,
+ * so an alarm days away never stretches the night and last night's anchor doesn't keep the morning dark.
  * Example: bedtime 23:00 and tomorrow's 6:45 alarm with a 30-min window → night from 23:00 (or Drop anchor) to 6:15.
  */
 internal fun homeNight(
@@ -26,6 +27,7 @@ internal fun homeNight(
     alarms: List<PlannedAlarm>,
     anchoredAt: Instant?,
     morningStop: Instant? = null,
+    endedAt: Instant? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): HomeNight {
     val today = now.atZone(schedule.zone).toLocalDate()
@@ -40,6 +42,7 @@ internal fun homeNight(
         tonight = bounds(today),
         morningStop = morningStop,
         anchoredAt = anchoredAt,
+        endedAt = endedAt,
         eveningStillYesterday = schedule.date < today,
         config = config,
     )

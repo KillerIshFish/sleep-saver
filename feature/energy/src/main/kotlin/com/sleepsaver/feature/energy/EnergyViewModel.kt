@@ -67,12 +67,14 @@ class EnergyViewModel @Inject constructor(
     ) { insights, nights, need -> Triple(insights, nights, need) }
 
     /**
-     * Night mode only: the alarms (if they can't be read, the night ends at the wake zone), the anchor, and when this
-     * morning's planned alarm was stopped or timed out (it ends last night at once).
+     * Night mode only: the alarms (if they can't be read, the night ends at the wake zone), the anchor, the last "I'm up"
+     * (it ends the night at once, as on Tonight), and when this morning's planned alarm was stopped or timed out (it ends
+     * last night at once).
      */
     private val night = combine(
         scheduleRepository.upcomingAlarms.catch { emit(emptyList()) },
         nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged(),
+        nightController.state.map { it.endedAt }.distinctUntilChanged(),
         timeProvider.minuteTicks.map { it.atZone(timeProvider.zone()).toLocalDate() }
             .distinctUntilChanged()
             .flatMapLatest { today -> nightLogRepository.alarmEvent(today).map { NightRules.morningStop(it, today) } }
@@ -92,7 +94,7 @@ class EnergyViewModel @Inject constructor(
             is InsightsState.Ready ->
                 energyReadyState(
                     insights.insights, nights, need, now, sync.isSyncing,
-                    alarms = night.alarms, anchoredAt = night.anchoredAt, morningStop = night.morningStop,
+                    alarms = night.alarms, anchoredAt = night.anchoredAt, morningStop = night.morningStop, endedAt = night.endedAt,
                 )
         }
     }
@@ -153,7 +155,7 @@ class EnergyViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) { syncRepository.sync(SyncTrigger.MANUAL) }
     }
 
-    private data class NightInputs(val alarms: List<PlannedAlarm>, val anchoredAt: Instant?, val morningStop: Instant?)
+    private data class NightInputs(val alarms: List<PlannedAlarm>, val anchoredAt: Instant?, val endedAt: Instant?, val morningStop: Instant?)
 
     private companion object {
         const val KEY_SYNC_ON_RESUME = "energy.syncOnResume"

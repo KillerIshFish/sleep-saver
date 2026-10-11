@@ -96,13 +96,14 @@ class SleepViewModel @Inject constructor(
 
     /**
      * Tonight's alarm and Night steps never hold the home screen back: if either can't be read, the row simply shows
-     * less. Night mode reads the anchor from the night state (so "I'm up" ends it at once), never from the anchor table,
-     * and ends as soon as this morning's planned alarm was stopped or timed out.
+     * less. Night mode reads the anchor and the last "I'm up" from the night state (so "I'm up" ends it at once, as on
+     * Tonight), never from the anchor table, and ends as soon as this morning's planned alarm was stopped or timed out.
      */
     private val tonight = combine(
         scheduleRepository.upcomingAlarms.catch { emit(emptyList()) },
         nightStepsRepository.tonight.catch { emit(null) },
         nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged(),
+        nightController.state.map { it.endedAt }.distinctUntilChanged(),
         timeProvider.minuteTicks.map { it.atZone(timeProvider.zone()).toLocalDate() }
             .distinctUntilChanged()
             .flatMapLatest { today -> nightLogRepository.alarmEvent(today).map { NightRules.morningStop(it, today) } }
@@ -147,6 +148,7 @@ class SleepViewModel @Inject constructor(
                 steps = local.tonight.steps,
                 anchoredAt = local.tonight.anchoredAt,
                 morningStop = local.tonight.morningStop,
+                endedAt = local.tonight.endedAt,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SleepUiState.Loading)
@@ -283,6 +285,7 @@ class SleepViewModel @Inject constructor(
         val alarms: List<PlannedAlarm>,
         val steps: NightStepsSession?,
         val anchoredAt: Instant?,
+        val endedAt: Instant?,
         val morningStop: Instant?,
     )
 

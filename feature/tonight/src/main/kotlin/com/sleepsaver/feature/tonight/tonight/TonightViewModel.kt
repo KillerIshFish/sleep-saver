@@ -24,7 +24,6 @@ import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.nightsteps.StepAdherence
 import com.sleepsaver.core.domain.schedule.AlarmMode
-import com.sleepsaver.feature.tonight.EndedNights
 import com.sleepsaver.feature.tonight.TonightWriter
 import com.sleepsaver.feature.tonight.oneoff.OneOffContext
 import com.sleepsaver.feature.tonight.oneoff.OneOffWrites
@@ -80,7 +79,6 @@ internal class TonightViewModel @Inject constructor(
     settings: SettingsRepository,
     private val time: TimeProvider,
     private val writer: TonightWriter,
-    private val endedNights: EndedNights,
 ) : ViewModel() {
 
     private val config = SleepConfig.DEFAULT
@@ -108,7 +106,7 @@ internal class TonightViewModel @Inject constructor(
         val plan = combine(schedule.weekPlan, schedule.oneOffs, schedule.upcomingAlarms, ::Triple)
         val journalPart = combine(nightSteps.tonight, nightSteps.adherence, journal.marksByDate, lastNightList, todayEvent, ::JournalPart)
         val base = combine(insights.state, patterns.debtPreviewInputs, settings.settings, nightController.state, ticks, ::BasePart)
-        val screen = combine(local, endedNights.endedAt) { l, endedAt -> l.copy(endedAt = endedAt) }
+        val screen = combine(local, nightController.state.map { it.endedAt }.distinctUntilChanged()) { l, endedAt -> l.copy(endedAt = endedAt) }
         combine(base, plan, journalPart, screen) { b, (week, oneOffs, alarms), j, l ->
             tonightUiState(
                 TonightInputs(
@@ -176,7 +174,6 @@ internal class TonightViewModel @Inject constructor(
     /** "I'm up", confirmed: ends the night state and the movement log; the alarm stays set. */
     fun onEndNight() {
         nightController.endNight()
-        endedNights.endedNow(time.now())
     }
 
     fun onResumeLog() = nightController.resumeMovementLog()
