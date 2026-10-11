@@ -1,8 +1,10 @@
 package com.sleepsaver.feature.winddown.tools
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.os.Build
 import android.os.SystemClock
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -25,6 +27,10 @@ internal interface Haptics {
  * [Haptics] on the phone's vibrator: the system's tick effect on API 29+ (else a 20 ms one-shot), its double click
  * (else two 20 ms ticks) and a soft 80 ms pulse. Vibration that isn't available or allowed is skipped silently: a
  * missing cue must never stop a breathing exercise.
+ *
+ * The cues go out with the alarm usage, like the wake alarm's vibration. Without one, Android files short effects
+ * under touch feedback and drops them in battery saver (only ringtone, alarm and a few other usages pass) or with touch
+ * feedback turned off: someone lying in the dark with "Eyes closed" on would wait for a pulse that never comes.
  */
 internal class VibratorHaptics @Inject constructor(@ApplicationContext context: Context) : Haptics {
 
@@ -60,7 +66,13 @@ internal class VibratorHaptics @Inject constructor(@ApplicationContext context: 
     private fun vibrate(effect: VibrationEffect) {
         val vibrator = vibrator ?: return
         try {
-            if (vibrator.hasVibrator()) vibrator.vibrate(effect)
+            if (!vibrator.hasVibrator()) return
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build())
+            }
         } catch (e: RuntimeException) {
             // SecurityException (no VIBRATE permission) or a vendor quirk: the cue is optional.
             Log.w(LOG_TAG, "Vibration failed", e)
