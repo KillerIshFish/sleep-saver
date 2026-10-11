@@ -87,8 +87,9 @@ class MirrorReconcilerTest {
     )
 
     @Test
-    fun `a ring 2 h ago with no service is timed out, gets its backup, and the next alarm is armed`() {
-        val now = at("08:30")
+    fun `a ring 20 min ago with no service is timed out, gets its backup, and the next alarm is armed`() {
+        // Timed out at 06:40, backup due at 06:45: 5 min overdue is within missedGrace, so it rings now.
+        val now = at("06:50")
 
         val r = reconciler.reconcile(base.copy(ringing = ringing(today, at("06:30"))), now, ringServiceRunning = false, nightServiceRunning = false)
 
@@ -98,9 +99,39 @@ class MirrorReconcilerTest {
         val backup = checkNotNull(r.state.extra)
         assertThat(backup.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
         assertThat(backup.isBackup).isTrue()
-        assertThat(backup.at).isAtLeast(now)
+        assertThat(backup.at).isEqualTo(now + config.alarm.catchUpDelay)
         assertThat(r.actions).contains(AlarmAction.ArmExtra(backup.at))
         assertThat(r.state.armed).isEqualTo(tomorrow)
+    }
+
+    @Test
+    fun `a ring 2 h ago with no service is MISSED and handled, with no backup hours late`() {
+        val now = at("08:30")
+
+        val r = reconciler.reconcile(base.copy(ringing = ringing(today, at("06:30"))), now, ringServiceRunning = false, nightServiceRunning = false)
+
+        assertThat(r.state.ringing).isNull()
+        assertThat(r.state.extra).isNull()
+        assertThat(r.actions.filterIsInstance<AlarmAction.ArmExtra>()).isEmpty()
+        val missed = r.state.pendingEvents.single()
+        assertThat(missed.outcome).isEqualTo(RingOutcome.MISSED.name)
+        assertThat(missed.occurrenceId).isEqualTo(today.occurrenceId)
+        assertThat(r.state.handledIds).contains(today.occurrenceId)
+        assertThat(r.state.armed).isEqualTo(tomorrow)
+    }
+
+    @Test
+    fun `the backup is still rung at exactly missedGrace overdue and dropped just after`() {
+        val due = at("06:45") // 06:30 + ringTimeout + backupRingDelay
+        val atEdge = due + config.alarm.missedGrace
+        val past = atEdge.plusSeconds(1)
+
+        val edge = reconciler.reconcile(base.copy(ringing = ringing(today, at("06:30"))), atEdge, ringServiceRunning = false, nightServiceRunning = false)
+        val late = reconciler.reconcile(base.copy(ringing = ringing(today, at("06:30"))), past, ringServiceRunning = false, nightServiceRunning = false)
+
+        assertThat(edge.state.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+        assertThat(late.state.extra).isNull()
+        assertThat(late.state.pendingEvents.single().outcome).isEqualTo(RingOutcome.MISSED.name)
     }
 
     @Test

@@ -214,11 +214,12 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
     /**
      * T10: the sounding ring ran out (ringTimeout, the blocked-notifications cap, or testRingLength). The event gets
      * TIMED_OUT, or MISSED when it was the backup ring. A planned occurrence becomes handled and, unless it was the
-     * backup, gets the one backup ring at [backupAt].
+     * backup, gets the one backup ring at [backupAt]. [backupAt] null = the backup would come far too late (reconcile
+     * after the phone was off for hours): the ring is recorded MISSED and nothing rings again.
      */
-    fun timeout(m: MirrorState, now: Instant, backupAt: Instant = now + cfg.backupRingDelay): MirrorUpdate<RingOutcome?> {
+    fun timeout(m: MirrorState, now: Instant, backupAt: Instant? = now + cfg.backupRingDelay): MirrorUpdate<RingOutcome?> {
         val r = m.ringing ?: return m.unchanged(null)
-        val outcome = if (r.isBackup) RingOutcome.MISSED else RingOutcome.TIMED_OUT
+        val outcome = if (r.isBackup || (r.isPlanned && backupAt == null)) RingOutcome.MISSED else RingOutcome.TIMED_OUT
         var state = m.copy(ringing = null)
         val ended = r.event?.ended(outcome)
         if (ended != null) state = state.queueEvent(ended)
@@ -227,7 +228,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
             state = state.handle(r.occurrenceId, cfg.handledIdsKept)
             val ringAlarm = r.alarm
             val pending = state.extra
-            if (!r.isBackup && ringAlarm != null && (pending == null || !pending.isPlanned)) {
+            if (!r.isBackup && backupAt != null && ringAlarm != null && (pending == null || !pending.isPlanned)) {
                 state = state.copy(
                     extra = MirroredExtra(
                         trigger = ExtraTrigger.BACKUP.name,

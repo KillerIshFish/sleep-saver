@@ -44,7 +44,8 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
      *  1. [zone] given: `armed` and `upcoming` are re-resolved from their date + local time (a zone change).
      *  2. `ringing` with no live ring service: within ringTimeout it resumes (RESUME on RING_EXTRA at
      *     now + catchUpDelay), except a fallback ring (no service could start), which waits on its notification;
-     *     later it is TIMED_OUT (MISSED for the backup), handled, and a planned ring gets its one backup ring.
+     *     later it is TIMED_OUT (MISSED for the backup), handled, and a planned ring gets its one backup ring, unless
+     *     that backup is already more than missedGrace overdue: then it is MISSED with no backup.
      *  3. `extra` / `catnap`: a future ring is re-asserted; one passed by at most missedGrace rings now (a planned one
      *     later than extraMatchTolerance reads CATCH_UP); an older one is dropped, a planned one as MISSED + handled.
      *  4. `armed` with a past target: when its id isn't excluded (handled, sounding, or a pending planned ring) it
@@ -87,7 +88,10 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
                     m.copy(ringing = null) // a pending planned ring wins over a resumed catnap or test ring
                 }
             } else {
-                val backupAt = maxOf(timeoutAt + cfg.backupRingDelay, now + cfg.catchUpDelay)
+                // The backup is due at timeoutAt + backupRingDelay. When that is more than missedGrace ago (the phone was
+                // off for hours), "Your alarm again" would sound long after it could help: the ring is MISSED instead.
+                val dueBackup = timeoutAt + cfg.backupRingDelay
+                val backupAt = if (Duration.between(dueBackup, now) > cfg.missedGrace) null else maxOf(dueBackup, now + cfg.catchUpDelay)
                 val update = transitions.timeout(m, timeoutAt, backupAt)
                 m = update.state
                 actions += update.actions
