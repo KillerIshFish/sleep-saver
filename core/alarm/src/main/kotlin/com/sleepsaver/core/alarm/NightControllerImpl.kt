@@ -142,11 +142,23 @@ internal class NightControllerImpl @Inject constructor(
         return id
     }
 
+    /**
+     * Only the current night's anchor, and only within AnchorConfig.undoWindow of dropping it (the UI offers Undo for
+     * that long; a late or repeated tap changes nothing).
+     */
     override suspend fun undoAnchor(anchorId: Long) {
+        val now = time.now()
         val removed = coordinator.apply { m ->
-            if (m.night?.anchorId == anchorId) MirrorUpdate(m.copy(night = null), true) else m.unchanged(false)
+            val night = m.night
+            val inWindow = night != null && night.anchorId == anchorId &&
+                Duration.between(night.anchoredAt, now) <= config.anchor.undoWindow
+            if (inWindow) MirrorUpdate(m.copy(night = null), true) else m.unchanged(false)
         }
-        if (removed) NightService.current?.stopWholeNightLog()
+        if (!removed) {
+            Log.w(TAG, "Undo of anchor $anchorId ignored: not tonight's, or past the undo window")
+            return
+        }
+        NightService.current?.stopWholeNightLog()
         try {
             nightLog.get().deleteAnchor(anchorId)
         } catch (e: CancellationException) {
