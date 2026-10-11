@@ -21,7 +21,7 @@ Rather than pushing through, you can plan around it:
 
 - Put demanding work in your morning or evening peak, and save routine tasks for the dip.
 - Step outside for a short walk. Daylight and movement both give alertness a lift.
-- If your day allows, a nap of 20 to 30 minutes early in the dip can help.
+- If your day allows, a nap of 10 to 20 minutes early in the dip can help. Much longer, and you may wake up groggy.
 - Go easy on caffeine here, since a late cup can make it harder to fall asleep tonight.
 
 A lighter lunch may also help, as a large, heavy meal can make the slump feel deeper.
@@ -32,4 +32,4 @@ Your energy schedule places the afternoon dip roughly six and a half to nine hou
 
 The dip moves with you. If your sleep times drift earlier or later over a week or two, the window follows.
 
-If you switch on the **Nap window** habit, its reminder arrives at the start of the dip with a suggested nap of 20 to 30 minutes.
+If you switch on the **Nap window** habit, its reminder arrives at the start of the dip with a suggested nap of 10 to 20 minutes.
