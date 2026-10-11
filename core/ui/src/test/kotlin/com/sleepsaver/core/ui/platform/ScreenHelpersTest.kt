@@ -74,4 +74,53 @@ class ScreenHelpersTest {
         compose.waitForIdle()
         assertThat(activity.window.attributes.screenBrightness).isEqualTo(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE)
     }
+
+    @Test
+    fun `leaving a dimmed screen for another dim-aware one never strands the dim level`() {
+        val none = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+        var tool by mutableStateOf(true)
+        var night by mutableStateOf(false)
+        compose.setContent {
+            if (tool) DimScreen(0.01f)
+            if (night) DimScreen(null)
+        }
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(0.01f)
+
+        // A navigation transition: the Night screen enters while the dimmed tool is still on its way out.
+        night = true
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(none)
+        tool = false
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(none)
+
+        // Leaving the Night screen later goes back to the system brightness, not the tool's 1 %.
+        night = false
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(none)
+    }
+
+    @Test
+    fun `stacked dim screens end on the window's own brightness`() {
+        activity.runOnUiThread { activity.window.attributes = activity.window.attributes.apply { screenBrightness = 0.7f } }
+        compose.waitForIdle()
+        var night by mutableStateOf(true)
+        var tool by mutableStateOf(false)
+        compose.setContent {
+            if (night) DimScreen(null)
+            if (tool) DimScreen(0.01f)
+        }
+        compose.waitForIdle()
+        tool = true
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(0.01f)
+
+        night = false
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(0.01f)
+        tool = false
+        compose.waitForIdle()
+        assertThat(activity.window.attributes.screenBrightness).isEqualTo(0.7f)
+    }
 }
