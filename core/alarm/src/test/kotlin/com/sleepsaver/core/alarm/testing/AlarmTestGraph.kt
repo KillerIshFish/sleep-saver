@@ -50,7 +50,10 @@ import java.time.ZonedDateTime
 @OptIn(ExperimentalCoroutinesApi::class)
 internal class AlarmTestGraph(val context: Application) {
     val time = FakeTimeProvider(now = START, zone = ZONE)
-    val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher())
+
+    /** The app scope's dispatcher: eager, with virtual time (advance its scheduler for delays such as debounce). */
+    val dispatcher = UnconfinedTestDispatcher()
+    val scope = CoroutineScope(SupervisorJob() + dispatcher)
 
     val fakeSchedule = FakeScheduleRepository()
     val nightLog = FakeNightLogRepository(clock = { time.now })
