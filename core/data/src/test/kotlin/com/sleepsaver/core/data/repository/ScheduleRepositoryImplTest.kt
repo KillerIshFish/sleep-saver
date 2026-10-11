@@ -339,6 +339,18 @@ class ScheduleRepositoryImplTest {
         assertThat(repository.nextAlarm.first { it?.occurrence?.id != "2026-10-07T06:30" }!!.occurrence.id).isEqualTo("2026-10-08T06:30")
     }
 
+    @Test
+    fun `an unreadable anchor row reads as no anchors instead of breaking the upcoming alarms`() = runTest {
+        val repository = repository()
+        repository.weekdayAlarmsAt(LocalTime.of(6, 30))
+        db.anchorDao().insert(AnchorEntity(atEpochMs = 0, offsetSec = 0, wakeDate = "not a date", source = "TONIGHT", wholeNightLog = false))
+
+        val next = repository.nextAlarm.first { it != null }!!
+
+        assertThat(next.occurrence.id).isEqualTo("2026-10-07T06:30")
+        assertThat(next.window.debtAware).isFalse()
+    }
+
     private fun plannedEvent(wakeDate: String, occurrenceId: String, outcome: String?) = AlarmEventEntity(
         kind = "PLANNED",
         occurrenceId = occurrenceId,

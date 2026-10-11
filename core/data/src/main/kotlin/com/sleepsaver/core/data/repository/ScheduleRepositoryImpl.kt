@@ -151,7 +151,8 @@ class ScheduleRepositoryImpl @Inject internal constructor(
         combine(weekPlan, oneOffs, ::Pair),
         combine(settings, nights, ::Pair),
         combine(
-            anchorDao.observeAll().orFallback(TAG, "Anchors query") { emptyList() }.map { rows -> rows.map { it.toDomain() } },
+            // Mapped before the fallback, so an unreadable row can't escape into the app-scoped share below.
+            anchorDao.observeAll().map { rows -> rows.map { it.toDomain() } }.orFallback(TAG, "Anchors query") { emptyList() },
             latencySource.latency,
             ::Pair,
         ),
