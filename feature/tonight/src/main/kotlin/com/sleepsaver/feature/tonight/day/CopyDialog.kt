@@ -58,6 +58,8 @@ internal fun CopyDialog(day: DayOfWeek, onCopy: (Set<DayOfWeek>, Set<DayPart>) -
                             days = if (toggled.value in days) days - toggled.value else days + toggled.value
                         }
                     },
+                    // The day being copied from can't be a target.
+                    disabledDays = setOf(day),
                 )
                 Spacer(Modifier.height(Spacing.l))
                 CheckRow(stringResource(R.string.tonight_copy_morning), morning) { morning = it }

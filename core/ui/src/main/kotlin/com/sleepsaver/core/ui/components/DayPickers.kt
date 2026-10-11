@@ -56,12 +56,14 @@ fun DayChipRow(
     onToggle: (DayOfWeek) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    /** Days shown but not pickable (e.g. the day being copied from). */
+    disabledDays: Set<DayOfWeek> = emptySet(),
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val size = ((maxWidth - DayGap * (DayOfWeek.entries.size - 1)) / DayOfWeek.entries.size).coerceIn(MinDay, MaxDay)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             DayOfWeek.entries.forEach { day ->
-                DayCircle(day, day in selected, onToggle = { onToggle(day) }, enabled = enabled, modifier = Modifier.size(size))
+                DayCircle(day, day in selected, onToggle = { onToggle(day) }, enabled = enabled && day !in disabledDays, modifier = Modifier.size(size))
             }
         }
     }

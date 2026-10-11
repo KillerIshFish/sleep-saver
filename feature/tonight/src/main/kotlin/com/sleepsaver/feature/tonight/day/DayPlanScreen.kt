@@ -456,7 +456,7 @@ private fun AlarmControls(state: DayPlanUiState.Ready, actions: DayPlanActions, 
             MinuteStepper(
                 minutes = snooze.fixedLength.toMinutes().toInt(),
                 onMinutesChange = { actions.onFixedLength(Duration.ofMinutes(it.toLong())) },
-                step = config.alarm.fixedSnoozeMin.toMinutes().toInt(),
+                step = 1, // whole minutes
                 min = config.alarm.fixedSnoozeMin.toMinutes().toInt(),
                 max = config.alarm.fixedSnoozeMax.toMinutes().toInt(),
                 format = { minuteLabel.format(it) },
