@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Shared -->
     <string name="tonight_back">Back</string>
     <string name="tonight_cancel">Cancel</string>
@@ -71,16 +71,19 @@
     <string name="tonight_debt_tomorrow">tomorrow</string>
     <!-- %1$s: the short day name, e.g. "Thu". -->
     <string name="tonight_debt_on_day">on %1$s</string>
-    <!-- %1$d: nights needed (3); %2$d: nights so far. -->
-    <string name="tonight_debt_needs_nights">Debt preview needs %1$d nights (%2$d so far)</string>
+    <!-- %1$d: nights needed (3); %2$d: nights so far. Quantity: nights needed. -->
+    <plurals name="tonight_debt_needs_nights">
+        <item quantity="one">Debt preview needs %1$d night (%2$d so far)</item>
+        <item quantity="other">Debt preview needs %1$d nights (%2$d so far)</item>
+    </plurals>
     <string name="tonight_estimate">Estimate</string>
 
     <!-- Tonight tab: Night steps -->
     <string name="tonight_steps_title">Night steps</string>
     <!-- %1$s: the window start, e.g. "9:45 PM"; %2$s: the bedtime, e.g. "11:15 PM". -->
     <string name="tonight_steps_window">Night steps from %1$s · bedtime %2$s</string>
-    <!-- %1$d: steps checked; %2$d: steps tonight. -->
-    <string name="tonight_steps_done">%1$d of %2$d done</string>
+    <!-- %1$d: steps checked; %2$d: steps tonight. No noun to agree with ("1 of 1 done"), so no plurals. -->
+    <string name="tonight_steps_done" tools:ignore="PluralsCandidate">%1$d of %2$d done</string>
     <!-- %1$s: the step's emoji; %2$s: its name. -->
     <string name="tonight_steps_next">Next: %1$s %2$s</string>
     <string name="tonight_steps_all_done">All done. Settle in when you\'re ready.</string>
@@ -122,8 +125,11 @@
     <!-- %1$d: the nap length in minutes (30). -->
     <string name="tonight_catnap_groggy">%1$d min may leave you groggy at first.</string>
     <string name="tonight_catnap_coffee">Tip: a small coffee right before a 20-minute nap can help you wake up clearer.</string>
-    <!-- %1$d: minutes added to fall asleep (5). -->
-    <string name="tonight_catnap_fall_asleep">Includes %1$d minutes to fall asleep.</string>
+    <!-- %1$d: minutes added to fall asleep (5). Quantity: those minutes. -->
+    <plurals name="tonight_catnap_fall_asleep">
+        <item quantity="one">Includes %1$d minute to fall asleep.</item>
+        <item quantity="other">Includes %1$d minutes to fall asleep.</item>
+    </plurals>
     <string name="tonight_catnap_start">Start catnap</string>
     <!-- %1$s: when it rings, e.g. "2:47 PM". -->
     <string name="tonight_catnap_running">Catnap · rings at %1$s</string>
