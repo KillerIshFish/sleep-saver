@@ -20,11 +20,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
@@ -99,11 +101,25 @@ internal class RingingViewModel @Inject constructor(
             ringingState(nightController.state.value.ringing, time.now(), null, null, unlocked.value),
         )
 
+    init {
+        // RingingActivity is singleInstance, so this ViewModel can outlive its ring (left with Home instead of Done) and
+        // be reused by the next one: a catnap, a test ring, tomorrow's alarm. The last Stop and its feel belong to the
+        // old ring: once a newer ring shows, forget them, or that ring's Snooze would bring back the old after-stop
+        // screen and its Stop would show the old feel as already chosen.
+        viewModelScope.launch {
+            nightController.state.map { it.ringing?.since }.distinctUntilChanged().collect { since ->
+                val stop = stopped.value
+                if (since != null && stop != null && since.isAfter(stop.at)) forgetStop()
+            }
+        }
+    }
+
     fun onSnooze() = nightController.snooze()
 
     fun onStop() {
         val ringing = nightController.state.value.ringing ?: (uiState.value as? RingingUiState.Sounding)?.ringing ?: return
         val wakeDate = ringing.wakeDate ?: ringing.target?.takeIf { ringing.kind == RingKind.PLANNED }?.atZone(ringing.zone)?.toLocalDate()
+        feel.value = null // a feel tapped after an earlier Stop isn't this ring's
         stopped.value = StoppedRing(ringing.kind, wakeDate, time.now())
         nightController.stopRinging()
     }
@@ -120,6 +136,11 @@ internal class RingingViewModel @Inject constructor(
     /** The screen came back: the user may have unlocked meanwhile. */
     fun onResume() {
         unlocked.value = isUnlocked()
+    }
+
+    private fun forgetStop() {
+        stopped.value = null
+        feel.value = null
     }
 
     private fun isUnlocked(): Boolean = UserManagerCompat.isUserUnlocked(context)

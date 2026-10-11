@@ -16,13 +16,11 @@ import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.AlarmCoordinator
 import com.sleepsaver.core.alarm.AlarmPlatform
 import com.sleepsaver.core.alarm.AlarmSchedulerImpl
-import com.sleepsaver.core.alarm.AlarmText
 import com.sleepsaver.core.alarm.NightControllerImpl
 import com.sleepsaver.core.alarm.mirror.MirroredRinging
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.receiver.RingWakeLock
 import com.sleepsaver.core.alarm.synth.ToneSynth
-import com.sleepsaver.core.data.hooks.Ringing
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.SnoozeOffer
@@ -136,13 +134,14 @@ internal class AlarmRingService : Service() {
         try {
             startForegroundCompat(RingNotifications.ring(this, ringing, offer, time.zone(), use24h))
         } catch (e: Exception) {
-            // No foreground service, no sound: the alarm still shows with Stop/Snooze (notification 303), and the
-            // mirror keeps the ring (marked fallback) so those actions work and reconcile lets it time out.
+            // No foreground service, so no tone of ours: notification 303 rings with the phone's alarm sound and shows
+            // Stop/Snooze, and the mirror keeps the ring (marked fallback) so those actions and the ringing screen
+            // work, and reconcile lets it time out.
             Log.w(TAG, "Ring service refused; showing the fallback notification", e)
             coordinator.apply { m -> transitions.markFallback(m, ringing.since) }
             RingNotifications.cancel(this, AlarmActions.ID_SNOOZED)
             if (catnapConsumed) RingNotifications.cancel(this, AlarmActions.ID_CATNAP)
-            RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, time.zone(), use24h))
+            RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, now, time.zone(), use24h))
             val scheduler = scheduler.get()
             if (ringing.isPlanned) scheduler.replanAfterRing()
             scheduler.flushEventsAsync()
@@ -330,29 +329,13 @@ internal class AlarmRingService : Service() {
         foreground = true
     }
 
-    /** NightController.state.ringing: published only by this running service. */
+    /**
+     * NightController.state.ringing: published by this running service (NightController itself shows only a fallback
+     * ring, one no service could start).
+     */
     private fun publish() {
         val active = sounding
-        val r = active?.ringing
-        val alarm = r?.alarm
-        nightController.publishRinging(
-            if (r == null || alarm == null) {
-                null
-            } else {
-                Ringing(
-                    kind = r.kind,
-                    reason = r.ringReason,
-                    since = r.since,
-                    target = alarm.target.takeIf { r.kind != RingKind.TEST },
-                    wakeDate = alarm.wakeDate.takeIf { r.kind == RingKind.PLANNED },
-                    earlyBy = Duration.ofMinutes(AlarmText.minutesEarly(r.since, alarm.target)).takeIf { r.kind == RingKind.PLANNED } ?: Duration.ZERO,
-                    snooze = active.offer,
-                    style = alarm.wakeStyle,
-                    use24h = coordinator.read().use24h,
-                    zone = time.zone(),
-                )
-            },
-        )
+        nightController.publishRinging(active?.ringing?.published(active.offer, coordinator.read().use24h, time.zone()))
     }
 
     private fun requestOf(intent: Intent): RingRequest {

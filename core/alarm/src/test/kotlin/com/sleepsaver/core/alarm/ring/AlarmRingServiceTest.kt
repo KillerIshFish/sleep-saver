@@ -86,6 +86,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `the ring notification may alert, so its full-screen intent launches, and its re-posts don't alert again`() {
+        armAndReachWakeTime()
+
+        val notification = shadowOf(startRing(AlarmActions.KIND_PLAN, id).get()).lastForegroundNotification
+
+        // A silent NotificationCompat joins a "silent" group with GROUP_ALERT_SUMMARY: SystemUI then suppresses the
+        // full-screen intent and the heads-up of that child.
+        assertThat(notification.group).isNull()
+        assertThat(notification.groupAlertBehavior).isEqualTo(Notification.GROUP_ALERT_ALL)
+        assertThat(notification.flags and Notification.FLAG_ONLY_ALERT_ONCE).isNotEqualTo(0)
+        // The service stays the only sound.
+        val channel = notificationManager.getNotificationChannel(notification.channelId)
+        assertThat(channel.sound).isNull()
+        assertThat(channel.shouldVibrate()).isFalse()
+    }
+
+    @Test
     fun `a surfacing ring at the wake time is logged by tonight's sensing outcome`() {
         plan(planned(today, "06:30"))
         reschedule()
@@ -164,6 +181,8 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(snoozed.channelId).isEqualTo(AlarmIntents.CHANNEL_QUIET)
         assertThat(snoozed.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Snoozed until 6:39\u00A0AM · then the last ring")
         assertThat(snoozed.actions.single().title.toString()).isEqualTo("Stop")
+        // Tapping it opens the app: the ringing screen has nothing to show while snoozed and would close at once.
+        assertThat(shadowOf(snoozed.contentIntent).savedIntent.data.toString()).isEqualTo(AlarmIntents.DEEP_LINK_TONIGHT)
         assertThat(ringExtraAt).isEqualTo(at(today, "06:39:20"))
         assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.SNOOZE)
         assertThat(m.extra?.snoozesUsed).isEqualTo(1)

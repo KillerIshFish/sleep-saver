@@ -23,6 +23,9 @@ internal object AlarmPlatform {
     /** The ring's swell (player gain) and the Hush fades are updated this often. */
     const val GAIN_STEP_MS = 250L
 
+    /** While a fallback ring (notification 303) shows as ringing, NightController re-reads it this often. */
+    const val FALLBACK_REFRESH_MS = 60_000L
+
     /** Alarm vibration: off 0 ms, on 600 ms, off 900 ms, repeating from index 0. */
     val VIBRATION_WAVEFORM = longArrayOf(0, 600, 900)
 

@@ -25,6 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import java.time.Duration
 import java.time.LocalTime
 
 /**
@@ -153,5 +154,46 @@ class RingingViewModelTest {
         controller.state.value = controller.state.value.copy(ringing = ringing.copy(since = ringAt.plusSeconds(300)))
 
         assertThat(viewModel.uiState.value).isInstanceOf(RingingUiState.Sounding::class.java)
+    }
+
+    /**
+     * The singleInstance screen left with Home after Stop and a feel, then reused by tomorrow's ring in the same
+     * process: yesterday's Stop and feel must not come back.
+     */
+    private fun reusedForTomorrow(): Pair<FakeNightController, RingingViewModel> {
+        setUnlocked(false)
+        val controller = FakeNightController(PlanSamples.nightState(NightVariant.RINGING_PLANNED), clock = { ringAt })
+        val ringing = checkNotNull(controller.state.value.ringing)
+        val time = FakeTimeProvider(ringAt)
+        val viewModel = RingingViewModel(context, controller, CountingLazy { FakeJournalRepository() }, time)
+        viewModel.onStop()
+        viewModel.onFeel(MorningFeel.BRIGHT)
+
+        time.advance(Duration.ofDays(1))
+        controller.state.value = controller.state.value.copy(
+            ringing = ringing.copy(since = time.now, target = ringing.target?.plus(Duration.ofDays(1)), wakeDate = wakeDate.plusDays(1)),
+        )
+        assertThat(viewModel.uiState.value).isInstanceOf(RingingUiState.Sounding::class.java)
+        return controller to viewModel
+    }
+
+    @Test
+    fun `a reused screen closes when the next ring is snoozed, instead of asking yesterday's feel again`() = runTest {
+        val (controller, viewModel) = reusedForTomorrow()
+
+        viewModel.onSnooze()
+
+        assertThat(viewModel.uiState.value).isEqualTo(RingingUiState.Gone)
+        viewModel.onFeel(MorningFeel.FOGGY)
+        assertThat(controller.feelsRecorded).containsExactly(wakeDate to MorningFeel.BRIGHT) // yesterday's stays as it was
+    }
+
+    @Test
+    fun `a reused screen asks the next ring's feel afresh after its Stop`() = runTest {
+        val (_, viewModel) = reusedForTomorrow()
+
+        viewModel.onStop()
+
+        assertThat(viewModel.uiState.value).isEqualTo(RingingUiState.AfterStop(RingKind.PLANNED, wakeDate.plusDays(1), feel = null, unlocked = false))
     }
 }

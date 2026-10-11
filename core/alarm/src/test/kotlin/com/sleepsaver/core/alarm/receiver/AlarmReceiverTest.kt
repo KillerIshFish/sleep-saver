@@ -2,19 +2,23 @@ package com.sleepsaver.core.alarm.receiver
 
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.media.AudioAttributes
+import android.provider.Settings
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
+import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.ring.AlarmRingService
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
-import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.alarm.HushColor
+import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.RingOutcome
 import com.sleepsaver.core.domain.alarm.SensingOutcome
 import org.junit.Test
@@ -64,8 +68,9 @@ internal class AlarmReceiverTest : AlarmRobolectricTest() {
         receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
 
         val fallback = notifications.getNotification(AlarmActions.ID_RING_FALLBACK)
-        assertThat(fallback.channelId).isEqualTo(AlarmIntents.CHANNEL_RING)
+        assertThat(fallback.channelId).isEqualTo(AlarmChannels.CHANNEL_RING_FALLBACK)
         assertThat(fallback.fullScreenIntent).isNotNull()
+        assertThat(fallback.group).isNull() // nothing mutes its alerts
         assertThat(fallback.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Your alarm")
         assertThat(fallback.actions.map { it.title.toString() }).containsExactly("Snooze until 6:39 AM", "Stop").inOrder()
         assertThat(m.ringing?.occurrenceId).isEqualTo(id)
@@ -116,6 +121,58 @@ internal class AlarmReceiverTest : AlarmRobolectricTest() {
 
         assertThat(m.ringing).isEqualTo(ringing)
         assertThat(m.extra).isNull()
+    }
+
+    @Test
+    fun `with no ring service, notification 303 itself rings with the phone's alarm sound until the ring times out`() {
+        armToday()
+        now = at(today, "06:30")
+
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+
+        val fallback = notifications.getNotification(AlarmActions.ID_RING_FALLBACK)
+        assertThat(fallback.flags and Notification.FLAG_INSISTENT).isNotEqualTo(0)
+        assertThat(fallback.timeoutAfter).isEqualTo(Duration.ofMinutes(10).toMillis())
+        val channel = notificationManager.getNotificationChannel(AlarmChannels.CHANNEL_RING_FALLBACK)
+        assertThat(channel.importance).isEqualTo(NotificationManager.IMPORTANCE_HIGH)
+        assertThat(channel.sound).isEqualTo(Settings.System.DEFAULT_ALARM_ALERT_URI)
+        assertThat(channel.audioAttributes.usage).isEqualTo(AudioAttributes.USAGE_ALARM)
+        assertThat(channel.shouldVibrate()).isTrue()
+    }
+
+    @Test
+    fun `a fallback ring shows as ringing, so the ringing screen can stop it, until its timeout`() {
+        armToday()
+        now = at(today, "06:30")
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+
+        val ringing = checkNotNull(graph.nightController.state.value.ringing)
+        assertThat(ringing.kind).isEqualTo(RingKind.PLANNED)
+        assertThat(ringing.since).isEqualTo(now)
+        assertThat(ringing.wakeDate).isEqualTo(today)
+        assertThat(ringing.snooze.until).isEqualTo(at(today, "06:39"))
+
+        now = at(today, "06:31")
+        graph.nightController.stopRinging() // the ringing screen's Stop
+
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(m.ringing).isNull()
+        assertThat(m.handledIds).contains(id)
+        assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
+        assertThat(graph.nightLog.eventsState.value.single().outcome).isEqualTo(RingOutcome.STOPPED)
+    }
+
+    @Test
+    fun `a fallback ring left unanswered stops showing as ringing at its timeout`() {
+        armToday()
+        now = at(today, "06:30")
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+        assertThat(graph.nightController.state.value.ringing).isNotNull()
+
+        now = at(today, "06:40")
+        graph.nightController.refresh()
+
+        assertThat(graph.nightController.state.value.ringing).isNull()
     }
 
     // ---------------------------------------------------------------- WINDOW (T3)
