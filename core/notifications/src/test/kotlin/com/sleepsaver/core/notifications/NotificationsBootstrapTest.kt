@@ -13,6 +13,7 @@ import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.notifications.testing.CountingReminderPlanner
 import com.sleepsaver.core.notifications.testing.FakeHabitsRepository
 import com.sleepsaver.core.notifications.testing.FakeInsightsRepository
+import com.sleepsaver.core.notifications.testing.FakeNightController
 import com.sleepsaver.core.notifications.testing.TestInsights.TODAY
 import com.sleepsaver.core.notifications.testing.TestInsights.at
 import com.sleepsaver.core.notifications.testing.TestInsights.habit
@@ -33,6 +34,7 @@ class NotificationsBootstrapTest {
     private val insights = FakeInsightsRepository()
     private val habits = FakeHabitsRepository()
     private val planner = CountingReminderPlanner()
+    private val nightController = FakeNightController()
 
     private val todayHabits = listOf(
         habit(HabitType.CAFFEINE_CUTOFF, at(TODAY, "12:45")),
@@ -40,7 +42,7 @@ class NotificationsBootstrapTest {
     )
 
     private fun TestScope.start() =
-        NotificationsBootstrap(context, insights, habits, planner, backgroundScope).start()
+        NotificationsBootstrap(context, insights, habits, planner, nightController, backgroundScope).start()
 
     /** Past the debounce. advanceUntilIdle() would ignore the bootstrap's background collector. */
     private fun TestScope.settle() {
@@ -89,6 +91,22 @@ class NotificationsBootstrapTest {
 
         val moved = todayHabits.map { it.copy(time = it.time.plus(Duration.ofMinutes(10))) }
         insights.state.value = InsightsState.Ready(insights(at(TODAY, "09:02"), moved))
+        settle()
+        assertThat(planner.replans).isEqualTo(3)
+    }
+
+    @Test
+    fun `dropping and lifting an anchor replans (overnight quiet)`() = runTest {
+        insights.state.value = InsightsState.Ready(insights(at(TODAY, "21:00"), todayHabits))
+        start()
+        settle()
+        assertThat(planner.replans).isEqualTo(1)
+
+        nightController.anchor(anchorId = 3, at = at(TODAY, "22:30"))
+        settle()
+        assertThat(planner.replans).isEqualTo(2)
+
+        nightController.endNight()
         settle()
         assertThat(planner.replans).isEqualTo(3)
     }
