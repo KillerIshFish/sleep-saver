@@ -160,17 +160,15 @@ internal class AlarmRingService : Service() {
         val vibration = outputs.vibration()
         val active = Sounding(ringing, sound, vibration, offer)
         sounding = active
-        val cap = when {
-            ringing.kind == RingKind.TEST -> config.alarm.testRingLength
-            AlarmChannels.ringUiBlocked(this) -> config.alarm.notificationsBlockedRingCap
-            else -> config.alarm.ringTimeout
-        }
+        // Blocked ring UI (no Stop button): capped, but only counted once the speaker is on (AlarmConfig.ringCap).
+        val cap = config.alarm.ringCap(ringing.kind, alarm.wakeStyle, uiBlocked = AlarmChannels.ringUiBlocked(this))
         // The timeline must keep running with the screen off, also in Quiet bed's silent first minutes.
         active.wakeLock = getSystemService<PowerManager>()?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.RING_WAKE_LOCK_TAG)?.apply {
             setReferenceCounted(false)
             acquire(cap.toMillis() + AlarmPlatform.RING_WAKE_LOCK_MS)
         }
-        val timeline = CueTimeline(config.alarm.cue(alarm.wakeStyle), alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
+        val cue = config.alarm.ringCue(ringing.kind, alarm.wakeStyle)
+        val timeline = CueTimeline(cue, alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
         active.job = main.launch { runTimeline(active, timeline, cap) }
         publish()
         if (ringing.isPlanned) scheduler.replanAfterRing()

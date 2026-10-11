@@ -44,7 +44,8 @@ import kotlin.math.roundToLong
  *    [SleepTiming.bedtimeMode]: FROM_DATA → when the user usually falls asleep before a day like tomorrow, minus the
  *    latency (the user's own bedtime while there aren't enough nights); SLEEP_NEED → tomorrow's plan-aware W − need −
  *    latency; FIXED → the user's own bedtime. latency = [SleepTiming.latency] ?: `sleepLatency`. A clock time before
- *    noon means after midnight (the next calendar day).
+ *    noon means after midnight (the next calendar day). [EnergySchedule.lastNightBedtime] is B of the evening before
+ *    [date] by the same rules (that evening's plan), so night mode after midnight knows when last night began.
  *  - Phases per the table in §3.7. The wind-down lasts the evening plan's windDownLength clamped to
  *    [week.windDownMinLength, week.windDownMaxLength]; [EnergySchedule.nightStepsOn] is the evening plan's switch.
  *    Morning peak, afternoon dip and evening peak never start before grogginess ends (matters after a very late wake).
@@ -79,6 +80,7 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         val actualWake = history.firstOrNull { it.wakeDate == date && it.isPresent }?.let { it.wokeUp ?: it.main?.end }
         val wa = actualWake ?: w
         val (bedtime, bedtimeSource) = scheduleTimes.bedtime(date, zone, history, need, timing)
+        val (lastNightBedtime, _) = scheduleTimes.bedtime(date.minusDays(1), zone, history, need, timing)
         val evening = timing.week.resolve(date, timing.oneOffs).evening
         val debtHours = hours(debt)
         val historyStart = wa - Duration.ofHours(config.sHistoryHours)
@@ -103,6 +105,7 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
             wakeZone = around(w, config.wakeZoneHalfWidth),
             tomorrowWakeZone = around(tomorrowWake, config.wakeZoneHalfWidth),
             targetBedtime = bedtime,
+            lastNightBedtime = lastNightBedtime,
             phases = listOf(grogginess, morningPeak, afternoonDip, eveningPeak, windDown, melatonin)
                 .map { it.atLeast(config.minPhaseLength) },
             curve = curve,

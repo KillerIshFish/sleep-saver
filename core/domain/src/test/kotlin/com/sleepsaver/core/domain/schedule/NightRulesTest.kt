@@ -9,6 +9,7 @@ import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.SleepTiming
 import com.sleepsaver.core.domain.model.WakeTimeMode
 import com.sleepsaver.core.domain.testing.Fx
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -256,5 +257,25 @@ class NightRulesTest {
             assertThat(planned.bedtime).isEqualTo(at(monday, "22:30"))
             assertThat(NightRules.boundsFrom(schedule, wednesday, alarm)).isEqualTo(NightBounds(null, alarm, null))
         }
+
+        @Test
+        fun `last night keeps its own evening's bedtime when the next evening's is later`() {
+            // Monday's evening plan says 22:30, Tuesday's 01:30 (after midnight); no alarm on Tuesday morning.
+            val week = WeekPlan.DEFAULT.evening(DayOfWeek.MONDAY, LocalTime.of(22, 30)).evening(DayOfWeek.TUESDAY, LocalTime.of(1, 30))
+            val timing = SleepTiming(WakeTimeMode.FIXED, LocalTime.of(7, 0), BedtimeMode.FIXED, LocalTime.of(23, 0), week = week)
+            val schedule = EnergyScheduleCalculator().schedule(tuesday, Fx.UTC, emptyList(), Duration.ofHours(8), Duration.ZERO, timing)
+            val now = at(tuesday, "00:20")
+
+            val lastNight = NightRules.boundsFrom(schedule, monday, alarmWindowStart = null)
+            val focus = NightRules.focus(now, Fx.UTC, lastNight, tonight = NightRules.boundsFrom(schedule, tuesday, alarmWindowStart = null))
+
+            assertThat(schedule.targetBedtime).isEqualTo(at(wednesday, "01:30"))
+            assertThat(lastNight.bedtime).isEqualTo(at(monday, "22:30"))
+            assertThat(focus.nightOf).isEqualTo(monday)
+            assertThat(focus.isNight).isTrue()
+        }
+
+        private fun WeekPlan.evening(day: DayOfWeek, bedtime: LocalTime): WeekPlan =
+            with(day(day).let { it.copy(evening = it.evening.copy(bedtime = bedtime)) })
     }
 }

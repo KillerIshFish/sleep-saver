@@ -296,7 +296,9 @@ count again).
 
 **Catnap.** Rings at now + 5 min + 10/20/30 min. Hint: IN_AFTERNOON_DIP, CLOSE_TO_BEDTIME (rings within 6 h of B), EARLY
 (< 3 h after waking); 30 min flagged "may leave you groggy at first"; coffee hint for ≤ 20 min before the caffeine
-cutoff. Snooze 5 min once. **Test ring**: 60 s after the tap through the real path, rings 60 s.
+cutoff. Snooze 5 min once. **Test ring**: 60 s after the tap through the real path, rings 60 s: the style's timeline
+from its speaker start (no first chime), swelling over at most 30 s, so every style sounds, vibrates and reaches full
+volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speaker starts (Quiet bed: at 4 min).
 
 ### 3.13 Night steps (v2)
 - The evening's routine = its own list, or the every-evening list (`routine_activities.selected`). Each step starts

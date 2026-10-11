@@ -275,6 +275,21 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
     }
 
+    @Test
+    fun `a Quiet bed test ring sounds at once and reaches the day's volume`() {
+        plan(planned(today, "06:30", mode = AlarmMode.FIXED, style = WakeStyle.QUIET_BED), tomorrowAlarm)
+        reschedule()
+        assertThat(graph.nightController.testRing()).isTrue()
+        now += Duration.ofSeconds(60)
+        startRing(AlarmActions.KIND_EXTRA)
+
+        assertThat(graph.nightController.state.value.ringing?.kind).isEqualTo(RingKind.TEST)
+        assertThat(sounds.single().started).isTrue()
+        assertThat(graph.ringOutputs.vibrations.single().on).isTrue()
+        advance(Duration.ofSeconds(40))
+        assertThat(sounds.single().gains.last()).isWithin(1e-4f).of(0.8f)
+    }
+
     // ---------------------------------------------------------------- T10
 
     @Test
@@ -364,6 +379,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         notifications.setNotificationsEnabled(false)
         startRing(AlarmActions.KIND_PLAN, id)
 
+        advance(Duration.ofMinutes(2))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+    }
+
+    @Test
+    fun `with notifications blocked a Quiet bed ring still gets 2 min of sound after its silent start`() {
+        plan(planned(today, "06:30", mode = AlarmMode.FIXED, style = WakeStyle.QUIET_BED), tomorrowAlarm)
+        reschedule()
+        now = target
+        notifications.setNotificationsEnabled(false)
+        startRing(AlarmActions.KIND_PLAN, id)
+
+        advance(Duration.ofMinutes(2))
+        assertThat(m.ringing).isNotNull()
+        assertThat(sounds.single().started).isTrue()
         advance(Duration.ofMinutes(2))
 
         assertThat(m.ringing).isNull()

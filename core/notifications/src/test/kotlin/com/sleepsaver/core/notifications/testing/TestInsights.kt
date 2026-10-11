@@ -45,6 +45,7 @@ object TestInsights {
             wakeZone = TimeSpan(wake.minusMinutes(30).toInstant(), wake.plusMinutes(30).toInstant()),
             tomorrowWakeZone = TimeSpan(nextWake.minusMinutes(30).toInstant(), nextWake.plusMinutes(30).toInstant()),
             targetBedtime = at(date, "22:45"),
+            lastNightBedtime = at(date.minusDays(1), "22:45"),
             phases = emptyList(),
             curve = EnergyCurve(emptyList()),
             anchor = CircadianAnchor(midpointMinuteOfDay = 180.0, typicalWake = LocalTime.of(7, 0), nightsUsed = 0, isFallback = true),

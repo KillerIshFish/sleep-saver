@@ -40,8 +40,8 @@ internal object AlarmChannels {
 
     /**
      * True when the ring notification can't show its Stop/Snooze or full-screen intent: notifications are off for the
-     * app, or the user turned the "Alarm" category (alarm_ring) off. Rings are then capped at
-     * notificationsBlockedRingCap, and catnaps and test rings are refused.
+     * app, or the user turned the "Alarm" category (alarm_ring) off. Rings are then capped (AlarmConfig.ringCap:
+     * notificationsBlockedRingCap after the speaker starts), and catnaps and test rings are refused.
      */
     fun ringUiBlocked(context: Context): Boolean =
         !NotificationManagerCompat.from(context).areNotificationsEnabled() ||

@@ -102,6 +102,7 @@ class DebtWidgetModelTest {
             wakeZone = TimeSpan(at("06:30"), at("07:30")),
             tomorrowWakeZone = TimeSpan(at("06:30").plus(Duration.ofDays(1)), at("07:30").plus(Duration.ofDays(1))),
             targetBedtime = at("22:45"),
+            lastNightBedtime = at("22:45").minus(Duration.ofDays(1)),
             phases = phases,
             curve = EnergyCurve(emptyList()),
             anchor = CircadianAnchor(180.0, LocalTime.of(7, 0), 10, isFallback = false),

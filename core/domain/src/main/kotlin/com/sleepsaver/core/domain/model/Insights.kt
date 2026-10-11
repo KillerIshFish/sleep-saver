@@ -252,6 +252,8 @@ data class EnergySchedule(
     val tomorrowWakeZone: TimeSpan,
     /** B: tonight's target bedtime. */
     val targetBedtime: Instant,
+    /** B of the evening before [date]: last night's target bedtime, by that evening's own plan. */
+    val lastNightBedtime: Instant,
     /** Ordered by start: grogginess, morning peak, afternoon dip, evening peak, wind-down, melatonin window. */
     val phases: List<Phase>,
     val curve: EnergyCurve,
