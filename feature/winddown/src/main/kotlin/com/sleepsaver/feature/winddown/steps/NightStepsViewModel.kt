@@ -147,8 +147,8 @@ internal fun nightStepsUiState(
 
 /**
  * Night steps: tonight's checklist with tracking, suggestions, marks, the Night steps patterns and Drop anchor.
- * Optional inputs (suggestions, patterns, marks, the alarm, the schedule) fall back to empty when they fail, so only
- * tonight's steps themselves can make the screen Unavailable.
+ * Optional inputs (tracking, suggestions, patterns, marks, the week plan, the alarm) fall back to empty when they
+ * fail, so only tonight's steps themselves can make the screen Unavailable.
  */
 @HiltViewModel
 internal class NightStepsViewModel @Inject constructor(
@@ -186,7 +186,7 @@ internal class NightStepsViewModel @Inject constructor(
     }
 
     private val local = combine(
-        nightSteps.adherence,
+        nightSteps.adherence.orElse(NoAdherence, "Adherence"),
         nightSteps.suggestions.orElse(emptyList(), "Suggestions"),
         patterns.markEffects.orElse(emptyList(), "Mark effects"),
         marks,
@@ -270,4 +270,9 @@ internal class NightStepsViewModel @Inject constructor(
     private data class Plan(val week: WeekPlan, val nextAlarm: PlannedAlarm?, val schedule: EnergySchedule?)
 
     private data class Moment(val night: NightState, val now: Instant, val hush: HushChoice)
+
+    private companion object {
+        /** Tracking that couldn't be read: no evenings, so the tracking card stays hidden. */
+        val NoAdherence = StepAdherence(evenings = emptyList(), doneRecent = 0, countedRecent = 0, quietStreak = 0)
+    }
 }
