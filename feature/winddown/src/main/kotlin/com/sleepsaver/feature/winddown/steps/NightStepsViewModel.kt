@@ -40,8 +40,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.combineTransform
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -200,22 +202,36 @@ internal class NightStepsViewModel @Inject constructor(
 
     private val moment = combine(nightController.state, time.minuteTicks, hushPicker.choice) { night, now, hush -> Moment(night, now, hush) }
 
-    val uiState: StateFlow<NightStepsUiState> = combine(tonight, local, plan, moment) { session, local, plan, moment ->
-        nightStepsUiState(
-            session = session,
-            adherence = local.adherence,
-            suggestions = local.suggestions,
-            effects = local.effects,
-            marks = local.marks,
-            week = plan.week,
-            nextAlarm = plan.nextAlarm,
-            schedule = plan.schedule,
-            nightState = moment.night,
-            hush = moment.hush,
-            now = moment.now,
-            zone = time.zone(),
-            config = config,
-        )
+    // Tracking and suggestions are built from tonight's evening, so without one they may never arrive: a missing
+    // session shows Unavailable at once instead of waiting for them. Until they arrive with a session, the screen keeps
+    // what it shows (Loading, or the last state when it comes back to this screen).
+    val uiState: StateFlow<NightStepsUiState> = combineTransform<NightStepsSession?, Local?, Plan, Moment, NightStepsUiState>(
+        tonight,
+        local.onStart<Local?> { emit(null) },
+        plan,
+        moment,
+    ) { session, local, plan, moment ->
+        if (session == null) {
+            emit(NightStepsUiState.Unavailable)
+        } else if (local != null) {
+            emit(
+                nightStepsUiState(
+                    session = session,
+                    adherence = local.adherence,
+                    suggestions = local.suggestions,
+                    effects = local.effects,
+                    marks = local.marks,
+                    week = plan.week,
+                    nextAlarm = plan.nextAlarm,
+                    schedule = plan.schedule,
+                    nightState = moment.night,
+                    hush = moment.hush,
+                    now = moment.now,
+                    zone = time.zone(),
+                    config = config,
+                ),
+            )
+        }
     }
         .catch<NightStepsUiState> {
             Log.w(LOG_TAG, "Loading Night steps failed", it)

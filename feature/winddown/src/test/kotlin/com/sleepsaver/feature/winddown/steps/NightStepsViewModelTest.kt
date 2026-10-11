@@ -2,8 +2,11 @@ package com.sleepsaver.feature.winddown.steps
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.nightsteps.StepAdherence
+import com.sleepsaver.core.domain.nightsteps.StepSuggestion
 import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.patterns.EffectMetric
 import com.sleepsaver.core.domain.patterns.MarkEffect
@@ -21,6 +24,7 @@ import com.sleepsaver.feature.winddown.richActivities
 import com.sleepsaver.feature.winddown.richSession
 import com.sleepsaver.feature.winddown.writer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -62,7 +66,10 @@ class NightStepsViewModelTest {
     @After
     fun tearDown() = Dispatchers.resetMain()
 
-    private fun TestScope.viewModel(patterns: PatternsRepository = this@NightStepsViewModelTest.patterns): NightStepsViewModel {
+    private fun TestScope.viewModel(
+        patterns: PatternsRepository = this@NightStepsViewModelTest.patterns,
+        nightSteps: NightStepsRepository = this@NightStepsViewModelTest.nightSteps,
+    ): NightStepsViewModel {
         val viewModel = NightStepsViewModel(
             nightSteps = nightSteps,
             journal = journal,
@@ -103,6 +110,20 @@ class NightStepsViewModelTest {
         nightSteps.tonightState.value = null
 
         val viewModel = viewModel()
+
+        assertThat(viewModel.uiState.first { it != NightStepsUiState.Loading }).isEqualTo(NightStepsUiState.Unavailable)
+    }
+
+    @Test
+    fun `without a session the screen doesn't wait for tracking that never comes`() = runTest {
+        nightSteps.tonightState.value = null
+        // Like the real repository, tracking and suggestions wait for tonight's evening.
+        val waiting = object : NightStepsRepository by nightSteps {
+            override val adherence: Flow<StepAdherence> = flow { awaitCancellation() }
+            override val suggestions: Flow<List<StepSuggestion>> = flow { awaitCancellation() }
+        }
+
+        val viewModel = viewModel(nightSteps = waiting)
 
         assertThat(viewModel.uiState.first { it != NightStepsUiState.Loading }).isEqualTo(NightStepsUiState.Unavailable)
     }

@@ -81,7 +81,9 @@ internal fun bodyScanPrompt(area: Int): Int = when (area) {
 @Composable
 internal fun BodyScanContent(stage: ToolStage<Int>, actions: BodyScanActions, modifier: Modifier = Modifier) {
     val running = stage is ToolStage.Running
-    ToolFrame(onClose = actions.onClose, dim = if (running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier, keepScreenOn = running) {
+    // A paused scan gives no cues, so it lets the screen time out: someone who drifts off mid-pause isn't lit all night.
+    val cueing = (stage as? ToolStage.Running)?.position?.paused == false
+    ToolFrame(onClose = actions.onClose, dim = if (running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier, keepScreenOn = cueing) {
         when (stage) {
             ToolStage.Setup -> ToolScrollBody {
                 ToolHeader(Technique.BODY_SCAN)

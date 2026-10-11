@@ -45,6 +45,8 @@ import com.sleepsaver.feature.winddown.reset.ResetStage
 import com.sleepsaver.feature.winddown.reset.nightResetUiState
 import com.sleepsaver.feature.winddown.steps.NightStepsActions
 import com.sleepsaver.feature.winddown.steps.NightStepsContent
+import com.sleepsaver.feature.winddown.tools.BodyScanActions
+import com.sleepsaver.feature.winddown.tools.BodyScanContent
 import com.sleepsaver.feature.winddown.tools.BreathPattern
 import com.sleepsaver.feature.winddown.tools.BreathPhase
 import com.sleepsaver.feature.winddown.tools.RunPosition
@@ -318,6 +320,23 @@ class WinddownScreensTest {
         compose.runOnIdle { assertThat(view.keepScreenOn).isTrue() }
         stage = ToolStage.Finished(checkedOff = false)
         compose.runOnIdle { assertThat(view.keepScreenOn).isFalse() }
+    }
+
+    @Test
+    fun `a paused body scan lets the screen time out`() {
+        val area3 = RunPosition(index = 2, count = 10, cue = 2, length = Duration.ofSeconds(60))
+        var stage by mutableStateOf<ToolStage<Int>>(ToolStage.Running(area3))
+        lateinit var view: View
+        compose.setContent {
+            view = LocalView.current
+            SleepSaverTheme { BodyScanContent(stage = stage, actions = BodyScanActions()) }
+        }
+
+        compose.runOnIdle { assertThat(view.keepScreenOn).isTrue() }
+        stage = ToolStage.Running(area3.copy(paused = true))
+        compose.runOnIdle { assertThat(view.keepScreenOn).isFalse() }
+        stage = ToolStage.Running(area3)
+        compose.runOnIdle { assertThat(view.keepScreenOn).isTrue() }
     }
 
     @Test
