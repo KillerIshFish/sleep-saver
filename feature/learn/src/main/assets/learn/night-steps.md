@@ -14,11 +14,13 @@ Plenty of things are said to help you sleep. Some have been tested well, some on
 - A cool, dark room. A hot bedroom makes sleep lighter and more broken.
 - A body scan: moving your attention slowly through your body without trying to change anything. Mindfulness practice has improved how rested people feel in several trials.
 
-## Promising, or still early
+## Some evidence
 
 There is some evidence for slow breathing with a longer out-breath, for tensing and then releasing one muscle group at a time, and for writing a short list of what you need to do tomorrow. In one sleep-lab study, people who wrote specific to-do lists fell asleep sooner than people who wrote about what they had already done.
 
-The evidence is early for reading on paper, gentle stretching and journaling. They are quiet and screen-free, which is a good enough reason to try them.
+## Early or little evidence
+
+The evidence is still early for reading on paper, gentle stretching and journaling. They are quiet and screen-free, which is a good enough reason to try them.
 
 Steady background noise has little evidence behind it. It can mask sudden sounds, but earplugs often work better.
 
