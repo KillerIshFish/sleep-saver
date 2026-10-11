@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Shared -->
     <string name="winddown_back">Back</string>
     <string name="winddown_close">Close</string>
@@ -20,8 +20,11 @@
     <!-- Big progress number: "2 of 4". -->
     <string name="winddown_progress">%1$d of %2$d</string>
     <string name="winddown_progress_label">done tonight</string>
-    <!-- Screen readers: "2 of 4 steps done tonight". -->
-    <string name="winddown_progress_description">%1$d of %2$d steps done tonight</string>
+    <!-- Screen readers: "2 of 4 steps done tonight". Quantity: the steps tonight (%2$d). -->
+    <plurals name="winddown_progress_description">
+        <item quantity="one">%1$d of %2$d step done tonight</item>
+        <item quantity="other">%1$d of %2$d steps done tonight</item>
+    </plurals>
     <!-- A step's start and length: "9:45 PM · 10 min". -->
     <string name="winddown_step_when">%1$s · %2$s</string>
     <string name="winddown_step_start">Start</string>
@@ -61,8 +64,11 @@
         <item quantity="one">%1$d evening in a row</item>
         <item quantity="other">%1$d evenings in a row</item>
     </plurals>
-    <!-- Screen readers on the dot strip: "Last 14 evenings: 7 with Night steps done". -->
-    <string name="winddown_strip_description">Last %1$d evenings: %2$d with Night steps done</string>
+    <!-- Screen readers on the dot strip: "Last 14 evenings: 7 with Night steps done". Quantity: the evenings (%1$d). -->
+    <plurals name="winddown_strip_description">
+        <item quantity="one">Last %1$d evening: %2$d with Night steps done</item>
+        <item quantity="other">Last %1$d evenings: %2$d with Night steps done</item>
+    </plurals>
 
     <!-- Marks -->
     <string name="winddown_marks_title">Anything to mark for tonight?</string>
@@ -72,14 +78,33 @@
     <string name="winddown_compare_not_enough">We\'ll show this after a few more evenings with and without steps.</string>
     <string name="winddown_compare_no_pattern">No clear difference between evenings with and without steps so far.</string>
     <string name="winddown_compare_caveat">This shows what went together, not what caused it.</string>
-    <!-- %1$s: "about 25 min"; %2$d / %3$d: nights with / without steps done. -->
-    <string name="winddown_compare_sleep_more">Nights after Night steps: %1$s more sleep (%2$d vs %3$d nights)</string>
-    <string name="winddown_compare_sleep_less">Nights after Night steps: %1$s less sleep (%2$d vs %3$d nights)</string>
-    <string name="winddown_compare_awake_more">Nights after Night steps: %1$s more awake time (%2$d vs %3$d nights)</string>
-    <string name="winddown_compare_awake_less">Nights after Night steps: %1$s less awake time (%2$d vs %3$d nights)</string>
-    <!-- %1$s: steps on the Morning feel scale, "0.5". -->
-    <string name="winddown_compare_feel_brighter">Nights after Night steps: mornings felt about %1$s steps brighter (%2$d vs %3$d nights)</string>
-    <string name="winddown_compare_feel_foggier">Nights after Night steps: mornings felt about %1$s steps foggier (%2$d vs %3$d nights)</string>
+    <!-- %1$s: "about 25 min"; %2$d / %3$d: nights with / without steps done. Quantity: the nights without (%3$d), the
+         number next to the noun. -->
+    <plurals name="winddown_compare_sleep_more">
+        <item quantity="one">Nights after Night steps: %1$s more sleep (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: %1$s more sleep (%2$d vs %3$d nights)</item>
+    </plurals>
+    <plurals name="winddown_compare_sleep_less">
+        <item quantity="one">Nights after Night steps: %1$s less sleep (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: %1$s less sleep (%2$d vs %3$d nights)</item>
+    </plurals>
+    <plurals name="winddown_compare_awake_more">
+        <item quantity="one">Nights after Night steps: %1$s more awake time (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: %1$s more awake time (%2$d vs %3$d nights)</item>
+    </plurals>
+    <plurals name="winddown_compare_awake_less">
+        <item quantity="one">Nights after Night steps: %1$s less awake time (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: %1$s less awake time (%2$d vs %3$d nights)</item>
+    </plurals>
+    <!-- %1$s: steps on the Morning feel scale with one decimal ("0.5", "1.0"), so always "steps". Quantity: as above. -->
+    <plurals name="winddown_compare_feel_brighter">
+        <item quantity="one">Nights after Night steps: mornings felt about %1$s steps brighter (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: mornings felt about %1$s steps brighter (%2$d vs %3$d nights)</item>
+    </plurals>
+    <plurals name="winddown_compare_feel_foggier">
+        <item quantity="one">Nights after Night steps: mornings felt about %1$s steps foggier (%2$d vs %3$d night)</item>
+        <item quantity="other">Nights after Night steps: mornings felt about %1$s steps foggier (%2$d vs %3$d nights)</item>
+    </plurals>
     <string name="winddown_pattern_clear">Clear pattern</string>
     <string name="winddown_pattern_possible">Possible pattern</string>
 
@@ -144,8 +169,8 @@
 
     <!-- Slow tide -->
     <string name="winddown_tide_pace">Pace</string>
-    <!-- A breathing pattern: "4 in · 6 out" (seconds). -->
-    <string name="winddown_tide_pattern">%1$d in · %2$d out</string>
+    <!-- A breathing pattern: "4 in · 6 out" (seconds). No noun to agree with ("1 in"), so no plurals. -->
+    <string name="winddown_tide_pattern" tools:ignore="PluralsCandidate">%1$d in · %2$d out</string>
     <string name="winddown_tide_length">Length</string>
     <string name="winddown_tide_eyes_closed">Eyes closed: vibration only</string>
     <string name="winddown_tide_eyes_closed_body">One tick to breathe in, two to breathe out.</string>
