@@ -78,6 +78,11 @@ internal fun LazyListScope.sleepTimesItems(
             SleepTimesLegend(state.sleepTimes, Modifier.padding(horizontal = 12.dp))
         }
     }
+    state.keel?.let { keel ->
+        item(key = "times-keel") {
+            KeelCard(keel, state.socialJetlag, Modifier.padding(top = Spacing.cardGap))
+        }
+    }
     item(key = "times-list-header") {
         SectionHeader(
             title = stringResource(R.string.progress_all_sleep_times),

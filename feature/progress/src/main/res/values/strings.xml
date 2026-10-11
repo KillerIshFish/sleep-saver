@@ -48,6 +48,26 @@
     <string name="progress_add_this_night">Add this night</string>
     <string name="progress_edited">Edited</string>
 
+    <!-- Keel (Sleep times tab) -->
+    <string name="progress_keel_title">Keel</string>
+    <!-- "Bedtime varies by about ±35 min, wake time by about ±20 min." -->
+    <string name="progress_keel_spread">Bedtime varies by about ±%1$d min, wake time by about ±%2$d min.</string>
+    <string name="progress_keel_spread_bedtime">Bedtime varies by about ±%1$d min.</string>
+    <string name="progress_keel_spread_wake">Wake time varies by about ±%1$d min.</string>
+    <!-- "Social jetlag: free days run 1h 20m later" -->
+    <string name="progress_jetlag_later">Social jetlag: free days run %1$s later</string>
+    <string name="progress_jetlag_earlier">Social jetlag: free days run %1$s earlier</string>
+    <string name="progress_jetlag_aligned">Free days and alarm days line up well.</string>
+    <string name="progress_jetlag_weekend">(free days are Sat and Sun until you set alarms)</string>
+    <!-- %1$d = the days Keel looks back over (14) -->
+    <string name="progress_keel_caption">Keel compares when you\'re asleep, 24 hours apart, across the last %1$d days.</string>
+    <!-- "Keel · Calibrating: 4 of 7 days with nights" -->
+    <string name="progress_keel_calibrating">Keel · Calibrating: %1$d of %2$d days with nights</string>
+    <!-- Enough nights, but no two of them in a row (every other night) -->
+    <string name="progress_keel_calibrating_pairs">Keel · Calibrating: needs two nights in a row</string>
+    <!-- Screen readers: "Keel 84, Even keel" -->
+    <string name="progress_keel_description">Keel %1$d, %2$s</string>
+
     <!-- Sleep debt -->
     <string name="progress_all_sleep_debt">All sleep debt</string>
     <string name="progress_today">Today</string>
@@ -93,4 +113,46 @@
     <string name="progress_vital_range">Range %1$s–%2$s</string>
     <string name="progress_vitals_hint">No heart-rate trends yet</string>
     <string name="progress_vitals_hint_body">Resting heart rate and HRV appear here once your watch records them and Sleep Saver is allowed to read them in Health Connect.</string>
+
+    <!-- What went with your nights (Quality tab): patterns, never causes -->
+    <string name="progress_marks_title">What went with your nights</string>
+    <!-- "Nights after alcohol: about 25 min less sleep (8 vs 31 nights)" -->
+    <string name="progress_marks_row">%1$s: %2$s (%3$d vs %4$d nights)</string>
+    <!-- %1$s = "about 25 min" -->
+    <string name="progress_marks_more_sleep">%1$s more sleep</string>
+    <string name="progress_marks_less_sleep">%1$s less sleep</string>
+    <string name="progress_marks_more_awake">%1$s more awake time</string>
+    <string name="progress_marks_less_awake">%1$s less awake time</string>
+    <!-- "mornings felt about 0.5 steps brighter" -->
+    <plurals name="progress_marks_brighter">
+        <item quantity="one">mornings felt about %1$s step brighter</item>
+        <item quantity="other">mornings felt about %1$s steps brighter</item>
+    </plurals>
+    <plurals name="progress_marks_foggier">
+        <item quantity="one">mornings felt about %1$s step foggier</item>
+        <item quantity="other">mornings felt about %1$s steps foggier</item>
+    </plurals>
+    <string name="progress_pattern_clear">Clear pattern</string>
+    <string name="progress_pattern_possible">Possible pattern</string>
+    <string name="progress_marks_not_enough">Not enough nights yet</string>
+    <!-- Screen readers, the state of the "Not enough nights yet" list -->
+    <string name="progress_marks_expanded">Expanded</string>
+    <string name="progress_marks_collapsed">Collapsed</string>
+    <!-- "Stress: 4 of 6 nights" -->
+    <string name="progress_marks_waiting">%1$s: %2$d of %3$d nights</string>
+    <string name="progress_marks_caveat">This shows what went together, not what caused it.</string>
+    <!-- Both numbers are the nights a mark needs on each side (6) -->
+    <string name="progress_marks_empty">Add marks in the morning review or during Night steps. Patterns show once a mark has %1$d nights with it and %1$d without.</string>
+    <!-- Marks have enough nights, but none goes with a clear difference -->
+    <string name="progress_marks_none_stand_out">No mark goes with a clear difference in your nights so far.</string>
+    <string name="progress_mark_nights_late_caffeine">Nights after late caffeine</string>
+    <string name="progress_mark_nights_alcohol">Nights after alcohol</string>
+    <string name="progress_mark_nights_late_meal">Nights after a late meal</string>
+    <string name="progress_mark_nights_late_workout">Nights after a late workout</string>
+    <string name="progress_mark_nights_stress">Nights with stress</string>
+    <string name="progress_mark_nights_screens_in_bed">Nights with screens in bed</string>
+    <string name="progress_mark_nights_away_from_home">Nights away from home</string>
+    <string name="progress_mark_nights_unwell">Nights when you felt unwell</string>
+    <string name="progress_mark_nights_hush_used">Nights with Hush on</string>
+    <string name="progress_mark_nights_anchor_dropped">Nights you dropped anchor</string>
 </resources>

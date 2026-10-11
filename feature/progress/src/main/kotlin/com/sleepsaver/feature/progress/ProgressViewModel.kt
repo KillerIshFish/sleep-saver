@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.di.DefaultDispatcher
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.InsightsRepository
+import com.sleepsaver.core.data.repository.PatternsRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
 import com.sleepsaver.core.data.repository.SyncError
@@ -14,6 +15,9 @@ import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.model.VitalSample
+import com.sleepsaver.core.domain.patterns.KeelResult
+import com.sleepsaver.core.domain.patterns.MarkEffect
+import com.sleepsaver.core.domain.patterns.SocialJetlag
 import com.sleepsaver.feature.progress.chart.DebtChartGeometry
 import com.sleepsaver.feature.progress.chart.QualityGeometry
 import com.sleepsaver.feature.progress.chart.SleepTimesGeometry
@@ -23,11 +27,13 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -36,7 +42,8 @@ import javax.inject.Inject
 
 /**
  * The Progress tab: pages through 14-day windows and combines the window's nights, daily debt, vitals and the
- * user's thresholds into one [ProgressUiState]. The charts are laid out on [computeDispatcher], off the main thread.
+ * user's thresholds into one [ProgressUiState], with Keel, social jetlag and the mark patterns (as of today) from
+ * [patternsRepository]. The charts are laid out on [computeDispatcher], off the main thread.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -48,6 +55,7 @@ class ProgressViewModel @Inject constructor(
     syncRepository: SyncRepository,
     timeProvider: TimeProvider,
     @DefaultDispatcher computeDispatcher: CoroutineDispatcher,
+    patternsRepository: PatternsRepository,
 ) : ViewModel() {
 
     /** 0 = the window ending today, 1 = the two weeks before it, … Survives process death. */
@@ -67,6 +75,16 @@ class ProgressViewModel @Inject constructor(
     /** Only used to explain an empty tab: why no nights may have come in. */
     private val noNightsReason: Flow<NoNightsReason> =
         syncRepository.state.map { ProgressStateBuilder.noNightsReason(it.lastError) }.distinctUntilChanged()
+
+    private data class Patterns(val keel: KeelResult?, val socialJetlag: SocialJetlag?, val markEffects: List<MarkEffect>)
+
+    /** Keel, social jetlag and mark effects. Each starts empty and stays empty on failure, so the charts never wait. */
+    private val patterns: Flow<Patterns> = combine(
+        patternsRepository.keel.orDefault(null),
+        patternsRepository.socialJetlag.orDefault(null),
+        patternsRepository.markEffects.orDefault(emptyList()),
+        ::Patterns,
+    ).distinctUntilChanged()
 
     val uiState: StateFlow<ProgressUiState> =
         combine(clock, windowsBack) { (today, zone), back -> Triple(today, zone, back) }
@@ -106,10 +124,15 @@ class ProgressViewModel @Inject constructor(
                 from = dates.from.minusDays(1).atStartOfDay(zone).toInstant(),
                 to = dates.to.plusDays(1).atStartOfDay(zone).toInstant(),
             ),
-            sleepSettings,
-            noNightsReason,
-        ) { nights, series, vitals, settings, reason ->
-            ProgressStateBuilder.build(today, zone, back, nights, series, vitals, settings, reason)
+            combine(sleepSettings, noNightsReason, ::Pair),
+            patterns,
+        ) { nights, series, vitals, (settings, reason), patterns ->
+            ProgressStateBuilder.build(
+                today, zone, back, nights, series, vitals, settings, reason,
+                keel = patterns.keel,
+                socialJetlag = patterns.socialJetlag,
+                markEffects = patterns.markEffects,
+            )
         }
     }
 
@@ -133,6 +156,9 @@ internal object ProgressStateBuilder {
         vitals: List<VitalSample>,
         settings: UserSleepSettings,
         noNightsReason: NoNightsReason = NoNightsReason.NO_DATA,
+        keel: KeelResult? = null,
+        socialJetlag: SocialJetlag? = null,
+        markEffects: List<MarkEffect> = emptyList(),
     ): ProgressUiState {
         val present = nights.filter { it.isPresent }
         if (present.isEmpty()) return ProgressUiState.NoNights(today, noNightsReason)
@@ -146,6 +172,9 @@ internal object ProgressStateBuilder {
             nightRows = dates.reversed().map { NightRow.of(it, byDate[it]) },
             debt = debtChart.chart(dates, debtSeries, byDate, settings, today),
             quality = QualityGeometry.summary(dates, byDate, vitals, zone),
+            keel = keel,
+            socialJetlag = socialJetlag,
+            marks = MarkPatterns.of(markEffects),
         )
     }
 
@@ -155,3 +184,6 @@ internal object ProgressStateBuilder {
         else -> NoNightsReason.NO_DATA
     }
 }
+
+/** Starts with [default] and falls back to it on failure. */
+private fun <T> Flow<T>.orDefault(default: T): Flow<T> = onStart { emit(default) }.catch { emit(default) }

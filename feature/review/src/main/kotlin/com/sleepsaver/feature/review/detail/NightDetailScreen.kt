@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Anchor
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.EditNote
@@ -38,18 +39,27 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.model.AwakeKind
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepBlock
 import com.sleepsaver.core.domain.model.StageTotals
+import com.sleepsaver.core.domain.patterns.AnchorNightStats
 import com.sleepsaver.core.ui.components.EmptyState
+import com.sleepsaver.core.ui.components.IconListItem
 import com.sleepsaver.core.ui.components.InfoChip
 import com.sleepsaver.core.ui.components.LoadingOrb
+import com.sleepsaver.core.ui.components.MarkChips
+import com.sleepsaver.core.ui.components.MorningFeelScale
 import com.sleepsaver.core.ui.components.SecondaryButton
 import com.sleepsaver.core.ui.components.SectionCard
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.TextLinkButton
+import com.sleepsaver.core.ui.components.label
+import com.sleepsaver.core.ui.format.formatAboutMinutes
 import com.sleepsaver.core.ui.format.formatDuration
+import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.timeRange
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
@@ -66,6 +76,7 @@ import com.sleepsaver.feature.review.common.nightDates
 import com.sleepsaver.feature.review.common.nightLabel
 import com.sleepsaver.feature.review.common.originLabel
 import com.sleepsaver.feature.review.common.originLabelRes
+import com.sleepsaver.feature.review.landing.WakeLandingCard
 import java.time.Duration
 import java.time.ZoneId
 import kotlin.math.roundToInt
@@ -85,10 +96,15 @@ internal fun NightDetailScreen(
         onDeleteNap = viewModel::onDeleteNap,
         onRevert = viewModel::onRevert,
         onOpenSettings = onOpenSettings,
+        onMarkToggle = viewModel::onMarkToggle,
+        onFeel = viewModel::onFeel,
     )
 }
 
-/** One night in full: totals, stages, interruptions, naps and where it came from. Stateless apart from dialogs. */
+/**
+ * One night in full: totals, stages, marks, Morning feel, Drop anchor, Wake landing, interruptions, naps and where it
+ * came from. Stateless apart from dialogs.
+ */
 @Composable
 internal fun NightDetailContent(
     state: NightDetailUiState,
@@ -99,6 +115,8 @@ internal fun NightDetailContent(
     modifier: Modifier = Modifier,
     onOpenSettings: (() -> Unit)? = null,
     scrollState: ScrollState = rememberScrollState(),
+    onMarkToggle: (Mark) -> Unit = {},
+    onFeel: (MorningFeel) -> Unit = {},
 ) {
     var howWeMeasure by rememberSaveable { mutableStateOf(false) }
     var napToDelete by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -138,6 +156,12 @@ internal fun NightDetailContent(
                     OverviewCard(night, zone)
                     val main = night.main
                     if (main != null) StagesCard(night, main, zone, state.source?.origin)
+                    MarksCard(state, onMarkToggle)
+                    FeelCard(state, onFeel)
+                    state.anchor?.let { AnchorCard(it) }
+                    state.landing?.let { landing ->
+                        WakeLandingCard(landing = landing, night = night, compact = true, movement = state.movement)
+                    }
                     InterruptionsCard(night, zone)
                     NapsCard(night, onDelete = { napToDelete = it })
                     state.source?.let { DataSourceCard(it, onHowWeMeasure = { howWeMeasure = true }) }
@@ -296,6 +320,49 @@ private fun StagesCard(night: Night, main: SleepBlock, zone: ZoneId, origin: Str
                 color = SleepSaverTheme.colors.textSecondary,
             )
         }
+    }
+}
+
+/** The night's marks: tickable while [NightDetailUiState.marksEditable]; afterwards only the ones set, read-only. */
+@Composable
+private fun MarksCard(state: NightDetailUiState, onToggle: (Mark) -> Unit) {
+    val editable = state.marksEditable
+    if (!editable && state.marks.isEmpty()) return
+    SectionCard(title = stringResource(R.string.review_detail_marks), modifier = Modifier.fillMaxWidth()) {
+        MarkChips(
+            selected = state.marks,
+            onToggle = onToggle,
+            marks = if (editable) Mark.stored else Mark.stored.filter { it in state.marks },
+            enabled = editable,
+        )
+    }
+}
+
+/** Morning feel: the five words while it can still change, then the answer as plain text (nothing if unanswered). */
+@Composable
+private fun FeelCard(state: NightDetailUiState, onFeel: (MorningFeel) -> Unit) {
+    val feel = state.feel
+    if (!state.feelEditable && feel == null) return
+    SectionCard(title = stringResource(R.string.review_detail_feel), modifier = Modifier.fillMaxWidth()) {
+        if (state.feelEditable) {
+            MorningFeelScale(value = feel, onValueChange = onFeel)
+        } else if (feel != null) {
+            Text(feel.label(), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+/** "Anchor dropped 10:58 PM · fell asleep about 15 min later · 91% of the time after it asleep" (missing parts left out). */
+@Composable
+private fun AnchorCard(stats: AnchorNightStats) {
+    val parts = buildList {
+        add(stringResource(R.string.review_anchor_dropped, clockTime(stats.anchor.at, stats.anchor.offset)))
+        stats.latencyShown?.let { add(stringResource(R.string.review_anchor_latency, formatAboutMinutes(it))) }
+        stats.efficiency?.let { add(stringResource(R.string.review_anchor_efficiency, (it * 100).roundToInt())) }
+    }
+    val line = parts.reduce { text, part -> stringResource(R.string.review_joined, text, part) }.keepTimesTogether()
+    SleepSaverCard(Modifier.fillMaxWidth()) {
+        IconListItem(icon = Icons.Rounded.Anchor, title = line)
     }
 }
 

@@ -1,6 +1,8 @@
 package com.sleepsaver.feature.progress
 
 import com.sleepsaver.core.domain.model.Night
+import com.sleepsaver.core.domain.patterns.KeelResult
+import com.sleepsaver.core.domain.patterns.SocialJetlag
 import com.sleepsaver.feature.progress.chart.DebtChart
 import com.sleepsaver.feature.progress.chart.QualitySummary
 import com.sleepsaver.feature.progress.chart.SleepTimesChart
@@ -96,6 +98,12 @@ sealed interface ProgressUiState {
         val nightRows: List<NightRow>,
         val debt: DebtChart,
         val quality: QualitySummary,
+        /** Keel as of today (null while it loads or when it can't be worked out). */
+        val keel: KeelResult? = null,
+        /** Free days vs alarm days (null without enough of either). */
+        val socialJetlag: SocialJetlag? = null,
+        /** "What went with your nights". */
+        val marks: MarkPatterns = MarkPatterns(),
     ) : ProgressUiState {
         /** False when the window holds no night with data (paged back past a gap). */
         val hasNightsInWindow: Boolean get() = nightRows.any { !it.isMissing }

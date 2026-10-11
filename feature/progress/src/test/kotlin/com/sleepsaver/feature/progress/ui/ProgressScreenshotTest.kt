@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
@@ -17,7 +18,11 @@ import org.junit.Test
 
 class ProgressScreenshotTest : ScreenshotTest() {
 
-    /** Items: 0 header, 1 tabs, 2 chart card, 3 list header / summary, 4 list … */
+    /**
+     * Items: 0 header, 1 tabs, then by tab. Sleep times: 2 chart card, 3 Keel card, 4 list header, 5 list. Sleep debt:
+     * 2 chart card, 3 list header, 4 list. Sleep quality: 2 stages, 3 summary, 4 marks card, 5 resting HR (or the
+     * vitals hint), 6 HRV.
+     */
     @Composable
     private fun Progress(state: ProgressUiState, tab: ProgressTab = ProgressTab.SLEEP_TIMES, firstItem: Int = 0) {
         ProgressContent(
@@ -33,14 +38,19 @@ class ProgressScreenshotTest : ScreenshotTest() {
         )
     }
 
-    private val sample get() = ProgressFixtures.ready()
-    private val eventful get() = ProgressFixtures.ready(ProgressFixtures.eventfulNights())
+    private val sample
+        get() = ProgressFixtures.ready(
+            keel = PlanSamples.keelReady(),
+            socialJetlag = PlanSamples.socialJetlag(),
+            markEffects = PlanSamples.markEffects(),
+        )
+    private val eventful get() = ProgressFixtures.ready(ProgressFixtures.eventfulNights(), keel = PlanSamples.keelCalibrating())
 
     @Test
     fun sleepTimes() = captureScreen("progress_sleep_times") { Progress(sample) }
 
     @Test
-    fun sleepTimesList() = captureScreen("progress_sleep_times_list") { Progress(sample, firstItem = 3) }
+    fun sleepTimesList() = captureScreen("progress_sleep_times_list") { Progress(sample, firstItem = 4) }
 
     @Test
     fun sleepTimes24h() = captureScreen("progress_sleep_times_24h") {
@@ -58,19 +68,19 @@ class ProgressScreenshotTest : ScreenshotTest() {
 
     @Test
     fun sleepQualityTrends() = captureScreen("progress_sleep_quality_trends") {
-        Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 3)
+        Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 5)
     }
 
     @Test
     fun sleepQualityNoVitals() = captureScreen("progress_sleep_quality_no_vitals") {
-        Progress(ProgressFixtures.ready(withVitals = false), ProgressTab.SLEEP_QUALITY, firstItem = 3)
+        Progress(ProgressFixtures.ready(withVitals = false), ProgressTab.SLEEP_QUALITY, firstItem = 4)
     }
 
     @Test
     fun missingNights() = captureScreen("progress_missing_nights") { Progress(eventful) }
 
     @Test
-    fun missingNightsList() = captureScreen("progress_missing_nights_list") { Progress(eventful, firstItem = 3) }
+    fun missingNightsList() = captureScreen("progress_missing_nights_list") { Progress(eventful, firstItem = 4) }
 
     @Test
     fun missingNightsDebt() = captureScreen("progress_missing_nights_debt") { Progress(eventful, ProgressTab.SLEEP_DEBT) }
@@ -113,6 +123,27 @@ class ProgressScreenshotTest : ScreenshotTest() {
     fun largeFontQuality() = captureScreen("progress_large_font_quality") {
         LargeFont { Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 2) }
     }
+
+    // ---------------------------------------------------------------- Keel and marks
+
+    @Test
+    fun keelReady() = captureScreen("progress_keel_ready") { Progress(sample, firstItem = 2) }
+
+    @Test
+    fun keelCalibrating() = captureScreen("progress_keel_calibrating") {
+        Progress(ProgressFixtures.ready(keel = PlanSamples.keelCalibrating(), socialJetlag = PlanSamples.socialJetlag().copy(freeDaysFromPlan = false)), firstItem = 2)
+    }
+
+    @Test
+    fun marks() = captureScreen("progress_marks") { Progress(sample, ProgressTab.SLEEP_QUALITY, firstItem = 3) }
+
+    @Test
+    fun marksEmpty() = captureScreen("progress_marks_empty") {
+        Progress(ProgressFixtures.ready(keel = PlanSamples.keelReady()), ProgressTab.SLEEP_QUALITY, firstItem = 3)
+    }
+
+    @Test
+    fun keelLargeFont() = captureScreen("progress_keel_large_font") { LargeFont { Progress(sample, firstItem = 3) } }
 
     @Composable
     private fun LargeFont(content: @Composable () -> Unit) {

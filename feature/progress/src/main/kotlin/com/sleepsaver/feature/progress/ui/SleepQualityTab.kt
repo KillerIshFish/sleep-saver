@@ -85,6 +85,9 @@ internal fun LazyListScope.sleepQualityItems(
     item(key = "quality-summary") {
         QualitySummaryGrid(quality, Modifier.padding(top = Spacing.cardGap))
     }
+    item(key = "quality-marks") {
+        MarksCard(state.marks, Modifier.padding(top = Spacing.cardGap))
+    }
     if (quality.hasVitals) {
         quality.restingHeartRate?.let { trend ->
             item(key = "quality-rhr") {
