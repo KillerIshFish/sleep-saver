@@ -328,7 +328,7 @@ data class AlarmEventEntity(
     val offsetSec: Int,
 )
 
-/** The restless-trigger tuning (at most one row, id = 1). "Reset to default" deletes it. */
+/** The restless-trigger tuning (at most one row, id = 1). "Reset to default" stores a RESET row at the default threshold. */
 @Entity(tableName = "alarm_tuning")
 data class AlarmTuningEntity(
     @PrimaryKey val id: Int = 1,

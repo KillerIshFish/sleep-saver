@@ -265,12 +265,16 @@ interface ExportRepository {
     /** One row per night: wake date, fell asleep, woke up, totals, stages, naps, source, edited. */
     suspend fun exportCsv(out: OutputStream)
 
-    /** Everything: raw sessions + stages, overrides, naps, added awake, vitals, habits, routine, settings. */
+    /**
+     * Everything: raw sessions + stages, overrides, naps, added awake, vitals, habits, routine, settings, and (schema 2)
+     * the week plan, one-offs and pause, Night steps logs, Tomorrow lists, marks, Morning feel, anchors, movement logs
+     * (without epochs), alarm events, the alarm tuning and Hush plays.
+     */
     suspend fun exportJson(out: OutputStream)
 }
 
 interface DataResetter {
-    /** Deletes the database and settings, cancels sync work and reminders. */
+    /** Stops the night services and alarms first, then deletes the database and settings and cancels sync work and reminders. */
     suspend fun resetAll()
 }
 
