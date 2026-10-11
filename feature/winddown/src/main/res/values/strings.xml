@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="winddown_back">Back</string>
+    <string name="winddown_close">Close</string>
+    <string name="winddown_go_back">Go back</string>
+    <string name="winddown_loading">Loading Night steps</string>
+    <string name="winddown_unavailable_title">Night steps aren\'t available</string>
+    <string name="winddown_unavailable_body">Something went wrong reading them. Try again in a moment.</string>
+    <!-- A step's length: "10 min". -->
+    <string name="winddown_minutes">%1$d min</string>
+    <string name="winddown_checklist_item">Checklist item</string>
+
+    <!-- Night steps: tonight's checklist -->
+    <string name="winddown_title">Night steps</string>
+    <!-- %1$s: when the Night steps window starts, %2$s: the target bedtime ("From 9:45 PM · bedtime 11:15 PM"). -->
+    <string name="winddown_subtitle">From %1$s · bedtime %2$s</string>
+    <string name="winddown_subtitle_night">Bedtime soon</string>
+    <string name="winddown_settings_only">Timed from your bedtime setting until Sleep Saver has your nights.</string>
+    <!-- Big progress number: "2 of 4". -->
+    <string name="winddown_progress">%1$d of %2$d</string>
+    <string name="winddown_progress_label">done tonight</string>
+    <!-- Screen readers: "2 of 4 steps done tonight". -->
+    <string name="winddown_progress_description">%1$d of %2$d steps done tonight</string>
+    <!-- A step's start and length: "9:45 PM · 10 min". -->
+    <string name="winddown_step_when">%1$s · %2$s</string>
+    <string name="winddown_step_start">Start</string>
+    <!-- Screen readers on a guided step's button: "Start Slow tide breathing". -->
+    <string name="winddown_step_start_description">Start %1$s</string>
+    <string name="winddown_change_steps">Change tonight\'s steps</string>
+    <string name="winddown_off_title">Night steps are off this evening</string>
+    <!-- %1$s: the weekday ("Tuesday"). -->
+    <string name="winddown_off_body">Turn them on for %1$s evenings in the week plan.</string>
+    <string name="winddown_week_plan">Week plan</string>
+    <string name="winddown_empty_title">No steps yet. Pick a few that suit you.</string>
+    <string name="winddown_pick_steps">Pick steps</string>
+
+    <!-- Suggestions -->
+    <string name="winddown_worth_a_try">Worth a try</string>
+    <string name="winddown_add">Add</string>
+    <!-- Screen readers on a suggestion's Add button: "Add Body scan". -->
+    <string name="winddown_add_description">Add %1$s</string>
+    <string name="winddown_see_library">See the library</string>
+    <string name="winddown_reason_slow_to_settle">It often takes you a while to settle.</string>
+    <string name="winddown_reason_restless_nights">Your nights have had more awake time lately.</string>
+    <string name="winddown_reason_stressful_days">You marked Stress on a few recent nights.</string>
+    <string name="winddown_reason_drifting_bedtimes">Your bedtimes have moved around lately.</string>
+    <string name="winddown_reason_screens_in_routine">Screens are part of your evenings.</string>
+    <string name="winddown_reason_short_on_sleep">Your sleep debt is high right now.</string>
+    <string name="winddown_reason_starter">A good one to start with.</string>
+
+    <!-- Tracking -->
+    <string name="winddown_tracking_title">Your evenings</string>
+    <!-- "4 of the last 6 nights": evenings with steps done of the evenings that count (switched-off ones don't). -->
+    <plurals name="winddown_tracking_recent">
+        <item quantity="one">%1$d of the last %2$d night</item>
+        <item quantity="other">%1$d of the last %2$d nights</item>
+    </plurals>
+    <!-- The quiet streak, shown from 2 evenings: "5 evenings in a row". -->
+    <plurals name="winddown_quiet_streak">
+        <item quantity="one">%1$d evening in a row</item>
+        <item quantity="other">%1$d evenings in a row</item>
+    </plurals>
+    <!-- Screen readers on the dot strip: "Last 14 evenings: 7 with Night steps done". -->
+    <string name="winddown_strip_description">Last %1$d evenings: %2$d with Night steps done</string>
+
+    <!-- Marks -->
+    <string name="winddown_marks_title">Anything to mark for tonight?</string>
+
+    <!-- How Night steps evenings compare (the NIGHT_STEPS_DONE mark) -->
+    <string name="winddown_compare_title">How your Night steps evenings compare</string>
+    <string name="winddown_compare_not_enough">We\'ll show this after a few more evenings with and without steps.</string>
+    <string name="winddown_compare_no_pattern">No clear difference between evenings with and without steps so far.</string>
+    <string name="winddown_compare_caveat">This shows what went together, not what caused it.</string>
+    <!-- %1$s: "about 25 min"; %2$d / %3$d: nights with / without steps done. -->
+    <string name="winddown_compare_sleep_more">Nights after Night steps: %1$s more sleep (%2$d vs %3$d nights)</string>
+    <string name="winddown_compare_sleep_less">Nights after Night steps: %1$s less sleep (%2$d vs %3$d nights)</string>
+    <string name="winddown_compare_awake_more">Nights after Night steps: %1$s more awake time (%2$d vs %3$d nights)</string>
+    <string name="winddown_compare_awake_less">Nights after Night steps: %1$s less awake time (%2$d vs %3$d nights)</string>
+    <!-- %1$s: steps on the Morning feel scale, "0.5". -->
+    <string name="winddown_compare_feel_brighter">Nights after Night steps: mornings felt about %1$s steps brighter (%2$d vs %3$d nights)</string>
+    <string name="winddown_compare_feel_foggier">Nights after Night steps: mornings felt about %1$s steps foggier (%2$d vs %3$d nights)</string>
+    <string name="winddown_pattern_clear">Clear pattern</string>
+    <string name="winddown_pattern_possible">Possible pattern</string>
+
+    <!-- Drop anchor -->
+    <string name="winddown_anchor_title">Ready to settle in?</string>
+    <string name="winddown_drop_anchor">Drop anchor</string>
+    <string name="winddown_anchor_dropped">Anchor dropped</string>
+    <string name="winddown_open_tonight">Go to Tonight</string>
+    <string name="winddown_anchor_failed">Couldn\'t save that. Try again.</string>
+    <string name="winddown_sheet_title">Settling in</string>
+    <string name="winddown_sheet_log">Log movement all night</string>
+    <!-- %1$s: the placement tip ("Place the phone face down on the mattress, …"). -->
+    <string name="winddown_sheet_log_body">%1$s Uses more battery.</string>
+
+    <!-- Routine editor -->
+    <string name="winddown_editor_every_evening">Every evening</string>
+    <!-- %1$s: the weekday ("Tuesday evening"). -->
+    <string name="winddown_editor_day">%1$s evening</string>
+    <string name="winddown_editor_subtitle">Each step starts a set time before your bedtime.</string>
+    <string name="winddown_editor_same">Same as every evening</string>
+    <string name="winddown_editor_same_on">Changes here change the every-evening list.</string>
+    <!-- %1$s: the weekday ("Tuesday evenings have their own list."). -->
+    <string name="winddown_editor_same_off">%1$s evenings have their own list.</string>
+    <string name="winddown_editor_steps">Steps</string>
+    <!-- A step's placement: "Starts 45 min before bedtime · 10 min" (or "· Checklist item"). -->
+    <string name="winddown_editor_summary">Starts %1$s before bedtime · %2$s</string>
+    <string name="winddown_editor_lead">Starts before bedtime</string>
+    <string name="winddown_editor_length">Length</string>
+    <string name="winddown_editor_length_zero">0 min makes it a checklist item.</string>
+    <!-- Screen readers on a row's switch: "Include Herbal tea". -->
+    <string name="winddown_editor_include">Include %1$s</string>
+    <string name="winddown_editor_remove">Remove</string>
+    <!-- %1$s: the activity ("Remove Herbal tea?"). -->
+    <string name="winddown_editor_remove_title">Remove %1$s?</string>
+    <string name="winddown_editor_remove_body">Its past check-offs stay in your history.</string>
+    <string name="winddown_editor_remove_cancel">Cancel</string>
+    <string name="winddown_editor_add_library">Add from the library</string>
+    <string name="winddown_editor_add_own">Add your own</string>
+    <string name="winddown_editor_reminder">Reminder when Night steps start</string>
+
+    <!-- Step library -->
+    <string name="winddown_library_title">Step library</string>
+    <string name="winddown_library_subtitle">Calm ideas for the evening, with how well each one is studied.</string>
+    <string name="winddown_library_suggested">Suggested for you</string>
+    <string name="winddown_library_why">Why it helps</string>
+    <!-- Screen readers: the state of "Why it helps". -->
+    <string name="winddown_expanded">Expanded</string>
+    <string name="winddown_collapsed">Collapsed</string>
+    <string name="winddown_library_in_steps">In your steps</string>
+    <string name="winddown_library_try">Try now</string>
+
+    <!-- Guided tools -->
+    <string name="winddown_tool_start">Start</string>
+    <string name="winddown_tool_end">End</string>
+    <string name="winddown_tool_pause">Pause</string>
+    <string name="winddown_tool_resume">Resume</string>
+    <string name="winddown_tool_done">Done</string>
+    <string name="winddown_tool_finished">That\'s it. Let the rest of the evening be easy.</string>
+    <string name="winddown_tool_checked">Checked off in tonight\'s steps.</string>
+    <string name="winddown_tool_not_found_title">This tool isn\'t available</string>
+    <string name="winddown_tool_not_found_body">It may have been removed in this version.</string>
+    <!-- Area or muscle group counter: "3 of 10". -->
+    <string name="winddown_tool_step">%1$d of %2$d</string>
+
+    <!-- Slow tide -->
+    <string name="winddown_tide_pace">Pace</string>
+    <!-- A breathing pattern: "4 in · 6 out" (seconds). -->
+    <string name="winddown_tide_pattern">%1$d in · %2$d out</string>
+    <string name="winddown_tide_length">Length</string>
+    <string name="winddown_tide_eyes_closed">Eyes closed: vibration only</string>
+    <string name="winddown_tide_eyes_closed_body">One tick to breathe in, two to breathe out.</string>
+    <string name="winddown_tide_in">Breathe in</string>
+    <string name="winddown_tide_out">Breathe out</string>
+    <string name="winddown_tide_eyes_closed_running">Eyes closed. Follow the ticks.</string>
+
+    <!-- Body scan -->
+    <string name="winddown_scan_order">Feet → legs → hips → belly → chest → hands and arms → shoulders → neck and jaw → face → whole body</string>
+    <string name="winddown_scan_intro">About a minute on each area. One gentle pulse means it\'s time to move on.</string>
+    <string name="winddown_scan_1">Notice your feet. Let them be heavy.</string>
+    <string name="winddown_scan_2">Your lower legs. Nothing to change.</string>
+    <string name="winddown_scan_3">Knees and thighs, resting.</string>
+    <string name="winddown_scan_4">Hips and lower back, sinking a little.</string>
+    <string name="winddown_scan_5">Your belly, rising and falling.</string>
+    <string name="winddown_scan_6">Chest and breath, easy.</string>
+    <string name="winddown_scan_7">Hands and arms, loose.</string>
+    <string name="winddown_scan_8">Shoulders, dropping away from your ears.</string>
+    <string name="winddown_scan_9">Neck and jaw, soft.</string>
+    <string name="winddown_scan_10">Face and scalp. Then your whole body, resting.</string>
+
+    <!-- Muscle release -->
+    <string name="winddown_muscle_intro">Squeeze gently, never to the point of pain.</string>
+    <!-- %1$s: a muscle group ("Tense your hands…"). -->
+    <string name="winddown_muscle_tense">Tense your %1$s…</string>
+    <string name="winddown_muscle_release">…and let go.</string>
+    <string name="winddown_muscle_hands">hands</string>
+    <string name="winddown_muscle_forearms">forearms</string>
+    <string name="winddown_muscle_upper_arms">upper arms</string>
+    <string name="winddown_muscle_shoulders">shoulders</string>
+    <string name="winddown_muscle_face">face</string>
+    <string name="winddown_muscle_neck">neck</string>
+    <string name="winddown_muscle_chest">chest</string>
+    <string name="winddown_muscle_stomach">stomach</string>
+    <string name="winddown_muscle_back">back</string>
+    <string name="winddown_muscle_thighs">thighs</string>
+    <string name="winddown_muscle_calves">calves</string>
+    <string name="winddown_muscle_feet">feet</string>
+
+    <!-- Tomorrow list -->
+    <string name="winddown_list_hint">What do you need to do tomorrow? One thing per line.</string>
+    <string name="winddown_list_parked">Parked for tomorrow.</string>
+
+    <!-- Night reset (the can't-sleep flow; never shows a time) -->
+    <string name="winddown_reset_title">Night reset</string>
+    <string name="winddown_reset_breathing">Let\'s slow down first. Follow the gentle pulses.</string>
+    <string name="winddown_reset_skip">Skip</string>
+    <string name="winddown_reset_get_up">If you\'ve been awake for what feels like a while, get up. Go somewhere dim and do something quiet and dull. Come back to bed when you feel sleepy.</string>
+    <string name="winddown_reset_wake_time">Keep tomorrow\'s wake time the same, even after a rough night.</string>
+    <string name="winddown_reset_normal">One bad night is normal and says little about the next.</string>
+    <string name="winddown_reset_back">Back to night</string>
+    <string name="winddown_reset_footer">If trouble sleeping goes on for weeks, talk to a doctor. The approach with the best evidence is CBT for insomnia.</string>
+</resources>
