@@ -19,9 +19,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.ui.components.PrimaryButton
 import com.sleepsaver.core.ui.components.SecondaryButton
@@ -94,8 +96,9 @@ internal fun BodyScanContent(stage: ToolStage<Int>, actions: BodyScanActions, mo
                     color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(top = Spacing.xl),
                 )
+                val minutesPerArea = SleepConfig.DEFAULT.steps.bodyScanStep.toMinutes().toInt().coerceAtLeast(1)
                 Text(
-                    stringResource(R.string.winddown_scan_intro),
+                    pluralStringResource(R.plurals.winddown_scan_intro, minutesPerArea, minutesPerArea),
                     style = MaterialTheme.typography.bodyMedium,
                     color = SleepSaverTheme.colors.textSecondary,
                     modifier = Modifier.padding(top = Spacing.s),

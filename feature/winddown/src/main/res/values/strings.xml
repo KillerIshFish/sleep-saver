@@ -155,7 +155,11 @@
 
     <!-- Body scan -->
     <string name="winddown_scan_order">Feet → legs → hips → belly → chest → hands and arms → shoulders → neck and jaw → face → whole body</string>
-    <string name="winddown_scan_intro">About a minute on each area. One gentle pulse means it\'s time to move on.</string>
+    <!-- The time per area follows steps.bodyScanStep (whole minutes). -->
+    <plurals name="winddown_scan_intro">
+        <item quantity="one">About a minute on each area. One gentle pulse means it\'s time to move on.</item>
+        <item quantity="other">About %1$d minutes on each area. One gentle pulse means it\'s time to move on.</item>
+    </plurals>
     <string name="winddown_scan_1">Notice your feet. Let them be heavy.</string>
     <string name="winddown_scan_2">Your lower legs. Nothing to change.</string>
     <string name="winddown_scan_3">Knees and thighs, resting.</string>
