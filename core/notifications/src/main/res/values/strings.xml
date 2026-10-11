@@ -40,6 +40,6 @@
     <!-- Morning review -->
     <string name="review_ready_title">Last night has synced</string>
     <string name="review_ready_body">Take a few seconds to check it and see how your sleep debt moved.</string>
-    <string name="review_fallback_title">Check in on last night</string>
+    <string name="review_fallback_title">Look back at last night</string>
     <string name="review_fallback_body">Confirm or fix last night so your sleep debt stays accurate.</string>
 </resources>
