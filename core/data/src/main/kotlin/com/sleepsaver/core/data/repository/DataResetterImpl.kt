@@ -1,6 +1,7 @@
 package com.sleepsaver.core.data.repository
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -15,6 +16,7 @@ import com.sleepsaver.core.data.hooks.MorningReviewNotifier
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -43,9 +45,10 @@ class DataResetterImpl @Inject constructor(
 ) : DataResetter {
 
     override suspend fun resetAll() {
-        // A ring, Hush or movement log in progress stops before the alarms (and the mirror they arm from) go.
-        nightController.get().stopEverything()
-        alarmScheduler.get().cancelAll()
+        // A ring, Hush or movement log in progress stops before the alarms (and the mirror they arm from) go. Either
+        // failing must not leave the data half-reset: it is logged and the reset goes on.
+        bestEffort("Stopping the night services") { nightController.get().stopEverything() }
+        bestEffort("Cancelling the alarms") { alarmScheduler.get().cancelAll() }
         WorkManager.getInstance(context).cancelAllWork().await()
         reminderPlanner.cancelAll()
         morningReviewNotifier.cancel()
@@ -56,5 +59,19 @@ class DataResetterImpl @Inject constructor(
             DemoEditBackupFile.inFilesDir(context).delete()
         }
         settingsStore.edit { it.clear() }
+    }
+
+    private inline fun bestEffort(what: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "$what failed; resetting anyway", e)
+        }
+    }
+
+    private companion object {
+        const val TAG = "SleepSaverReset"
     }
 }

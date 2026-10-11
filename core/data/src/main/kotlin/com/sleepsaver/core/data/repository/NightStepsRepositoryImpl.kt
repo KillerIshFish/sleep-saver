@@ -204,14 +204,15 @@ class NightStepsRepositoryImpl @Inject internal constructor(
     /** Selects the first activity carrying [technique], or adds it at the end of the grid, all under the store's lock. */
     override suspend fun addTechnique(technique: Technique, label: String): Long {
         val trimmed = label.trim()
-        require(trimmed.isNotEmpty()) { "label must not be blank" }
         val timing = config.steps.timing(technique)
         return store.locked { dao ->
             val existing = dao.findByTechnique(technique.name)
             if (existing != null) {
+                // Already there: the label isn't used, so a blank one is fine.
                 if (!existing.selected) dao.setSelected(existing.id, true)
                 existing.id
             } else {
+                require(trimmed.isNotEmpty()) { "label must not be blank" }
                 dao.insert(
                     RoutineActivityEntity(
                         label = trimmed,

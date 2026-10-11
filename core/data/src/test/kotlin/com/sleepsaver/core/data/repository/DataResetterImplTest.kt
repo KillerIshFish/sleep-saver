@@ -19,6 +19,7 @@ import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.demo.DemoEditBackup
 import com.sleepsaver.core.data.demo.DemoEditBackupFile
 import com.sleepsaver.core.data.hooks.MorningReviewNotifier
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.testing.RecordingAlarmScheduler
 import com.sleepsaver.core.data.testing.RecordingNightController
@@ -96,6 +97,20 @@ class DataResetterImplTest {
         assertThat(calls).containsExactly("stopEverything", "cancelAll", "reminders").inOrder()
         assertThat(notifier.cancelled).isTrue()
         assertThat(sync.reset).isTrue()
+    }
+
+    @Test
+    fun `reset still wipes the data when stopping the night services fails`() = runTest {
+        val store = preferencesStore(backgroundScope, tmp.root)
+        db.nightMarkDao().insert(NightMarkEntity("2026-10-06", "ALCOHOL", 0, 0))
+        val broken = object : NightController by night {
+            override fun stopEverything() = throw IllegalStateException("service gone")
+        }
+
+        DataResetterImpl(context, db, store, planner, notifier, sync, { alarms }, { broken }, StandardTestDispatcher(testScheduler)).resetAll()
+
+        assertThat(db.nightMarkDao().getAll()).isEmpty()
+        assertThat(calls).containsExactly("cancelAll", "reminders").inOrder()
     }
 
     class NoOpWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
