@@ -2,13 +2,25 @@ package com.sleepsaver.core.domain.patterns
 
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Night
+import java.time.Duration
 import java.time.LocalDate
+import kotlin.math.roundToLong
 
 /** How a night differed from the personal median. */
 enum class OddWay { MORE_SLEEP, LESS_SLEEP, MORE_AWAKE, EARLIER_ONSET, LATER_ONSET }
 
-/** A night unlike the last 28 days, good or bad ("Anything different last night?"). */
-data class OddNight(val wakeDate: LocalDate, val ways: Set<OddWay>)
+/**
+ * A night unlike the last 28 days, good or bad ("Anything different last night?"). The deltas are the night minus the
+ * personal median ("You slept about 1 h 10 m more than usual."): [totalDelta] total sleep, [awakeDelta] awake time and
+ * [onsetDelta] sleep onset (later is positive; null when the night or the baseline has no onset).
+ */
+data class OddNight(
+    val wakeDate: LocalDate,
+    val ways: Set<OddWay>,
+    val totalDelta: Duration = Duration.ZERO,
+    val awakeDelta: Duration = Duration.ZERO,
+    val onsetDelta: Duration? = null,
+)
 
 /**
  * The odd-night prompt: last night vs the median of the previous oddLookbackDays (≥ oddMinNights) on total sleep
@@ -20,6 +32,7 @@ data class OddNight(val wakeDate: LocalDate, val ways: Set<OddWay>)
  *    (so 23:30 and 00:45 are 75 min apart, not 22 h).
  *  - Δtotal ≥ +oddTotal → MORE_SLEEP, ≤ −oddTotal → LESS_SLEEP; Δawake ≥ +oddAwake → MORE_AWAKE;
  *    Δonset ≤ −oddOnset → EARLIER_ONSET, ≥ +oddOnset → LATER_ONSET. Null when nothing applies.
+ *  - The result carries the three deltas, to the second.
  *
  * Example: a median of 7 h asleep from 23:15, then 8 h 20 m from 22:00 → MORE_SLEEP and EARLIER_ONSET (good nights ask
  * too).
@@ -45,13 +58,18 @@ class OddNightDetector(private val config: SleepConfig = SleepConfig.DEFAULT) {
 
         val onset = night.localFellAsleep()
         val baselineOnsets = baseline.mapNotNull { it.localFellAsleep() }
+        var onsetDelta: Double? = null
         if (onset != null && baselineOnsets.isNotEmpty()) {
-            val onsetDelta = noonShiftedMinutes(onset) - median(baselineOnsets.map { noonShiftedMinutes(it).toDouble() })
-            if (onsetDelta <= -journal.oddOnset.minutesExact()) ways += OddWay.EARLIER_ONSET
-            if (onsetDelta >= journal.oddOnset.minutesExact()) ways += OddWay.LATER_ONSET
+            val delta = noonShiftedMinutes(onset) - median(baselineOnsets.map { noonShiftedMinutes(it).toDouble() })
+            if (delta <= -journal.oddOnset.minutesExact()) ways += OddWay.EARLIER_ONSET
+            if (delta >= journal.oddOnset.minutesExact()) ways += OddWay.LATER_ONSET
+            onsetDelta = delta
         }
-        return if (ways.isEmpty()) null else OddNight(wakeDate, ways)
+        if (ways.isEmpty()) return null
+        return OddNight(wakeDate, ways, minutes(totalDelta), minutes(awakeDelta), onsetDelta?.let(::minutes))
     }
+
+    private fun minutes(value: Double): Duration = Duration.ofSeconds((value * 60).roundToLong())
 
     private fun totalMinutes(night: Night): Double = (night.mainSleep + night.extraSleep).minutesExact()
 }

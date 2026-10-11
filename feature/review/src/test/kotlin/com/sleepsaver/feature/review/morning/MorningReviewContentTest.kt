@@ -113,11 +113,18 @@ class MorningReviewContentTest {
     // ---------------------------------------------------------------- Odd night and Tomorrow list
 
     @Test
+    fun `without a known amount the odd-night line stays general`() {
+        show(MorningReviewUiState(today, today, summary(), oddNight = PlanSamples.oddNight(today).copy(totalDelta = Duration.ZERO)))
+
+        compose.onNodeWithText("You slept less than usual. You fell asleep later than usual.").assertExists()
+    }
+
+    @Test
     fun `an odd night asks what was different, with marks and skip`() {
         show(MorningReviewUiState(today, today, summary(), oddNight = PlanSamples.oddNight(today)))
 
         compose.onNodeWithText("Anything different last night?").assertIsDisplayed()
-        compose.onNodeWithText("You slept less than usual. You fell asleep later than usual.").assertExists()
+        compose.onNodeWithText("You slept about 1h 10m less than usual. You fell asleep later than usual.").assertExists()
         compose.onNodeWithText("Stress").performScrollTo().performClick()
         compose.onNodeWithText("Skip").performScrollTo().performClick()
 

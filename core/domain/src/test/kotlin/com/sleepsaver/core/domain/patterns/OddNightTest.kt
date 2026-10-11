@@ -2,6 +2,7 @@ package com.sleepsaver.core.domain.patterns
 
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.model.Night
+import java.time.Duration
 import java.time.LocalDate
 import org.junit.jupiter.api.Test
 
@@ -27,14 +28,32 @@ class OddNightTest {
 
     @Test
     fun `a short night is odd`() {
-        assertThat(odd(lastNight(asleep = 380))).isEqualTo(OddNight(wakeDate, setOf(OddWay.LESS_SLEEP)))
+        assertThat(odd(lastNight(asleep = 380))?.ways).containsExactly(OddWay.LESS_SLEEP)
+    }
+
+    @Test
+    fun `it says by how much the night differed from the median`() {
+        val result = odd(lastNight(asleep = 380, awake = 45, fellAsleep = "23:30"))
+
+        assertThat(result).isEqualTo(
+            OddNight(
+                wakeDate = wakeDate,
+                ways = setOf(OddWay.LESS_SLEEP),
+                totalDelta = Duration.ofMinutes(-70),
+                awakeDelta = Duration.ofMinutes(15),
+                onsetDelta = Duration.ofMinutes(30),
+            ),
+        )
+        assertThat(odd(lastNight(asleep = 520, fellAsleep = "00:15"))?.onsetDelta).isEqualTo(Duration.ofMinutes(75))
     }
 
     @Test
     fun `a good night is odd too`() {
         val result = odd(lastNight(asleep = 520, fellAsleep = "22:00"))
 
-        assertThat(result).isEqualTo(OddNight(wakeDate, setOf(OddWay.MORE_SLEEP, OddWay.EARLIER_ONSET)))
+        assertThat(result?.ways).containsExactly(OddWay.MORE_SLEEP, OddWay.EARLIER_ONSET)
+        assertThat(result?.totalDelta).isEqualTo(Duration.ofMinutes(70))
+        assertThat(result?.onsetDelta).isEqualTo(Duration.ofMinutes(-60))
     }
 
     @Test
@@ -56,7 +75,7 @@ class OddNightTest {
     @Test
     fun `a late onset after midnight is measured across it`() {
         // 00:15 is 75 min after the usual 23:00, not 22 h 45 m before it.
-        assertThat(odd(lastNight(fellAsleep = "00:15"))).isEqualTo(OddNight(wakeDate, setOf(OddWay.LATER_ONSET)))
+        assertThat(odd(lastNight(fellAsleep = "00:15"))?.ways).containsExactly(OddWay.LATER_ONSET)
     }
 
     @Test
@@ -66,7 +85,7 @@ class OddNightTest {
             PatternFx.night(date, asleep = 450, awake = 30, fellAsleep = if (i % 2 == 0) "23:30" else "00:30")
         }
 
-        assertThat(odd(lastNight(fellAsleep = "23:00"), history)).isEqualTo(OddNight(wakeDate, setOf(OddWay.EARLIER_ONSET)))
+        assertThat(odd(lastNight(fellAsleep = "23:00"), history)?.ways).containsExactly(OddWay.EARLIER_ONSET)
         assertThat(odd(lastNight(fellAsleep = "23:01"), history)).isNull()
     }
 
@@ -82,7 +101,7 @@ class OddNightTest {
         val seven = baseline.takeLast(7)
 
         assertThat(odd(lastNight(asleep = 300), tooOld + six)).isNull()
-        assertThat(odd(lastNight(asleep = 300), tooOld + seven)).isEqualTo(OddNight(wakeDate, setOf(OddWay.LESS_SLEEP)))
+        assertThat(odd(lastNight(asleep = 300), tooOld + seven)?.ways).containsExactly(OddWay.LESS_SLEEP)
     }
 
     @Test

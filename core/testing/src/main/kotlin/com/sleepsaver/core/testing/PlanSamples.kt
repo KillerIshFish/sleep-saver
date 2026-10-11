@@ -269,7 +269,13 @@ object PlanSamples {
         MarkEffect(Mark.STRESS, EffectMetric.MORNING_FEEL, PatternLabel.NOT_ENOUGH, withNights = 4, withoutNights = 46, difference = null, low = null, high = null),
     )
 
-    fun oddNight(wakeDate: LocalDate = today): OddNight = OddNight(wakeDate, setOf(OddWay.LESS_SLEEP, OddWay.LATER_ONSET))
+    fun oddNight(wakeDate: LocalDate = today): OddNight = OddNight(
+        wakeDate = wakeDate,
+        ways = setOf(OddWay.LESS_SLEEP, OddWay.LATER_ONSET),
+        totalDelta = Duration.ofMinutes(-70),
+        awakeDelta = Duration.ofMinutes(5),
+        onsetDelta = Duration.ofMinutes(75),
+    )
 
     /** Drop anchor at 22:55 on the evening before [wakeDate]. */
     fun anchor(wakeDate: LocalDate = today, id: Long = 1, wholeNightLog: Boolean = false): Anchor {

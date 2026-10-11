@@ -41,11 +41,13 @@ import com.sleepsaver.core.ui.components.SectionCard
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.components.label
+import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatNightLabel
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.review.R
 import com.sleepsaver.feature.review.common.alignTextStart
+import java.time.Duration
 import java.time.LocalDate
 
 /**
@@ -138,7 +140,7 @@ internal fun OddNightCard(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = oddNight.ways.sortedBy { it.ordinal }.map { stringResource(it.lineRes()) }.joinToString(" "),
+            text = oddNight.ways.sortedBy { it.ordinal }.map { way -> oddLine(way, oddNight) }.joinToString(" "),
             style = MaterialTheme.typography.bodyMedium,
             color = SleepSaverTheme.colors.textSecondary,
             modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.m),
@@ -150,6 +152,17 @@ internal fun OddNightCard(
             color = SleepSaverTheme.colors.textSecondary,
             modifier = Modifier.alignTextStart(),
         )
+    }
+}
+
+/** One line of the odd-night body; total sleep says by how much ("You slept about 1h 10m less than usual."). */
+@Composable
+private fun oddLine(way: OddWay, oddNight: OddNight): String {
+    val amount = oddNight.totalDelta.abs().takeIf { it >= Duration.ofMinutes(1) }?.let { formatDuration(it).replace(' ', '\u00A0') }
+    return when {
+        amount != null && way == OddWay.MORE_SLEEP -> stringResource(R.string.review_odd_more_sleep_by, amount)
+        amount != null && way == OddWay.LESS_SLEEP -> stringResource(R.string.review_odd_less_sleep_by, amount)
+        else -> stringResource(way.lineRes())
     }
 }
 

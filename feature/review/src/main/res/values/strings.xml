@@ -75,6 +75,8 @@
     <string name="review_odd_title">Anything different last night?</string>
     <string name="review_odd_more_sleep">You slept more than usual.</string>
     <string name="review_odd_less_sleep">You slept less than usual.</string>
+    <string name="review_odd_more_sleep_by">You slept about %1$s more than usual.</string>
+    <string name="review_odd_less_sleep_by">You slept about %1$s less than usual.</string>
     <string name="review_odd_more_awake">You had more awake time than usual.</string>
     <string name="review_odd_earlier">You fell asleep earlier than usual.</string>
     <string name="review_odd_later">You fell asleep later than usual.</string>
