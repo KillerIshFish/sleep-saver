@@ -32,6 +32,7 @@ import com.sleepsaver.feature.winddown.WinddownNight
 import com.sleepsaver.feature.winddown.WinddownNightSource
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.hushControlsState
+import com.sleepsaver.feature.winddown.untilWindowAvailable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -100,7 +101,8 @@ internal enum class NightStepsEvent { ANCHOR_DROPPED, ANCHOR_FAILED }
 /**
  * Builds the Night steps screen for the [session] of the night in [focus] ([com.sleepsaver.feature.winddown.winddownFocus]).
  * Night mode (§5.0) is that night's no-clock time, the rule Tonight, Sleep home and Energy use. [nightState]'s anchor
- * shows as dropped only when it was dropped for that night, so last night's anchor never darkens the day.
+ * shows as dropped only when it was dropped for that night, so last night's anchor never darkens the day. Hush can run
+ * "Until my window" only when [nextAlarm] (the one armed) is that night's.
  */
 internal fun nightStepsUiState(
     session: NightStepsSession?,
@@ -138,7 +140,7 @@ internal fun nightStepsUiState(
         compare = shown,
         compareStatus = status,
         ownList = week.day(session.nightOf.dayOfWeek).evening.routine != null,
-        hush = hushControlsState(hush, nightState.hush, untilWindowAvailable = nextAlarm != null, night = night, config = config),
+        hush = hushControlsState(hush, nightState.hush, untilWindowAvailable(nextAlarm, wakeDate), night = night, config = config),
         streakShowFrom = config.steps.streakShowFrom,
     )
 }

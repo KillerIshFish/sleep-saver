@@ -302,6 +302,19 @@ class NightStepsViewModelTest {
     }
 
     @Test
+    fun `Hush waits for the window only when tonight has an alarm`() = runTest {
+        // No Wednesday alarm; the next one is Friday's.
+        schedule.upcomingState.value = listOf(PlanSamples.plannedAlarm(date = today.plusDays(3)))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().hush.untilWindowAvailable).isFalse()
+
+        viewModel.hushActions.onTimer(null)
+        viewModel.hushActions.onPlay()
+
+        assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
+    }
+
+    @Test
     fun `an evening with its own list is flagged so Pick steps edits that day`() = runTest {
         val week = PlanSamples.weekPlan()
         val tuesday = week.day(DayOfWeek.TUESDAY)

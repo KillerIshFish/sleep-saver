@@ -318,7 +318,7 @@ class GuidedToolsTest {
 
     @Test
     fun `night reset breathes with eyes-closed ticks for two minutes, then shows the advice`() = runTest {
-        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
         assertThat(viewModel.uiState.value.stage).isEqualTo(ResetStage.BREATHING)
@@ -338,7 +338,7 @@ class GuidedToolsTest {
 
     @Test
     fun `skipping goes straight to the advice and stops the cues`() = runTest {
-        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(FakeNightController(), FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
 
@@ -353,7 +353,7 @@ class GuidedToolsTest {
     @Test
     fun `night reset plays Hush with the default choice, never until a window without an alarm`() = runTest {
         val nightController = FakeNightController()
-        val viewModel = NightResetViewModel(nightController, FakeScheduleRepository(), haptics, testClock())
+        val viewModel = NightResetViewModel(nightController, FakeScheduleRepository(), time, haptics, testClock())
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         runCurrent()
 
@@ -364,5 +364,29 @@ class GuidedToolsTest {
         assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
         assertThat(viewModel.uiState.value.hush.playing).isTrue()
         assertThat(viewModel.uiState.value.hush.night).isTrue()
+    }
+
+    @Test
+    fun `night reset waits for the window only when the alarm is this night's`() = runTest {
+        // 02:00 Wednesday.
+        time.now = PlanSamples.at(PlanSamples.today.plusDays(1), LocalTime.of(2, 0))
+        time.ticks.value = time.now
+
+        fun TestScope.playUntilWindow(alarmDate: LocalDate): FakeNightController {
+            val nightController = FakeNightController()
+            val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm(date = alarmDate)))
+            val viewModel = NightResetViewModel(nightController, schedule, time, haptics, testClock())
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            runCurrent()
+            viewModel.hushActions.onTimer(null)
+            viewModel.hushActions.onPlay()
+            runCurrent()
+            return nightController
+        }
+
+        // This morning's alarm: Hush fades out before its window.
+        assertThat(playUntilWindow(PlanSamples.today.plusDays(1)).nightControllerCalls).containsExactly("startHush(WHITE, null, 0.25)")
+        // No alarm this morning, Friday's next: the default timer, not two days of noise.
+        assertThat(playUntilWindow(PlanSamples.today.plusDays(3)).nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
     }
 }
