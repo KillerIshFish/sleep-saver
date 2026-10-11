@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
@@ -61,17 +63,20 @@ internal enum class ToolDim { OFF, AFTER_DELAY, NOW }
 /**
  * A guided tool's frame: the near-black background, a close button, and the screen brightness. With
  * [ToolDim.AFTER_DELAY] the screen drops to `steps.dimBrightness` after `steps.dimAfter`; a touch (or a change of
- * [wakeKey], e.g. typed text) brings it back up for another [SleepConfig] `dimAfter`.
+ * [wakeKey], e.g. typed text) brings it back up for another [SleepConfig] `dimAfter`. [keepScreenOn] while a run's
+ * cues are going (see [KeepScreenOn]).
  */
 @Composable
 internal fun ToolFrame(
     onClose: () -> Unit,
     dim: ToolDim,
     modifier: Modifier = Modifier,
+    keepScreenOn: Boolean = false,
     wakeKey: Any? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    if (keepScreenOn) KeepScreenOn()
     var touches by remember { mutableIntStateOf(0) }
     var dimmed by remember { mutableStateOf(dim == ToolDim.NOW) }
     LaunchedEffect(dim, touches, wakeKey) {
@@ -97,6 +102,21 @@ internal fun ToolFrame(
         },
         content = content,
     )
+}
+
+/**
+ * Keeps the screen on (dimmed by the tool) while in composition. A running tool needs it: when the screen times out
+ * the app goes to the background, and Android drops vibration from background apps, so an eyes-closed run would lose
+ * its cues.
+ */
+@Composable
+internal fun KeepScreenOn() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val before = view.keepScreenOn
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = before }
+    }
 }
 
 /** A scrolling column with the screen's side padding that ends with the wellness line and the bottom inset. */

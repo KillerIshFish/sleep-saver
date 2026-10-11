@@ -60,6 +60,7 @@ import com.sleepsaver.feature.winddown.tools.BreathingVisual
 import com.sleepsaver.feature.winddown.tools.GuidedClock
 import com.sleepsaver.feature.winddown.tools.GuidedRunner
 import com.sleepsaver.feature.winddown.tools.Haptics
+import com.sleepsaver.feature.winddown.tools.KeepScreenOn
 import com.sleepsaver.feature.winddown.tools.RunPosition
 import com.sleepsaver.feature.winddown.tools.animatedProgress
 import com.sleepsaver.feature.winddown.tools.slowTidePatterns
@@ -207,6 +208,8 @@ internal fun NightResetContent(
     scrollState: ScrollState = rememberScrollState(),
 ) {
     DimScreen(SleepConfig.DEFAULT.steps.dimBrightness)
+    // The breathing cues are haptics only by default; they stop if the screen times out.
+    if (state.stage == ResetStage.BREATHING) KeepScreenOn()
     WinddownSurface(
         onBack = actions.onClose,
         modifier = modifier,

@@ -156,7 +156,7 @@ internal fun SlowTideContent(
         state.eyesClosed -> ToolDim.NOW
         else -> ToolDim.AFTER_DELAY
     }
-    ToolFrame(onClose = actions.onClose, dim = dim, modifier = modifier) {
+    ToolFrame(onClose = actions.onClose, dim = dim, modifier = modifier, keepScreenOn = stage is ToolStage.Running) {
         when (stage) {
             ToolStage.Setup -> SlowTideSetupBody(state, actions)
             is ToolStage.Running -> if (state.eyesClosed) {
@@ -244,7 +244,7 @@ private fun BreathingBody(pattern: BreathPattern, position: RunPosition<BreathPh
         Text(
             patternLabel(pattern),
             style = MaterialTheme.typography.bodyMedium,
-            color = SleepSaverTheme.colors.textTertiary,
+            color = SleepSaverTheme.colors.textSecondary,
             modifier = Modifier.padding(top = Spacing.s),
         )
         Spacer(Modifier.weight(1f))
@@ -267,11 +267,11 @@ internal fun EyesClosedBody(onEnd: () -> Unit, modifier: Modifier = Modifier, te
         Text(
             text,
             style = MaterialTheme.typography.bodyLarge,
-            color = SleepSaverTheme.colors.textTertiary,
+            color = SleepSaverTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.weight(1f))
-        TextLinkButton(stringResource(R.string.winddown_tool_end), onClick = onEnd, color = SleepSaverTheme.colors.textTertiary)
+        TextLinkButton(stringResource(R.string.winddown_tool_end), onClick = onEnd, color = SleepSaverTheme.colors.textSecondary)
         WellnessDisclaimer(Modifier.padding(top = Spacing.s, bottom = Spacing.l))
         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }

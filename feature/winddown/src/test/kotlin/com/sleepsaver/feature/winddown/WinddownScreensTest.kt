@@ -1,8 +1,10 @@
 package com.sleepsaver.feature.winddown
 
+import android.view.View
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -44,6 +46,8 @@ import com.sleepsaver.feature.winddown.reset.nightResetUiState
 import com.sleepsaver.feature.winddown.steps.NightStepsActions
 import com.sleepsaver.feature.winddown.steps.NightStepsContent
 import com.sleepsaver.feature.winddown.tools.BreathPattern
+import com.sleepsaver.feature.winddown.tools.BreathPhase
+import com.sleepsaver.feature.winddown.tools.RunPosition
 import com.sleepsaver.feature.winddown.tools.SlowTideActions
 import com.sleepsaver.feature.winddown.tools.SlowTideContent
 import com.sleepsaver.feature.winddown.tools.SlowTideSetup
@@ -297,6 +301,23 @@ class WinddownScreensTest {
         compose.onNodeWithText("Start").performScrollTo().performClick()
 
         assertThat(calls).containsExactly("pace 5/5", "length 15", "eyes true", "start").inOrder()
+    }
+
+    @Test
+    fun `a running tool keeps the screen on, its start and end screens don't`() {
+        val setup = SlowTideSetup(BreathPattern(Duration.ofSeconds(4), Duration.ofSeconds(6)), SleepConfig.DEFAULT.steps.slowTideDefaultLength)
+        var stage by mutableStateOf<ToolStage<BreathPhase>>(ToolStage.Setup)
+        lateinit var view: View
+        compose.setContent {
+            view = LocalView.current
+            SleepSaverTheme { SlowTideContent(state = slowTideUiState(setup, stage), actions = SlowTideActions(), breathProgress = 0.5f) }
+        }
+
+        compose.runOnIdle { assertThat(view.keepScreenOn).isFalse() }
+        stage = ToolStage.Running(RunPosition(index = 0, count = 120, cue = BreathPhase.IN, length = Duration.ofSeconds(4)))
+        compose.runOnIdle { assertThat(view.keepScreenOn).isTrue() }
+        stage = ToolStage.Finished(checkedOff = false)
+        compose.runOnIdle { assertThat(view.keepScreenOn).isFalse() }
     }
 
     @Test

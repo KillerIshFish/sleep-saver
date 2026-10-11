@@ -80,7 +80,8 @@ internal fun bodyScanPrompt(area: Int): Int = when (area) {
 
 @Composable
 internal fun BodyScanContent(stage: ToolStage<Int>, actions: BodyScanActions, modifier: Modifier = Modifier) {
-    ToolFrame(onClose = actions.onClose, dim = if (stage is ToolStage.Running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier) {
+    val running = stage is ToolStage.Running
+    ToolFrame(onClose = actions.onClose, dim = if (running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier, keepScreenOn = running) {
         when (stage) {
             ToolStage.Setup -> ToolScrollBody {
                 ToolHeader(Technique.BODY_SCAN)
@@ -152,7 +153,8 @@ internal fun MuscleGroup.nameRes(): Int = when (this) {
 
 @Composable
 internal fun MuscleReleaseContent(stage: ToolStage<MuscleCue>, actions: MuscleReleaseActions, modifier: Modifier = Modifier) {
-    ToolFrame(onClose = actions.onClose, dim = if (stage is ToolStage.Running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier) {
+    val running = stage is ToolStage.Running
+    ToolFrame(onClose = actions.onClose, dim = if (running) ToolDim.AFTER_DELAY else ToolDim.OFF, modifier = modifier, keepScreenOn = running) {
         when (stage) {
             ToolStage.Setup -> ToolScrollBody {
                 ToolHeader(Technique.MUSCLE_RELEASE)
@@ -211,7 +213,7 @@ private fun RunningBody(cue: String, counter: String, onEnd: () -> Unit, pause: 
         Text(
             counter,
             style = MaterialTheme.typography.bodyMedium,
-            color = SleepSaverTheme.colors.textTertiary,
+            color = SleepSaverTheme.colors.textSecondary,
             modifier = Modifier.padding(top = Spacing.m),
         )
         Spacer(Modifier.weight(1f))

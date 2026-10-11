@@ -65,10 +65,15 @@ class WinddownScreenshotTest : ScreenshotTest() {
     private fun Clock24(content: @Composable () -> Unit) = CompositionLocalProvider(LocalUse24HourClock provides true, content = content)
 
     @Composable
-    private fun Steps(state: NightStepsUiState, scrolledToEnd: Boolean = false, sheet: NightStepsSheet? = null) = NightStepsContent(
+    private fun Steps(
+        state: NightStepsUiState,
+        scrolledToEnd: Boolean = false,
+        sheet: NightStepsSheet? = null,
+        scrolledBy: Int = if (scrolledToEnd) 10_000 else 0,
+    ) = NightStepsContent(
         state = state,
         actions = NightStepsActions(),
-        scrollState = rememberScrollState(if (scrolledToEnd) 10_000 else 0),
+        scrollState = rememberScrollState(scrolledBy),
         sheet = sheet,
     )
 
@@ -88,6 +93,12 @@ class WinddownScreenshotTest : ScreenshotTest() {
     @Test
     fun nightStepsScrolled() = captureScreen("night_steps_scrolled") {
         Steps(WinddownSamples.nightSteps(effects = WinddownSamples.effects), scrolledToEnd = true)
+    }
+
+    /** The middle of the screen: the end of the checklist, "Worth a try" and the evenings strip. */
+    @Test
+    fun nightStepsSuggestions() = captureScreen("night_steps_suggestions") {
+        Steps(WinddownSamples.nightSteps(), scrolledBy = 1_900)
     }
 
     @Test
