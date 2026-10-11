@@ -48,6 +48,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import javax.inject.Inject
 
 /** What a day's plan shows. */
@@ -110,7 +111,11 @@ internal data class PendingScrubs(
     }
 }
 
-/** Builds the day plan's state; pure. */
+/**
+ * Builds the day plan's state; pure. [todayAlarmPending] = today's alarm hasn't rung yet (it is still among the
+ * upcoming alarms); null when today has no alarm. Today's weekday previews this morning while it is still ahead: until
+ * its alarm has rung, or, without one, until its wake time; then the same weekday next week.
+ */
 internal fun dayPlanState(
     day: DayOfWeek,
     initialPart: DayPart,
@@ -123,11 +128,17 @@ internal fun dayPlanState(
     now: Instant,
     zone: ZoneId,
     config: SleepConfig = SleepConfig.DEFAULT,
+    todayAlarmPending: Boolean? = null,
 ): DayPlanUiState.Ready {
     val today = now.atZone(zone).toLocalDate()
     val plan = pending.applyTo(week.day(day))
     val shownWeek = week.with(plan)
-    val morningDate = (1L..7L).map { today.plusDays(it) }.first { it.dayOfWeek == day }
+    val thisMorningAhead = day == today.dayOfWeek && (
+        todayAlarmPending ?: (week.resolve(today, oneOffs).wakeTime ?: usualWake[day])
+            ?.let { wake -> now < ZonedDateTime.of(today, wake, zone).toInstant() }
+            ?: false
+        )
+    val morningDate = if (thisMorningAhead) today else (1L..7L).map { today.plusDays(it) }.first { it.dayOfWeek == day }
     val eveningDate = (0L..6L).map { today.plusDays(it) }.first { it.dayOfWeek == day }
     val times = ScheduleTimes(config)
     val projector = DebtProjector(config)
@@ -200,9 +211,13 @@ internal class DayPlanViewModel @Inject constructor(
         nightSteps.activities,
         patterns.debtPreviewInputs,
         selectedDay.map { DayOfWeek.of(it) },
-        combine(pending, time.minuteTicks, ::Pair),
-    ) { (week, oneOffs, usual), activities, inputs, day, (scrubs, now) ->
-        dayPlanState(day, initialPart, week, oneOffs, usual, activities, inputs, scrubs, now, time.zone(), config) as DayPlanUiState
+        combine(pending, time.minuteTicks, schedule.upcomingAlarms.catch { emit(emptyList()) }, ::Triple),
+    ) { (week, oneOffs, usual), activities, inputs, day, (scrubs, now, alarms) ->
+        val today = now.atZone(time.zone()).toLocalDate()
+        // Today's alarm leaves the upcoming list once it has rung (stopped, timed out or missed).
+        val todayAlarmPending = if (week.resolve(today, oneOffs).alarmOn) alarms.any { it.occurrence.date == today } else null
+        dayPlanState(day, initialPart, week, oneOffs, usual, activities, inputs, scrubs, now, time.zone(), config, todayAlarmPending)
+            as DayPlanUiState
     }
         .catch { emit(DayPlanUiState.Unavailable) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayPlanUiState.Loading)

@@ -10,6 +10,7 @@ import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.domain.schedule.DayPart
 import com.sleepsaver.core.domain.schedule.SnoozeStyle
 import com.sleepsaver.core.domain.schedule.WakeStyle
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.feature.tonight.TonightFakes
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.writer
@@ -60,6 +61,24 @@ class DayPlanViewModelTest {
     }
 
     private fun DayPlanViewModel.ready(): DayPlanUiState.Ready = uiState.value as DayPlanUiState.Ready
+
+    @Test
+    fun `today's weekday previews this morning until its alarm has rung`() = runTest {
+        val early = TonightFakes(now = TonightSamples.at(5, 0))
+        assertThat(viewModel(early).ready().morningDate).isEqualTo(today)
+
+        // Rung and stopped at 6:20: the alarm leaves the upcoming list, and the preview moves to next week.
+        early.schedule.upcomingState.value = early.schedule.upcomingState.value.filterNot { it.occurrence.date == today }
+        early.time.advance(Duration.ofMinutes(80))
+        assertThat(viewModel(early).ready().morningDate).isEqualTo(today.plusDays(7))
+    }
+
+    @Test
+    fun `without an alarm today the morning is ahead until the wake time`() = runTest {
+        val dayOff = PlanSamples.oneOffs(dayOff = today)
+        assertThat(viewModel(TonightFakes(now = TonightSamples.at(6, 0), oneOffs = dayOff)).ready().morningDate).isEqualTo(today)
+        assertThat(viewModel(TonightFakes(now = TonightSamples.at(9, 0), oneOffs = dayOff)).ready().morningDate).isEqualTo(today.plusDays(7))
+    }
 
     @Test
     fun `the day from the route, with its dates and previews`() = runTest {
