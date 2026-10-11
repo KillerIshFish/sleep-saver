@@ -110,7 +110,7 @@
     <string name="settings_demo_body">Explore with 60 made-up nights. Your own data is kept aside. Alarms still ring as you set them.</string>
     <string name="settings_demo_switching">Switching…</string>
     <string name="settings_demo_off_title">Turn off demo data?</string>
-    <string name="settings_demo_off_body">Edits, marks, Morning feel and Night steps check-offs made in demo mode will be removed.</string>
+    <string name="settings_demo_off_body">Edits, marks, Morning feel, Night steps check-offs and Tomorrow lists made in demo mode will be removed.</string>
     <string name="settings_demo_off_confirm">Turn off</string>
     <string name="settings_demo_off_keep">Keep demo</string>
 
