@@ -12,6 +12,7 @@ import com.sleepsaver.core.alarm.mirror.MirroredCatnap
 import com.sleepsaver.core.alarm.mirror.MirroredExtra
 import com.sleepsaver.core.alarm.mirror.MirroredFeel
 import com.sleepsaver.core.alarm.mirror.MirroredHush
+import com.sleepsaver.core.alarm.mirror.MirroredLogEnd
 import com.sleepsaver.core.alarm.mirror.MirroredNight
 import com.sleepsaver.core.alarm.mirror.PendingAlarm
 import com.sleepsaver.core.alarm.mirror.unchanged
@@ -374,10 +375,17 @@ internal class NightControllerImpl @Inject constructor(
 
     // ---------------------------------------------------------------- Internals
 
-    /** Ends the whole-night log row [logId] at now when no NightService holds it (Room, so only once unlocked). */
+    /**
+     * Ends the whole-night log row [logId] at now when no NightService holds it. Room only opens once unlocked: before
+     * that the end waits in the mirror, and AlarmBootstrap.startUnlocked writes it.
+     */
     private fun closeOrphanLog(logId: Long?) {
-        if (logId == null || !scheduler.get().unlocked()) return
+        if (logId == null) return
         val end = time.now()
+        if (!scheduler.get().unlocked()) {
+            coordinator.apply { m -> MirrorUpdate(m.copy(pendingLogEnds = m.pendingLogEnds + MirroredLogEnd(logId, end.toEpochMilli())), Unit) }
+            return
+        }
         scope.launch { runCatching { nightLog.get().endMovementLog(logId, end) }.onFailure { Log.w(TAG, "Movement log not closed", it) } }
     }
 

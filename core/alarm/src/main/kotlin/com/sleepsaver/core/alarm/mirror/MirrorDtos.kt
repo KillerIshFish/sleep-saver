@@ -352,6 +352,10 @@ internal data class MirroredFeel(val wakeDate: String, val level: Int, val atEpo
     val feel: MorningFeel? get() = MorningFeel.of(level)
 }
 
+/** A whole-night movement log a stop before the first unlock ended: Room closes it at [endEpochMs] after unlock. */
+@Serializable
+internal data class MirroredLogEnd(val logId: Long, val endEpochMs: Long)
+
 /** The Garmin deep-sleep prior, so a window run can gate on it without Room. */
 @Serializable
 internal data class MirroredPrior(val binMin: Long, val sinceOnset: List<Double>, val beforeWake: List<Double>, val nightsUsed: Int) {

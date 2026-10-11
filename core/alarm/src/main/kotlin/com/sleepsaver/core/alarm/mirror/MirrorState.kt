@@ -21,6 +21,8 @@ internal data class MirrorState(
     /** Alarm events not yet in Room (the outbox): written while locked, or waiting for the next flush. */
     val pendingEvents: List<MirroredEvent> = emptyList(),
     val pendingFeel: MirroredFeel? = null,
+    /** Movement logs to close once unlocked (a planned stop before the first unlock ended their night). */
+    val pendingLogEnds: List<MirroredLogEnd> = emptyList(),
     val prior: MirroredPrior? = null,
     val use24h: Boolean = false,
     /** Incremented by every coordinator apply (diagnostics and tests; not a gate). */

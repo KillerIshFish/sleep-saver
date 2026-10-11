@@ -111,6 +111,29 @@ internal class DirectBootTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `a stop before unlock keeps the whole-night log's end in the mirror and closes the log after unlock`() {
+        graph.seed { it.copy(night = night.copy(wholeNightLog = true, logId = 9)) }
+        graph.bootstrap.startLocked()
+        now = at(today, "06:30")
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+        now = at(today, "06:31")
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(m.night).isNull()
+        assertThat(m.pendingLogEnds.map { it.logId to it.endEpochMs }).containsExactly(9L to at(today, "06:31").toEpochMilli())
+        assertThat(graph.nightLog.movementLogsEnded).isEmpty()
+        assertThat(graph.repositoryResolutions).isEqualTo(0)
+
+        plan(tomorrowAlarm)
+        setUnlocked(true)
+        graph.unlockRepositories()
+        graph.bootstrap.startUnlocked()
+
+        assertThat(graph.nightLog.movementLogsEnded).containsExactly(9L to at(today, "06:31"))
+        assertThat(m.pendingLogEnds).isEmpty()
+    }
+
+    @Test
     fun `a WINDOW before unlock senses nothing, and the wake-time ring still comes`() {
         graph.seed { it.copy(armed = mirrored(planned(today, "06:30")), upcoming = listOf(mirrored(tomorrowAlarm))) }
         graph.bootstrap.startLocked()

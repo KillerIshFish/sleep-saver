@@ -74,6 +74,7 @@ class AlarmBootstrap @Inject internal constructor(
         if (!unlockedStarted.compareAndSet(false, true)) return
         scope.launch {
             flushPendingFeel()
+            flushPendingLogEnds()
             scheduler.get().flushEvents()
             rescheduleSafely()
         }
@@ -137,6 +138,21 @@ class AlarmBootstrap @Inject internal constructor(
             }
         }
         coordinator.apply { m -> MirrorUpdate(if (m.pendingFeel == pending) m.copy(pendingFeel = null) else m, Unit) }
+    }
+
+    /** Movement logs whose night a stop before unlock ended are closed now (each one leaves the mirror once saved). */
+    private suspend fun flushPendingLogEnds() {
+        for (pending in coordinator.read().pendingLogEnds) {
+            try {
+                nightLog.get().endMovementLog(pending.logId, Instant.ofEpochMilli(pending.endEpochMs))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Buffered movement log end not saved yet", e)
+                return
+            }
+            coordinator.apply { m -> MirrorUpdate(m.copy(pendingLogEnds = m.pendingLogEnds - pending), Unit) }
+        }
     }
 
     /** An input that fails reads as null instead of ending the collector. */

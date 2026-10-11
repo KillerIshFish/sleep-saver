@@ -122,6 +122,7 @@ class AlarmMirrorTest {
         handledIds = listOf("2026-10-06T06:30", "2026-10-05T07:00"),
         pendingEvents = listOf(MirroredEvent.from(event)),
         pendingFeel = MirroredFeel(wakeDate = "2026-10-07", level = 4, atEpochMs = 7_000, offsetSec = -14_400),
+        pendingLogEnds = listOf(MirroredLogEnd(logId = 9, endEpochMs = 8_000)),
         prior = MirroredPrior(binMin = 10, sinceOnset = listOf(0.1, 0.6), beforeWake = listOf(0.2), nightsUsed = 9),
         use24h = true,
         generation = 41,

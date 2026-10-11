@@ -38,6 +38,7 @@ internal class AlarmMirror @Inject constructor(@ApplicationContext private val c
         handledIds = decode(KEY_HANDLED, ListSerializer(String.serializer())).orEmpty(),
         pendingEvents = decode(KEY_PENDING_EVENTS, ListSerializer(MirroredEvent.serializer())).orEmpty(),
         pendingFeel = decode(KEY_PENDING_FEEL, MirroredFeel.serializer()),
+        pendingLogEnds = decode(KEY_PENDING_LOG_ENDS, ListSerializer(MirroredLogEnd.serializer())).orEmpty(),
         prior = decode(KEY_PRIOR, MirroredPrior.serializer()),
         use24h = prefs.getBoolean(KEY_USE_24H, false),
         generation = prefs.getLong(KEY_GENERATION, 0L),
@@ -57,6 +58,7 @@ internal class AlarmMirror @Inject constructor(@ApplicationContext private val c
         editor.putList(KEY_HANDLED, old.handledIds, new.handledIds, String.serializer())
         editor.putList(KEY_PENDING_EVENTS, old.pendingEvents, new.pendingEvents, MirroredEvent.serializer())
         editor.put(KEY_PENDING_FEEL, old.pendingFeel, new.pendingFeel, MirroredFeel.serializer())
+        editor.putList(KEY_PENDING_LOG_ENDS, old.pendingLogEnds, new.pendingLogEnds, MirroredLogEnd.serializer())
         editor.put(KEY_PRIOR, old.prior, new.prior, MirroredPrior.serializer())
         if (old.use24h != new.use24h) editor.putBoolean(KEY_USE_24H, new.use24h)
         editor.putLong(KEY_GENERATION, new.generation)
@@ -101,6 +103,7 @@ internal class AlarmMirror @Inject constructor(@ApplicationContext private val c
         const val KEY_HANDLED = "handledIds"
         const val KEY_PENDING_EVENTS = "pendingEvents"
         const val KEY_PENDING_FEEL = "pendingFeel"
+        const val KEY_PENDING_LOG_ENDS = "pendingLogEnds"
         const val KEY_PRIOR = "prior"
         const val KEY_USE_24H = "use24h"
         const val KEY_GENERATION = "generation"
