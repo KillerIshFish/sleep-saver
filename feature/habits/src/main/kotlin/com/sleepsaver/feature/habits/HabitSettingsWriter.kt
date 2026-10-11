@@ -35,35 +35,26 @@ internal class HabitSettingsWriter @Inject constructor(
     private val order = Mutex()
 
     suspend fun setEnabled(type: HabitType, enabled: Boolean): Boolean =
-        save("Saving $type", replan = true) { habits.setEnabled(type, enabled) }
+        save("Saving $type") { habits.setEnabled(type, enabled) }
 
     suspend fun setReminder(type: HabitType, enabled: Boolean): Boolean =
-        save("Saving $type reminder", replan = true) { habits.setReminder(type, enabled) }
+        save("Saving $type reminder") { habits.setReminder(type, enabled) }
 
     suspend fun setOffset(type: HabitType, offset: Duration): Boolean =
-        save("Saving $type timing", replan = true) { habits.setOffset(type, offset) }
+        save("Saving $type timing") { habits.setOffset(type, offset) }
 
     suspend fun resetOffset(type: HabitType): Boolean =
-        save("Resetting $type timing", replan = true) { habits.resetOffset(type) }
+        save("Resetting $type timing") { habits.resetOffset(type) }
 
-    // Routine activities don't change any reminder time, so they don't replan.
+    // Routine activities are edited in feature:winddown's routine editor (the app's only one).
 
-    suspend fun setActivitySelected(id: Long, selected: Boolean): Boolean =
-        save("Selecting activity $id", replan = false) { habits.setActivitySelected(id, selected) }
-
-    suspend fun addCustomActivity(label: String, emoji: String): Boolean =
-        save("Adding activity", replan = false) { habits.addCustomActivity(label, emoji) }
-
-    suspend fun deleteActivity(id: Long): Boolean =
-        save("Removing activity $id", replan = false) { habits.deleteActivity(id) }
-
-    private suspend fun save(what: String, replan: Boolean, write: suspend () -> Unit): Boolean =
+    private suspend fun save(what: String, write: suspend () -> Unit): Boolean =
         // Started undispatched, so the lock is queued for on the caller's thread, in call order.
         appScope.async(start = CoroutineStart.UNDISPATCHED) {
             order.withLock {
                 withContext(io) {
                     if (!safely(what, write)) return@withContext false
-                    if (replan) safely("Replanning reminders") { planner.replan() }
+                    safely("Replanning reminders") { planner.replan() }
                     true
                 }
             }

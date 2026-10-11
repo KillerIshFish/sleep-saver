@@ -51,26 +51,11 @@ class HabitSettingsWriterTest {
     }
 
     @Test
-    fun `routine activity changes save without replanning`() = runTest {
-        val writer = writer(slow, planner)
-
-        assertThat(writer.setActivitySelected(2, true)).isTrue()
-        assertThat(writer.addCustomActivity("Tea", "🍵")).isTrue()
-        assertThat(writer.deleteActivity(1)).isTrue()
-
-        val activities = slow.delegate.activitiesState.value
-        assertThat(activities.first { it.id == 2L }.selected).isTrue()
-        assertThat(activities.map { it.label }).contains("Tea")
-        assertThat(activities.map { it.id }).doesNotContain(1L)
-        assertThat(planner.replans).isEqualTo(0)
-    }
-
-    @Test
     fun `a failed write reports false and leaves reminders alone`() = runTest {
         val writer = writer(FailingHabitsRepository(), planner)
 
         assertThat(writer.setEnabled(HabitType.NAP_WINDOW, true)).isFalse()
-        assertThat(writer.addCustomActivity("Tea", "🍵")).isFalse()
+        assertThat(writer.setOffset(HabitType.CAFFEINE_CUTOFF, Duration.ofHours(-8))).isFalse()
         assertThat(planner.replans).isEqualTo(0)
     }
 }
