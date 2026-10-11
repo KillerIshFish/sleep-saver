@@ -22,6 +22,7 @@ import com.sleepsaver.core.alarm.ring.RingNotifications
 import com.sleepsaver.core.alarm.ring.RingOutputs
 import com.sleepsaver.core.alarm.ring.RingSound
 import com.sleepsaver.core.alarm.ring.RingTransitions
+import com.sleepsaver.core.alarm.ring.SnoozeResult
 import com.sleepsaver.core.alarm.ring.StopResult
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.hooks.ActiveCatnap
@@ -299,13 +300,17 @@ internal class NightControllerImpl @Inject constructor(
         if (service != null && service.isSounding) service.stop() else stopFromMirror()
     }
 
-    /** Snooze when no service sounds (the FGS was refused and notification 303 stands in for it). */
+    /**
+     * Snooze when no service sounds (the FGS was refused and notification 303 stands in for it). A ring that gives way
+     * to a waiting planned ring (T8) just goes; that ring comes on RING_EXTRA.
+     */
     fun snoozeFromMirror() {
         val now = time.now()
-        val offer = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
-        val until = offer.until ?: return
+        val result = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
         RingNotifications.cancel(context, AlarmActions.ID_RING_FALLBACK)
-        RingNotifications.post(context, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(context, until, offer.lastOne, time.zone(), mirror.use24h))
+        if (result is SnoozeResult.Snoozed) {
+            RingNotifications.post(context, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(context, result.until, result.lastOne, time.zone(), mirror.use24h))
+        }
         scheduler.get().flushEventsAsync()
     }
 

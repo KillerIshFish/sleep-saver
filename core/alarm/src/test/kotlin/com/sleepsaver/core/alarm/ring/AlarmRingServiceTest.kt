@@ -10,6 +10,7 @@ import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredCatnap
+import com.sleepsaver.core.alarm.mirror.MirroredExtra
 import com.sleepsaver.core.alarm.mirror.MirroredNight
 import com.sleepsaver.core.alarm.receiver.AlarmReceiver
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
@@ -23,6 +24,7 @@ import com.sleepsaver.core.domain.schedule.WakeStyle
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.controller.ServiceController
 import java.time.Duration
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
@@ -420,6 +422,72 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(shadowOf(ring.get()).isStoppedBySelf).isFalse()
     }
 
+    /**
+     * A catnap rings from 05:25. The 05:26 alarm's RING_PLAN waits behind it, then the minute tick's reschedule turns
+     * the unanswered alarm into a CATCH_UP on the extra channel, which waits behind the nap too.
+     */
+    private fun napWithPlannedRingWaiting(): ServiceController<AlarmRingService> {
+        plan(planned(today, "05:26", mode = AlarmMode.FIXED))
+        reschedule()
+        graph.nightController.startCatnap(Duration.ofMinutes(20))
+        now = at(today, "05:25")
+        val ring = startRing(AlarmActions.KIND_CATNAP)
+        now = at(today, "05:26")
+        ring.send(ringIntent(AlarmActions.KIND_PLAN, NAP_QUEUE_ID))
+        now = at(today, "05:26:01")
+        reschedule()
+        val catchUp = checkNotNull(m.extra)
+        assertThat(catchUp.extraTrigger).isEqualTo(ExtraTrigger.CATCH_UP)
+        now = catchUp.at
+        ring.send(ringIntent(AlarmActions.KIND_EXTRA))
+        assertThat(m.ringing?.kind).isEqualTo(RingKind.NAP)
+        assertThat(m.extra).isEqualTo(catchUp)
+        return ring
+    }
+
+    @Test
+    fun `snoozing a catnap while a planned ring waits gives way to that ring instead of overwriting it`() {
+        val ring = napWithPlannedRingWaiting()
+        now = at(today, "05:26:10")
+
+        ring.send(ringAction(AlarmActions.ACTION_SNOOZE))
+
+        assertThat(m.ringing?.kind).isEqualTo(RingKind.PLANNED)
+        assertThat(m.ringing?.occurrenceId).isEqualTo(NAP_QUEUE_ID)
+        assertThat(m.ringing?.ringReason).isEqualTo(RingReason.CATCH_UP)
+        assertThat(m.extra).isNull()
+        assertThat(sounds).hasSize(2)
+        assertThat(sounds.first().stopped).isTrue()
+        assertThat(notifications.getNotification(AlarmActions.ID_SNOOZED)).isNull()
+        val nap = events.single { it.kind == RingKind.NAP }
+        assertThat(nap.outcome).isEqualTo(RingOutcome.STOPPED)
+        assertThat(nap.snoozeTimes).containsExactly(now)
+    }
+
+    @Test
+    fun `a queued planned ring that left the channel meanwhile doesn't ring what replaced it`() {
+        val ring = napWithPlannedRingWaiting()
+        val test = MirroredExtra(
+            trigger = ExtraTrigger.TEST.name,
+            atEpochMs = at(today, "05:40").toEpochMilli(),
+            ringKind = RingKind.TEST.name,
+            occurrenceId = null,
+            snoozesUsed = 0,
+            reason = RingReason.TEST.name,
+            alarm = mirrored(todayAlarm),
+            expiresAtEpochMs = at(today, "05:50").toEpochMilli(),
+        )
+        graph.seed { it.copy(extra = test) }
+        now = at(today, "05:27")
+
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra).isEqualTo(test) // it rings at its own time
+        assertThat(sounds).hasSize(1)
+        assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
+    }
+
     @Test
     fun `a catnap or test ring that comes while a planned alarm rings is dropped`() {
         armAndReachWakeTime()
@@ -465,5 +533,10 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         ring.send(ringAction(AlarmActions.ACTION_REPOST))
 
         assertThat(notifications.getNotification(AlarmActions.ID_RINGING)).isNotNull()
+    }
+
+    private companion object {
+        /** The planned alarm that waits behind a catnap ring. */
+        const val NAP_QUEUE_ID = "2026-10-06T05:26"
     }
 }

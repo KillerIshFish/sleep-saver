@@ -206,18 +206,24 @@ internal class AlarmRingService : Service() {
 
     // ---------------------------------------------------------------- T8, T9, T10
 
-    /** T8: snooze, when one is left. The service stops; the re-ring is a fresh RING with a fresh notification. */
+    /**
+     * T8: snooze, when one is left. The service stops; the re-ring is a fresh RING with a fresh notification. When a
+     * planned ring of another occurrence waits on the extra channel, this ring gives way to it instead (no "Snoozed
+     * until"), and a queued one rings right away.
+     */
     fun snooze() {
         val active = sounding ?: return run {
             nightController.snoozeFromMirror()
             if (!foreground) stopSelf()
         }
         val now = time.now()
-        val offer = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
-        val until = offer.until ?: return
+        val result = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
         silence(active)
         sounding = null
-        RingNotifications.post(this, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(this, until, offer.lastOne, time.zone(), coordinator.read().use24h))
+        if (result is SnoozeResult.Snoozed) {
+            val notification = RingNotifications.snoozed(this, result.until, result.lastOne, time.zone(), coordinator.read().use24h)
+            RingNotifications.post(this, AlarmActions.ID_SNOOZED, notification)
+        }
         publish()
         scheduler.get().flushEventsAsync()
         next()
