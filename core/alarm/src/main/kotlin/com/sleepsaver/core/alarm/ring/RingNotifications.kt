@@ -10,12 +10,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.sleepsaver.core.alarm.AlarmActions
+import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.AlarmPendingIntents
 import com.sleepsaver.core.alarm.AlarmText
 import com.sleepsaver.core.alarm.R
 import com.sleepsaver.core.alarm.mirror.MirroredRinging
 import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.alarm.SnoozeOffer
+import com.sleepsaver.core.domain.config.SleepConfig
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 
@@ -57,12 +60,16 @@ internal object RingNotifications {
     }
 
     /**
-     * 303, when the ring service couldn't start (no sound is possible): the same full-screen intent and Stop/Snooze
-     * actions on alarm_ring, so the alarm can still be seen and answered.
+     * 303, when the ring service couldn't start (no foreground service, so no tone of ours): the same full-screen intent
+     * and Stop/Snooze actions, on the alarm_ring_fallback channel, whose own sound (the phone's alarm sound, as an alarm)
+     * and vibration repeat (insistent) until the ring is answered or its ringTimeout from [ringing]'s start is up.
+     * Example: Android 12 without "Alarms & reminders", where the inexact ring alarm can't start a foreground service.
      */
-    fun fallback(context: Context, ringing: MirroredRinging?, offer: SnoozeOffer, zone: ZoneId, use24h: Boolean): Notification {
+    fun fallback(context: Context, ringing: MirroredRinging?, offer: SnoozeOffer, now: Instant, zone: ZoneId, use24h: Boolean): Notification {
         val fullScreen = AlarmPendingIntents.fullScreen(context)
-        val builder = base(context, AlarmIntents.CHANNEL_RING)
+        val ringTimeout = SleepConfig.DEFAULT.alarm.ringTimeout
+        val left = ringing?.let { Duration.between(now, it.since + ringTimeout) } ?: ringTimeout
+        val builder = base(context, AlarmChannels.CHANNEL_RING_FALLBACK)
             .setContentTitle(context.getString(R.string.alarm_fallback_title))
             .setContentText(ringing?.let { AlarmText.reason(context, it, zone, use24h) } ?: context.getString(R.string.alarm_fallback_body))
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -71,11 +78,12 @@ internal object RingNotifications {
             .setShowWhen(false)
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)
+        if (left > Duration.ZERO) builder.setTimeoutAfter(left.toMillis())
         offer.until?.let { until ->
             builder.addAction(0, context.getString(R.string.alarm_action_snooze, AlarmText.clock(until, zone, use24h)), AlarmPendingIntents.snooze(context))
         }
         builder.addAction(0, context.getString(R.string.alarm_action_stop), AlarmPendingIntents.stop(context))
-        return builder.build()
+        return builder.build().apply { flags = flags or Notification.FLAG_INSISTENT }
     }
 
     /** 302, while snoozed: "Snoozed until 6:40" (" · then the last ring"), ongoing and silent, Stop, opens the ring screen. */

@@ -46,8 +46,10 @@ internal class AlarmReceiver : BroadcastReceiver() {
 
     /**
      * T5: a 60-s wake lock (the ring service releases it) and startForegroundService(AlarmRingService, RING). When the
-     * start is refused, the ring is recorded in the mirror (so Stop/Snooze and the next reconcile work) and
-     * notification 303 shows it with the full-screen intent and Stop/Snooze; no sound is possible.
+     * start is refused (e.g. Android 12 without "Alarms & reminders": the inexact ring alarm carries no foreground-service
+     * start exemption), the ring is recorded in the mirror (so Stop/Snooze, the ringing screen and the next reconcile
+     * work) and notification 303 shows it with the full-screen intent and Stop/Snooze, ringing with the phone's alarm
+     * sound on its own channel, since no tone of ours can play.
      */
     private fun onRing(context: Context, intent: Intent, entry: AlarmEntryPoint) {
         RingWakeLock.acquire(context)
@@ -89,7 +91,7 @@ internal class AlarmReceiver : BroadcastReceiver() {
         if (decision.catnapConsumed) RingNotifications.cancel(context, AlarmActions.ID_CATNAP)
         val use24h = entry.coordinator().read().use24h
         val offer = transitions.offer(decision.ringing, now)
-        RingNotifications.post(context, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(context, decision.ringing, offer, time.zone(), use24h))
+        RingNotifications.post(context, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(context, decision.ringing, offer, now, time.zone(), use24h))
         val scheduler = entry.scheduler().get()
         if (decision.ringing.isPlanned) scheduler.replanAfterRing()
         scheduler.flushEventsAsync()

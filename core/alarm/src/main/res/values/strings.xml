@@ -3,6 +3,8 @@
     <!-- Channels -->
     <string name="alarm_channel_ring">Alarm</string>
     <string name="alarm_channel_ring_desc">The alarm when it rings</string>
+    <string name="alarm_channel_ring_fallback">Alarm backup sound</string>
+    <string name="alarm_channel_ring_fallback_desc">Your phone\'s alarm sound, for a ring Sleep Saver can\'t play itself</string>
     <string name="alarm_channel_quiet">Alarm status</string>
     <string name="alarm_channel_quiet_desc">Snoozed alarms and catnaps</string>
     <string name="alarm_channel_night">Night</string>

@@ -23,6 +23,7 @@ import com.sleepsaver.core.alarm.ring.RingOutputs
 import com.sleepsaver.core.alarm.ring.RingSound
 import com.sleepsaver.core.alarm.ring.RingTransitions
 import com.sleepsaver.core.alarm.ring.StopResult
+import com.sleepsaver.core.alarm.ring.published
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.hooks.ActiveCatnap
 import com.sleepsaver.core.data.hooks.ActiveNight
@@ -88,7 +89,13 @@ internal class NightControllerImpl @Inject constructor(
     private val transitions = RingTransitions(config)
     private val lock = Any()
     private var mirror = MirrorState()
+
+    /** The ring AlarmRingService sounds (it publishes it). */
     private var ringing: Ringing? = null
+
+    /** [state] shows a fallback ring (no service could start it; see [fallbackRinging]). */
+    private var showsFallback = false
+    private var fallbackTicker: Job? = null
     private var sensing: SensingState? = null
     private val mutableState = MutableStateFlow(NightState())
     private var preview: RingSound? = null
@@ -453,15 +460,41 @@ internal class NightControllerImpl @Inject constructor(
         val liveSensing = sensing ?: night?.takeIf { it.wholeNightLog && !NightService.running }?.let {
             SensingState(SensingMode.WHOLE_NIGHT, it.anchoredAt, running = false)
         }
+        val fallback = if (ringing == null) fallbackRinging(m) else null
+        showsFallback = fallback != null
+        if (showsFallback) tickFallback()
         mutableState.value = NightState(
             night = night?.let { ActiveNight(it.anchorId, it.anchoredAt, it.offset, it.wholeNightLog) },
             sensing = liveSensing,
             hush = m.hush?.let { HushState(it.hushColor, it.volume, it.timer, it.endsAt) },
             catnap = m.catnap?.let { ActiveCatnap(it.startedAt, it.ringAt, it.length) },
-            ringing = ringing,
+            ringing = ringing ?: fallback,
             snoozedUntil = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.SNOOZE }?.at,
             testPendingAt = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.TEST }?.at,
         )
+    }
+
+    /**
+     * Must hold [lock]. A ring no service could start (T5's fallback: notification 303 rings for it), until its
+     * ringTimeout is up. It shows as ringing so its full-screen intent and the MainActivity redirect open a ringing
+     * screen whose Stop and Snooze answer it from the mirror, instead of one that closes at once. null otherwise.
+     */
+    private fun fallbackRinging(m: MirrorState): Ringing? {
+        val r = m.ringing?.takeIf { it.fallback } ?: return null
+        val now = time.now()
+        if (now >= r.since + config.alarm.ringTimeout) return null
+        return r.published(transitions.offer(r, now), m.use24h, time.zone())
+    }
+
+    /** Must hold [lock]. While a fallback ring shows, its snooze label follows the clock and it goes at its timeout. */
+    private fun tickFallback() {
+        if (fallbackTicker?.isActive == true) return
+        fallbackTicker = scope.launch {
+            do {
+                delay(AlarmPlatform.FALLBACK_REFRESH_MS)
+                refresh()
+            } while (synchronized(lock) { showsFallback })
+        }
     }
 
     private companion object {
