@@ -18,7 +18,8 @@ data class DeepPrior(val bin: Duration, val sinceOnset: List<Double>, val before
         val fromOnset = binValue(this.sinceOnset, sinceOnset)
         val toWake = binValue(this.beforeWake, beforeWake)
         val weight = config.surfacing.priorOnsetWeight
-        return if (fromOnset != null && toWake != null) weight * fromOnset + (1 - weight) * toWake else fromOnset ?: toWake
+        if (fromOnset == null || toWake == null) return fromOnset ?: toWake
+        return weight * fromOnset + (1 - weight) * toWake
     }
 
     /** bins[floor(offset / bin)]; null when [offset] is negative or past the last bin. */

@@ -30,23 +30,26 @@ class ZTuner(private val config: SleepConfig = SleepConfig.DEFAULT) {
      */
     fun next(current: AlarmTuning?, landings: List<WakeLanding>, now: Instant, offset: ZoneOffset): AlarmTuning? {
         val surfacing = config.surfacing
-        if (current != null && now.isBefore(current.changedAt.plus(Duration.ofDays(surfacing.tuneCooldownDays)))) return null
+        val cooldownEnd = current?.changedAt?.plus(Duration.ofDays(surfacing.tuneCooldownDays))
+        if (cooldownEnd != null && now.isBefore(cooldownEnd)) return null
         val recent = landings
             .filter { it.event.mode == AlarmMode.SURFACING && it.hasStages }
             .filter { current == null || it.event.firstRingAt.isAfter(current.changedAt) }
             .sortedWith(compareByDescending<WakeLanding> { it.event.wakeDate }.thenByDescending { it.event.firstRingAt })
             .take(surfacing.tuneRecentLandings)
         val deepRestless = recent.count { it.event.reason == RingReason.RESTLESS && it.stageAtRing == LandingStage.DEEP }
+        val nonDeepMinutes = surfacing.tuneLowerNonDeep.toMinutes()
         val lateDeadline = recent.count {
-            it.event.reason == RingReason.DEADLINE && (it.windowNonDeepMinutes ?: 0) >= surfacing.tuneLowerNonDeep.toMinutes()
+            it.event.reason == RingReason.DEADLINE && (it.windowNonDeepMinutes ?: 0) >= nonDeepMinutes
         }
-        val z = effectiveZ(current)
-        val (step, reason) = when {
-            deepRestless >= surfacing.tuneRaiseDeepRings -> surfacing.restlessZStep to TuningReason.RAISED_AFTER_DEEP_RINGS
-            lateDeadline >= surfacing.tuneLowerDeadlineRings -> -surfacing.restlessZStep to TuningReason.LOWERED_AFTER_LATE_RINGS
+        val step = surfacing.restlessZStep
+        val (change, reason) = when {
+            deepRestless >= surfacing.tuneRaiseDeepRings -> step to TuningReason.RAISED_AFTER_DEEP_RINGS
+            lateDeadline >= surfacing.tuneLowerDeadlineRings -> -step to TuningReason.LOWERED_AFTER_LATE_RINGS
             else -> return null
         }
-        val next = (z + step).coerceIn(surfacing.restlessZMin, surfacing.restlessZMax)
+        val z = effectiveZ(current)
+        val next = (z + change).coerceIn(surfacing.restlessZMin, surfacing.restlessZMax)
         if (abs(next - z) < Z_EPSILON) return null
         return AlarmTuning(zThreshold = next, reason = reason, changedAt = now, offset = offset)
     }
