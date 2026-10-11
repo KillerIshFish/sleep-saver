@@ -29,13 +29,13 @@
     <string name="reminder_exercise_body">Finish intense exercise now so your body has time to cool down before bed.</string>
     <string name="reminder_dim_lights_title">Dim the lights</string>
     <string name="reminder_dim_lights_body">Switch to low, warm light. It tells your body the evening has started.</string>
-    <string name="reminder_evening_routine_title">Start winding down</string>
-    <string name="reminder_evening_routine_body">Time for your evening routine. Slow the pace and put the bright screens away.</string>
-    <string name="reminder_evening_routine_body_with_activities">Time for your evening routine: %1$s. Slow the pace and put the bright screens away.</string>
+    <string name="reminder_evening_routine_title">Night steps start now</string>
+    <string name="reminder_evening_routine_body">Time to start easing toward bed.</string>
+    <string name="reminder_evening_routine_body_with_activities">Tonight: %1$s</string>
     <string name="reminder_bedtime_title">Your sleep window is open</string>
     <string name="reminder_bedtime_body">This is your best stretch to fall asleep tonight. Head to bed when you can.</string>
     <string name="reminder_nap_title">Nap window</string>
-    <string name="reminder_nap_body">If you need a nap, now is the time. Keep it to 20–30 minutes.</string>
+    <string name="reminder_nap_body">A short nap now can lift the rest of your day. Aim for 10–20 minutes; 30 can leave you groggy at first.</string>
 
     <!-- Morning review -->
     <string name="review_ready_title">Last night has synced</string>

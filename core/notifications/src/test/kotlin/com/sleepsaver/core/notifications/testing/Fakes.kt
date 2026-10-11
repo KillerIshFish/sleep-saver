@@ -1,5 +1,8 @@
 package com.sleepsaver.core.notifications.testing
 
+import com.sleepsaver.core.data.hooks.ActiveNight
+import com.sleepsaver.core.data.hooks.NightController
+import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
@@ -8,9 +11,13 @@ import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.MorningReview
+import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.ReviewRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
+import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.habits.HabitCatalog
+import com.sleepsaver.core.domain.journal.AnchorSource
+import com.sleepsaver.core.domain.journal.MorningFeel
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DebtChangeBreakdown
 import com.sleepsaver.core.domain.model.EnergySchedule
@@ -20,6 +27,12 @@ import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
+import com.sleepsaver.core.domain.nightsteps.StepAdherence
+import com.sleepsaver.core.domain.nightsteps.StepSuggestion
+import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.core.domain.schedule.AlarmTone
+import com.sleepsaver.core.domain.schedule.WakeStyle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
@@ -111,4 +124,51 @@ class CountingReminderPlanner : ReminderPlanner {
     }
 
     override fun cancelAll() = Unit
+}
+
+/** NightController for the reminder tests: only [state] matters (the night's anchor); every action is a no-op. */
+class FakeNightController(initial: NightState = NightState()) : NightController {
+    override val state = MutableStateFlow(initial)
+
+    /** Puts the phone in the night state (Drop anchor) with [anchorId]. */
+    fun anchor(anchorId: Long, at: Instant) {
+        state.value = state.value.copy(night = ActiveNight(anchorId, at, ZoneOffset.UTC, wholeNightLog = false))
+    }
+
+    override suspend fun dropAnchor(source: AnchorSource, wholeNightLog: Boolean): Long? = null
+    override suspend fun undoAnchor(anchorId: Long) = Unit
+    override fun endNight() {
+        state.value = state.value.copy(night = null)
+    }
+    override fun resumeMovementLog() = Unit
+    override fun startHush(color: HushColor, timer: Duration?, volume: Float) = Unit
+    override fun extendHush(by: Duration) = Unit
+    override fun setHushVolume(volume: Float) = Unit
+    override fun stopHush() = Unit
+    override fun startCatnap(length: Duration): Boolean = false
+    override fun cancelCatnap() = Unit
+    override fun testRing(): Boolean = false
+    override fun snooze() = Unit
+    override fun stopRinging() = Unit
+    override fun recordMorningFeel(wakeDate: LocalDate, feel: MorningFeel) = Unit
+    override fun previewTone(tone: AlarmTone, style: WakeStyle, volume: Float) = Unit
+    override fun stopPreview() = Unit
+    override fun stopEverything() = Unit
+}
+
+/** NightStepsRepository for the reminder tests: only [tonight] matters; writes are no-ops. */
+class FakeNightStepsRepository(initial: NightStepsSession? = null) : NightStepsRepository {
+    val tonightState = MutableStateFlow(initial)
+
+    override val tonight: Flow<NightStepsSession?> = tonightState
+    override fun session(nightOf: LocalDate): Flow<NightStepsSession?> = tonightState
+    override val activities: Flow<List<RoutineActivity>> = flowOf(emptyList())
+    override val adherence: Flow<StepAdherence> = flowOf(StepAdherence(emptyList(), 0, 0, 0))
+    override val suggestions: Flow<List<StepSuggestion>> = flowOf(emptyList())
+    override suspend fun setDone(nightOf: LocalDate, activityId: Long, done: Boolean) = Unit
+    override suspend fun addTechnique(technique: Technique, label: String): Long = 0
+    override suspend fun addCustom(label: String, emoji: String, lead: Duration, duration: Duration): Long = 0
+    override suspend fun setTiming(activityId: Long, lead: Duration, duration: Duration) = Unit
+    override suspend fun setIncluded(activityId: Long, included: Boolean) = Unit
+    override suspend fun deleteCustom(activityId: Long) = Unit
 }

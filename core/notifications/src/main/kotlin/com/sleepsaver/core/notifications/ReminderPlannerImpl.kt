@@ -4,19 +4,23 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import androidx.core.content.getSystemService
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.domain.habits.HabitScheduler
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
+import com.sleepsaver.core.domain.model.ReminderCategory
 import com.sleepsaver.core.domain.model.ScheduledHabit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -35,17 +39,24 @@ import javax.inject.Singleton
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Habit reminders on one inexact alarm (docs/PLAN.md §3.8): [replan] arms
- * `AlarmManager.setAndAllowWhileIdle(RTC_WAKEUP)` for the earliest pending reminder of yesterday's, today's and
- * tomorrow's schedules (yesterday's still owns a late bedtime that falls after midnight);
- * when it fires, [onAlarm] posts every reminder due by then (±2 min) and arms the next one.
- * No exact-alarm permission, so Doze may deliver a reminder a few minutes late.
+ * Habit reminders on one alarm (docs/PLAN.md §3.8): [replan] arms the earliest pending reminder of yesterday's,
+ * today's and tomorrow's schedules (yesterday's still owns a late bedtime that falls after midnight); when it fires,
+ * [onAlarm] posts every reminder due by then (±2 min) and arms the next one.
+ *
+ * The alarm is exact (`setExactAndAllowWhileIdle`) when the app may schedule exact alarms (always below Android 12;
+ * the alarm feature holds the permission), so a Night steps start isn't delivered late. Without that access it falls
+ * back to the inexact `setAndAllowWhileIdle`, which Doze may deliver a few minutes late.
+ *
+ * Overnight quiet: after Drop anchor (NightController.state.night != null), due wind-down, bedtime and nap reminders
+ * are marked posted without being posted. The Night steps reminder names tonight's unchecked steps.
  */
 @Singleton
 class ReminderPlannerImpl internal constructor(
     private val context: Context,
     private val insights: InsightsRepository,
     private val habits: HabitsRepository,
+    private val nightSteps: NightStepsRepository,
+    private val nightController: NightController,
     private val time: TimeProvider,
     private val poster: NotificationPoster,
     private val scheduleHabits: (EnergySchedule, List<HabitSettings>) -> List<ScheduledHabit>,
@@ -55,9 +66,11 @@ class ReminderPlannerImpl internal constructor(
         @ApplicationContext context: Context,
         insights: InsightsRepository,
         habits: HabitsRepository,
+        nightSteps: NightStepsRepository,
+        nightController: NightController,
         time: TimeProvider,
         poster: NotificationPoster,
-    ) : this(context, insights, habits, time, poster, HabitScheduler()::schedule)
+    ) : this(context, insights, habits, nightSteps, nightController, time, poster, HabitScheduler()::schedule)
 
     private val planning = ReminderPlanning()
     private val store = ReminderStore(context)
@@ -87,8 +100,11 @@ class ReminderPlannerImpl internal constructor(
         var lastPosted = store.lastPosted
         if (firing) {
             val due = planning.due(upcoming, now, postedThrough, lastPosted)
-            val routine = if (due.any { it.type == HabitType.EVENING_ROUTINE }) chosenRoutine() else emptyList()
-            due.forEach { post(it, routine) }
+            // After Drop anchor the night is quiet: evening reminders count as posted without showing.
+            val anchored = nightController.state.value.night != null
+            val shown = if (anchored) due.filterNot { it.category in QUIET_AFTER_ANCHOR } else due
+            val routine = if (shown.any { it.type == HabitType.EVENING_ROUTINE }) chosenRoutine() else emptyList()
+            shown.forEach { post(it, routine) }
             store.markPosted(due)
             lastPosted = lastPosted + due.associate { it.type to it.time }
             postedThrough = planning.postedThroughAfterFiring(now)
@@ -131,16 +147,30 @@ class ReminderPlannerImpl internal constructor(
         emptyList()
     }
 
-    /** "📖 Reading, 🎧 Podcast": the evening-routine activities the user picked, for its reminder. Best effort. */
-    private suspend fun chosenRoutine(): List<String> = try {
-        withTimeoutOrNull(OTHER_DAYS_WAIT) { habits.routineActivities.first() }.orEmpty()
-            .filter { it.selected }
-            .map { "${it.emoji} ${it.label}".trim() }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Log.w(TAG, "No routine activities for the reminder", e)
-        emptyList()
+    /**
+     * "📵 Screens down, 🌊 Slow tide breathing": tonight's unchecked Night steps, for the Night steps reminder. Falls
+     * back to the selected activities when tonight's steps can't be had in time. Best effort.
+     */
+    private suspend fun chosenRoutine(): List<String> {
+        val tonight = try {
+            withTimeoutOrNull(OTHER_DAYS_WAIT) { nightSteps.tonight.first() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "No Night steps for the reminder", e)
+            null
+        }
+        if (tonight != null) return tonight.steps.filter { !it.done }.map { "${it.activity.emoji} ${it.activity.label}".trim() }
+        return try {
+            withTimeoutOrNull(OTHER_DAYS_WAIT) { habits.routineActivities.first() }.orEmpty()
+                .filter { it.selected }
+                .map { "${it.emoji} ${it.label}".trim() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "No routine activities for the reminder", e)
+            emptyList()
+        }
     }
 
     private fun post(habit: ScheduledHabit, routine: List<String>) {
@@ -150,7 +180,7 @@ class ReminderPlannerImpl internal constructor(
         } else {
             poster.text(copy.body)
         }
-        val builder = poster.builder(NotificationChannels.forCategory(habit.category), DeepLinks.energy())
+        val builder = poster.builder(NotificationChannels.forCategory(habit.category), DeepLinks.forHabit(habit.type))
             .setContentTitle(poster.text(copy.title))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -165,8 +195,14 @@ class ReminderPlannerImpl internal constructor(
         poster.post(NotificationIds.habit(habit.type), builder.build())
     }
 
-    private fun arm(at: Instant) =
-        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), alarmIntent())
+    /** Exact when allowed (always below Android 12), else the inexact allow-while-idle alarm. */
+    private fun arm(at: Instant) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), alarmIntent())
+        } else {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at.toEpochMilli(), alarmIntent())
+        }
+    }
 
     private fun alarmIntent(): PendingIntent = PendingIntent.getBroadcast(
         context,
@@ -177,6 +213,9 @@ class ReminderPlannerImpl internal constructor(
 
     private companion object {
         const val TAG = "SleepSaverReminders"
+
+        /** Reminders that stay quiet after Drop anchor. */
+        val QUIET_AFTER_ANCHOR = setOf(ReminderCategory.WIND_DOWN, ReminderCategory.BEDTIME, ReminderCategory.NAPS)
         val STATE_WAIT = 5.seconds
         val OTHER_DAYS_WAIT = 2.seconds
         val RETRY_WHILE_LOADING: Duration = Duration.ofMinutes(1)

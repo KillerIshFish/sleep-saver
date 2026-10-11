@@ -13,10 +13,14 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
+import com.sleepsaver.core.domain.nightsteps.NightStep
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.model.ScheduledHabit
 import com.sleepsaver.core.notifications.testing.FakeHabitsRepository
 import com.sleepsaver.core.notifications.testing.FakeInsightsRepository
+import com.sleepsaver.core.notifications.testing.FakeNightController
+import com.sleepsaver.core.notifications.testing.FakeNightStepsRepository
 import com.sleepsaver.core.notifications.testing.FakeTimeProvider
 import com.sleepsaver.core.notifications.testing.TestInsights.TODAY
 import com.sleepsaver.core.notifications.testing.TestInsights.at
@@ -28,6 +32,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowAlarmManager
 import java.time.Instant
 import java.time.LocalDate
 
@@ -48,8 +53,10 @@ class ReminderPlannerImplTest {
         { schedule, _ -> habitsByDate[schedule.date].orEmpty() }
 
     private val habits = FakeHabitsRepository()
+    private val nightSteps = FakeNightStepsRepository()
+    private val nightController = FakeNightController()
     private val planner = ReminderPlannerImpl(
-        context, insights, habits, time, NotificationPoster(context), scheduleHabits,
+        context, insights, habits, nightSteps, nightController, time, NotificationPoster(context), scheduleHabits,
     )
 
     private val todayHabits = listOf(
@@ -63,19 +70,122 @@ class ReminderPlannerImplTest {
     @Before
     fun setUp() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        ShadowAlarmManager.setCanScheduleExactAlarms(true) // Robolectric's default is false
         insights.schedules[tomorrow] = schedule(tomorrow)
         habitsByDate[tomorrow] = listOf(habit(HabitType.MORNING_LIGHT, at(tomorrow, "07:20")))
         insights.state.value = InsightsState.Ready(insights(time.now, todayHabits))
     }
 
     @Test
-    fun `arms one inexact wake-up alarm for the earliest pending reminder`() = runTest {
+    fun `arms one exact wake-up alarm for the earliest pending reminder`() = runTest {
         planner.replan()
 
         val alarm = alarms.scheduledAlarms.single()
         assertThat(alarm.triggerAtMs).isEqualTo(at(TODAY, "12:45").toEpochMilli())
         assertThat(alarm.type).isEqualTo(AlarmManager.RTC_WAKEUP)
         assertThat(alarm.isAllowWhileIdle).isTrue()
+        assertThat(alarm.windowLengthMs).isEqualTo(ShadowAlarmManager.WINDOW_EXACT)
+    }
+
+    @Test
+    fun `without exact-alarm access the reminder alarm is inexact`() = runTest {
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+
+        planner.replan()
+
+        val alarm = alarms.scheduledAlarms.single()
+        assertThat(alarm.triggerAtMs).isEqualTo(at(TODAY, "12:45").toEpochMilli())
+        assertThat(alarm.isAllowWhileIdle).isTrue()
+        assertThat(alarm.windowLengthMs).isEqualTo(ShadowAlarmManager.WINDOW_HEURISTIC)
+    }
+
+    @Test
+    fun `after Drop anchor wind-down, bedtime and nap reminders stay quiet but count as posted`() = runTest {
+        planner.replan()
+        nightController.anchor(anchorId = 7, at = at(TODAY, "20:55"))
+        time.now = at(TODAY, "21:00:20")
+
+        planner.onAlarm()
+
+        assertThat(notifications.allNotifications).isEmpty()
+        assertThat(ReminderStore(context).lastPosted.keys).containsAtLeast(HabitType.DIM_LIGHTS, HabitType.EVENING_ROUTINE)
+        // The bedtime reminder that follows is quiet too, and a replan doesn't bring the evening ones back.
+        time.now = at(TODAY, "22:15:10")
+        planner.onAlarm()
+        planner.replan()
+        assertThat(notifications.allNotifications).isEmpty()
+        assertThat(ReminderStore(context).lastPosted.keys).contains(HabitType.BEDTIME)
+    }
+
+    @Test
+    fun `reminders outside the evening still post while anchored`() = runTest {
+        nightController.anchor(anchorId = 7, at = at(TODAY, "00:30"))
+        time.now = at(TODAY, "12:44")
+        planner.replan()
+        time.now = at(TODAY, "12:45")
+
+        planner.onAlarm()
+
+        assertThat(notifications.getNotification(NotificationIds.habit(HabitType.CAFFEINE_CUTOFF))).isNotNull()
+    }
+
+    @Test
+    fun `the Night steps reminder lists tonight's unchecked steps`() = runTest {
+        val bedtime = at(TODAY, "22:45")
+        nightSteps.tonightState.value = NightStepsSession(
+            nightOf = TODAY,
+            windowStart = at(TODAY, "21:00"),
+            bedtime = bedtime,
+            steps = listOf(
+                NightStep(RoutineActivity(1, "Screens down", "S", isCustom = false, selected = true), bedtime, bedtime, doneAt = at(TODAY, "21:01")),
+                NightStep(RoutineActivity(2, "Slow tide breathing", "T", isCustom = false, selected = true), bedtime, bedtime, doneAt = null),
+                NightStep(RoutineActivity(3, "Tomorrow list", "L", isCustom = false, selected = true), bedtime, bedtime, doneAt = null),
+            ),
+            enabled = true,
+        )
+        habits.activities.value = listOf(RoutineActivity(9, "Reading", "R", isCustom = false, selected = true))
+        planner.replan()
+        time.now = at(TODAY, "21:00:20")
+
+        planner.onAlarm()
+
+        val notification = notifications.getNotification(NotificationIds.habit(HabitType.EVENING_ROUTINE))
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Night steps start now")
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString()).isEqualTo("Tonight: T Slow tide breathing, L Tomorrow list")
+    }
+
+    @Test
+    fun `without steps to list the Night steps reminder says it plainly`() = runTest {
+        planner.replan()
+        time.now = at(TODAY, "21:00:20")
+
+        planner.onAlarm()
+
+        val text = notifications.getNotification(NotificationIds.habit(HabitType.EVENING_ROUTINE))
+            .extras.getCharSequence(Notification.EXTRA_TEXT).toString()
+        assertThat(text).isEqualTo("Time to start easing toward bed.")
+    }
+
+    @Test
+    fun `deep links per category`() = runTest {
+        planner.replan()
+        time.now = at(TODAY, "21:00:20")
+        planner.onAlarm()
+        time.now = at(TODAY, "22:15:20")
+        planner.onAlarm()
+
+        fun linkOf(type: HabitType) = shadowOf(notifications.getNotification(NotificationIds.habit(type)).contentIntent).savedIntent.dataString
+        assertThat(linkOf(HabitType.DIM_LIGHTS)).isEqualTo("sleepsaver://nightsteps")
+        assertThat(linkOf(HabitType.EVENING_ROUTINE)).isEqualTo("sleepsaver://nightsteps")
+        assertThat(linkOf(HabitType.BEDTIME)).isEqualTo("sleepsaver://tonight")
+        HabitType.entries.forEach { type ->
+            val expected = when (type) {
+                HabitType.DIM_LIGHTS, HabitType.EVENING_ROUTINE -> "sleepsaver://nightsteps"
+                HabitType.BEDTIME -> "sleepsaver://tonight"
+                else -> "sleepsaver://energy"
+            }
+            assertThat(DeepLinks.forHabit(type).toString()).isEqualTo(expected)
+        }
     }
 
     @Test
@@ -248,7 +358,7 @@ class ReminderPlannerImplTest {
     }
 
     @Test
-    fun `the evening routine reminder names the chosen activities`() = runTest {
+    fun `without tonight's steps the Night steps reminder names the chosen activities`() = runTest {
         habits.activities.value = listOf(
             RoutineActivity(1, "Reading", "R", isCustom = false, selected = true),
             RoutineActivity(2, "Gaming", "G", isCustom = false, selected = false),
@@ -260,8 +370,7 @@ class ReminderPlannerImplTest {
 
         val text = notifications.getNotification(NotificationIds.habit(HabitType.EVENING_ROUTINE))
             .extras.getCharSequence(Notification.EXTRA_TEXT).toString()
-        assertThat(text).contains("R Reading")
-        assertThat(text).doesNotContain("Gaming")
+        assertThat(text).isEqualTo("Tonight: R Reading")
     }
 
     @Test

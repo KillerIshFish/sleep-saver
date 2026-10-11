@@ -1,5 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application />
+    <!-- Exact alarms: USE_EXACT_ALARM (alarm app, can't be revoked); SCHEDULE_EXACT_ALARM only where USE_EXACT_ALARM doesn't exist. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <!-- Install-time; the health foreground service's prerequisite (no prompt). Sampling stays at 25 Hz. -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application>
+        <!-- Only our own explicit PendingIntents reach it. Rings before the first unlock after a reboot. -->
+        <receiver
+            android:name="com.sleepsaver.core.alarm.receiver.AlarmReceiver"
+            android:directBootAware="true"
+            android:exported="false" />
+
+        <!-- System broadcasts reach non-exported receivers. Never starts a service. -->
+        <receiver
+            android:name="com.sleepsaver.core.alarm.receiver.AlarmBootReceiver"
+            android:directBootAware="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.sleepsaver.core.alarm.ring.AlarmRingService"
+            android:directBootAware="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Not direct-boot aware: it writes Room. -->
+        <service
+            android:name="com.sleepsaver.core.alarm.night.NightService"
+            android:exported="false"
+            android:foregroundServiceType="health|mediaPlayback" />
+    </application>
 </manifest>

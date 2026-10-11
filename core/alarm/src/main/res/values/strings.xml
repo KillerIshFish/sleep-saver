@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Channels -->
+    <string name="alarm_channel_ring">Alarm</string>
+    <string name="alarm_channel_ring_desc">The alarm when it rings</string>
+    <string name="alarm_channel_quiet">Alarm status</string>
+    <string name="alarm_channel_quiet_desc">Snoozed alarms and catnaps</string>
+    <string name="alarm_channel_night">Night</string>
+    <string name="alarm_channel_night_desc">Hush and the movement log</string>
+
+    <!-- The ring notification: title by kind, body by reason -->
+    <string name="alarm_ring_title_planned">Good morning</string>
+    <string name="alarm_ring_title_catnap">Catnap over</string>
+    <string name="alarm_ring_title_test">Test ring</string>
+    <string name="alarm_ring_restless">A restless moment · %1$s before %2$s</string>
+    <string name="alarm_ring_wake_time">Your wake time</string>
+    <string name="alarm_ring_snooze_over">Snooze over</string>
+    <string name="alarm_ring_catnap">Time to get up</string>
+    <string name="alarm_ring_test">This is how your alarm sounds.</string>
+    <string name="alarm_ring_catch_up">Your %1$s alarm, a little late</string>
+    <string name="alarm_ring_backup">Your alarm again</string>
+    <string name="alarm_action_snooze">Snooze until %1$s</string>
+    <string name="alarm_action_stop">Stop</string>
+    <string name="alarm_minutes">%1$d min</string>
+
+    <!-- Snooze, catnap, fallback -->
+    <string name="alarm_snoozed">Snoozed until %1$s</string>
+    <string name="alarm_snoozed_last">Snoozed until %1$s · then the last ring</string>
+    <string name="alarm_catnap_pending">Catnap · rings at %1$s</string>
+    <string name="alarm_action_cancel">Cancel</string>
+    <string name="alarm_fallback_title">Your alarm</string>
+    <string name="alarm_fallback_body">Tap to see your alarm.</string>
+
+    <!-- Night notification (no times except "never later than") -->
+    <string name="alarm_night_hush">Hush · %1$s</string>
+    <string name="alarm_hush_white">White</string>
+    <string name="alarm_hush_pink">Pink</string>
+    <string name="alarm_hush_brown">Brown</string>
+    <string name="alarm_night_log">Movement log on</string>
+    <string name="alarm_night_window">Getting ready for your alarm</string>
+    <string name="alarm_night_never_later">Never later than %1$s</string>
+    <string name="alarm_action_hush_stop">Stop Hush</string>
+    <string name="alarm_action_hush_extend">+15 min</string>
+</resources>

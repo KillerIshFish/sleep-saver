@@ -3,6 +3,7 @@ package com.sleepsaver.core.notifications
 import android.content.Context
 import android.util.Log
 import com.sleepsaver.core.data.di.ApplicationScope
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
@@ -18,7 +19,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
@@ -33,13 +36,15 @@ class NotificationsBootstrap @Inject constructor(
     private val insights: InsightsRepository,
     private val habits: HabitsRepository,
     private val planner: ReminderPlanner,
+    private val nightController: NightController,
     @ApplicationScope private val scope: CoroutineScope,
 ) {
     private val started = AtomicBoolean(false)
 
     /**
-     * Creates the notification channels, then replans reminders whenever the habit times or settings change.
-     * The minute-by-minute insights refresh doesn't replan: only what the reminders depend on is compared.
+     * Creates the notification channels, then replans reminders whenever the habit times or settings change, and when
+     * an anchor is dropped or lifted (overnight quiet). The minute-by-minute insights refresh doesn't replan: only what
+     * the reminders depend on is compared.
      */
     @OptIn(FlowPreview::class)
     fun start() {
@@ -51,6 +56,13 @@ class NotificationsBootstrap @Inject constructor(
                 .debounce(2.seconds)
                 .distinctUntilChanged()
                 .catch { Log.w(TAG, "Reminder inputs failed", it) }
+                .collectLatest { replanSafely() }
+        }
+        scope.launch {
+            nightController.state.map { it.night?.anchorId }
+                .distinctUntilChanged()
+                .drop(1) // the value at start needs no replan of its own
+                .catch { Log.w(TAG, "Night state failed", it) }
                 .collectLatest { replanSafely() }
         }
     }

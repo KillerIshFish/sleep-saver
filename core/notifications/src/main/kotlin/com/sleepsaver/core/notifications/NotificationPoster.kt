@@ -12,6 +12,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.model.HabitType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
@@ -23,6 +24,17 @@ internal object DeepLinks {
     fun energy(): Uri = Uri.parse("sleepsaver://energy")
     fun review(): Uri = Uri.parse("sleepsaver://review")
     fun review(wakeDate: LocalDate): Uri = review().buildUpon().appendQueryParameter("wakeDate", wakeDate.toString()).build()
+    fun nightSteps(): Uri = Uri.parse(AlarmIntents.DEEP_LINK_NIGHT_STEPS)
+    fun tonight(): Uri = Uri.parse(AlarmIntents.DEEP_LINK_TONIGHT)
+
+    /** Where a habit reminder opens: Night steps for the evening ones, Tonight for bedtime, else the energy schedule. */
+    fun forHabit(type: HabitType): Uri = when (type) {
+        HabitType.EVENING_ROUTINE, HabitType.DIM_LIGHTS -> nightSteps()
+        HabitType.BEDTIME -> tonight()
+        HabitType.MORNING_LIGHT, HabitType.CAFFEINE_CUTOFF, HabitType.LARGE_MEAL_CUTOFF, HabitType.ALCOHOL_CUTOFF,
+        HabitType.EXERCISE_CUTOFF, HabitType.NAP_WINDOW,
+        -> energy()
+    }
 }
 
 /** Stable notification ids: posting again for the same thing replaces the old notification. */
