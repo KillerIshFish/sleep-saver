@@ -26,6 +26,11 @@ internal object RingNotifications {
      * 300, the ringing foreground notification on alarm_ring: CATEGORY_ALARM, max priority, ongoing, full-screen
      * intent and content intent = the ringing screen; Snooze (only when available, "Snooze until 6:40") and Stop. Its
      * delete intent snoozes when it can, else posts it again: it never stops silently.
+     *
+     * Never setSilent: NotificationCompat makes a silent notification a child of a "silent" group with
+     * GROUP_ALERT_SUMMARY, and SystemUI (Android 13+) then neither launches its full-screen intent nor shows it as a
+     * heads-up. The service is the only sound anyway (alarm_ring has no sound or vibration); only-alert-once keeps the
+     * once-a-minute re-posts of the snooze label from alerting again.
      */
     fun ring(context: Context, ringing: MirroredRinging, offer: SnoozeOffer, zone: ZoneId, use24h: Boolean): Notification {
         val fullScreen = AlarmPendingIntents.fullScreen(context)
@@ -38,7 +43,7 @@ internal object RingNotifications {
             .setOngoing(true)
             .setAutoCancel(false)
             .setShowWhen(false)
-            .setSilent(true) // the service plays the sound
+            .setOnlyAlertOnce(true)
             .setFullScreenIntent(fullScreen, true)
             .setContentIntent(fullScreen)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
