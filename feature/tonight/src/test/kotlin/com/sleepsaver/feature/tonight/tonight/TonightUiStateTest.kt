@@ -50,6 +50,28 @@ class TonightUiStateTest {
     }
 
     @Test
+    fun `once its window opens, the card stays on this morning's alarm until it has rung`() {
+        val now = at(6, 20, date = wednesday)
+
+        val windowOpen = s.ready(s.inputs(now))
+
+        // The night has moved on to tonight ...
+        assertThat(windowOpen.nightOf).isEqualTo(wednesday)
+        assertThat(windowOpen.wakeDate).isEqualTo(thursday)
+        // ... but the 6:45 about to ring is what the card and the week strip show (and Day off acts on).
+        val card = windowOpen.alarmCard as AlarmCardModel.On
+        assertThat(card.wakeDate).isEqualTo(wednesday)
+        assertThat(card.thisMorning).isTrue()
+        assertThat(windowOpen.week.first().date).isEqualTo(wednesday)
+
+        // Rung and stopped: it leaves the planned alarms, and the card moves on to tomorrow.
+        val rung = s.ready(s.inputs(now, alarms = s.alarms(now).filterNot { it.occurrence.date == wednesday }))
+        assertThat(rung.alarmCard.wakeDate).isEqualTo(thursday)
+        assertThat((rung.alarmCard as AlarmCardModel.On).thisMorning).isFalse()
+        assertThat(rung.week.first().date).isEqualTo(thursday)
+    }
+
+    @Test
     fun `a debt-aware night opens the window earlier`() {
         val now = at(14, 0)
         val alarms = listOf(PlanSamples.plannedAlarm(date = wednesday, debtAware = true))

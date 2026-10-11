@@ -44,6 +44,7 @@ internal sealed interface TonightUiState {
 
     /**
      * The tab in [phase]. [wakeDate] is the next morning (today in the small hours); [nightOf] the evening before it.
+     * [alarmCard] and [week] start from [wakeDate], or from today while today's alarm is still to ring ([cardDate]).
      * [night] is set while the no-clock night (or a dropped anchor) is on. [armed] = some alarm will ring, so a
      * blocker is worth a warning. [noNights] = no Garmin nights yet: times come from Settings.
      */
@@ -165,7 +166,8 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
         config = config,
     )
     val wakeDate = clock.wakeDate
-    val card = alarmCard(wakeDate, clock.today, i.week, i.oneOffs, i.alarms, i.zone)
+    val cardDate = cardDate(clock.today, wakeDate, i.now, i.alarms)
+    val card = alarmCard(cardDate, clock.today, i.week, i.oneOffs, i.alarms, i.zone)
 
     val debtPreview = if (clock.phase == TonightPhase.EVENING) {
         i.debtInputs?.let { inputs ->
@@ -230,7 +232,7 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
         hush = hush,
         catnap = catnap,
         week = (0L until DAYS_IN_STRIP).map { offset ->
-            val date = wakeDate.plusDays(offset)
+            val date = cardDate.plusDays(offset)
             val resolved = i.week.resolve(date, i.oneOffs)
             WeekStripDay(date, resolved.wakeTime, resolved.alarmMode, resolved.alarmOn)
         },
@@ -238,6 +240,17 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
         demo = i.settings.demoMode,
         noNights = insights == null,
     )
+}
+
+/**
+ * The date the alarm card and "This week" start from: the [wakeDate], except while today's planned alarm is still to
+ * ring after its window opened. The night has moved on to tonight by then (NightRules.focus), but that alarm is the
+ * one about to ring, to see, skip or change. Example: a 6:45 alarm with a 30-min window: at 6:20 the card shows this
+ * morning's 6:45; once it has rung (it leaves the planned [alarms]), tomorrow's.
+ */
+internal fun cardDate(today: LocalDate, wakeDate: LocalDate, now: Instant, alarms: List<PlannedAlarm>): LocalDate {
+    val todayAlarm = alarms.firstOrNull { it.occurrence.date == today }
+    return if (todayAlarm != null && now >= todayAlarm.window.start) today else wakeDate
 }
 
 /**

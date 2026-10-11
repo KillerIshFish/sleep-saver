@@ -174,7 +174,7 @@ private fun AlarmSection(
 @Composable
 private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, showPreview: Boolean) {
     val secondary = SleepSaverTheme.colors.textSecondary
-    val dayName = formatDayShort(state.wakeDate.dayOfWeek)
+    val dayName = formatDayShort(state.alarmCard.wakeDate.dayOfWeek)
     SleepSaverCard(Modifier.fillMaxWidth()) {
         when (val alarm = state.alarmCard) {
             is AlarmCardModel.On -> {
