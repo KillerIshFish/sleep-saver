@@ -296,6 +296,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `with notifications blocked a Quiet bed ring still gets 2 min of sound after its silent start`() {
+        plan(planned(today, "06:30", mode = AlarmMode.FIXED, style = WakeStyle.QUIET_BED), tomorrowAlarm)
+        reschedule()
+        now = target
+        notifications.setNotificationsEnabled(false)
+        startRing(AlarmActions.KIND_PLAN, id)
+
+        advance(Duration.ofMinutes(2))
+        assertThat(m.ringing).isNotNull()
+        assertThat(sounds.single().started).isTrue()
+        advance(Duration.ofMinutes(2))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+    }
+
+    @Test
     fun `with the alarm channel off a ring stops after 2 min, and catnap and test ring are refused`() {
         armAndReachWakeTime()
         val channel = notificationManager.getNotificationChannel(AlarmIntents.CHANNEL_RING)

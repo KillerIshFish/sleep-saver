@@ -1,6 +1,7 @@
 package com.sleepsaver.core.domain.config
 
 import com.sleepsaver.core.domain.alarm.CueProfile
+import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.domain.schedule.WakeStyle
@@ -51,7 +52,10 @@ data class AlarmConfig(
     val missedGrace: Duration = Duration.ofMinutes(15),
     /** Catch-up and resume rings are armed this far ahead (AlarmManager clamps to ≥ 5 s anyway). */
     val catchUpDelay: Duration = Duration.ofSeconds(5),
-    /** With notifications or the alarm channel blocked a ring has no Stop button, so it stops itself after this. */
+    /**
+     * With notifications or the alarm channel blocked a ring has no Stop button, so it stops itself after sounding this
+     * long: counted from the speaker start ([ringCap]), so Quiet bed's vibration-only minutes don't use it up.
+     */
     val notificationsBlockedRingCap: Duration = Duration.ofMinutes(2),
     /**
      * Without exact-alarm access the wake-time ring uses setWindow(target − this, this): early rather than late.
@@ -115,5 +119,17 @@ data class AlarmConfig(
         WakeStyle.STANDARD -> standard
         WakeStyle.FIRM -> firm
         WakeStyle.QUIET_BED -> quietBed
+    }
+
+    /**
+     * How long a ring of [kind] in [style] sounds before it stops itself (T10): testRingLength for a test ring, else
+     * ringTimeout, or with the ring UI blocked ([uiBlocked], no Stop button) notificationsBlockedRingCap after the
+     * style's speaker start, so the ring always gets to make a sound. Never more than ringTimeout.
+     * Example: blocked, a Standard ring stops at 2 min and a Quiet bed ring (speaker from 2 min) at 4 min.
+     */
+    fun ringCap(kind: RingKind, style: WakeStyle, uiBlocked: Boolean): Duration = when {
+        kind == RingKind.TEST -> testRingLength
+        uiBlocked -> minOf(cue(style).speakerAfter + notificationsBlockedRingCap, ringTimeout)
+        else -> ringTimeout
     }
 }
