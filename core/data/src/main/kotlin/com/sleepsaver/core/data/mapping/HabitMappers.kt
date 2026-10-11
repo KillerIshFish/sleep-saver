@@ -8,6 +8,7 @@ import com.sleepsaver.core.data.repository.ReviewStatus
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
+import com.sleepsaver.core.domain.nightsteps.Technique
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -31,12 +32,16 @@ fun HabitSettings.toEntity(sortOrder: Int): HabitEntity = HabitEntity(
     sortOrder = sortOrder,
 )
 
+/** The technique is null for custom activities and for a technique name this version doesn't know. */
 fun RoutineActivityEntity.toDomain(): RoutineActivity = RoutineActivity(
     id = id,
     label = label,
     emoji = emoji,
     isCustom = isCustom,
     selected = selected,
+    technique = enumOrNull<Technique>(techniqueKey),
+    lead = Duration.ofMinutes(leadMin.toLong()),
+    duration = Duration.ofMinutes(durationMin.toLong()),
 )
 
 fun RoutineActivity.toEntity(sortOrder: Int): RoutineActivityEntity = RoutineActivityEntity(
@@ -46,6 +51,9 @@ fun RoutineActivity.toEntity(sortOrder: Int): RoutineActivityEntity = RoutineAct
     isCustom = isCustom,
     selected = selected,
     sortOrder = sortOrder,
+    techniqueKey = technique?.name,
+    leadMin = lead.toMinutes().toInt(),
+    durationMin = duration.toMinutes().toInt(),
 )
 
 /** null for a status this version doesn't know. */

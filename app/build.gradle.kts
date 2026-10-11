@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:ui"))
     implementation(project(":core:notifications"))
+    implementation(project(":core:alarm"))
     implementation(project(":feature:sleep"))
     implementation(project(":feature:energy"))
     implementation(project(":feature:progress"))
@@ -38,6 +39,8 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:learn"))
     implementation(project(":feature:widget"))
+    implementation(project(":feature:tonight"))
+    implementation(project(":feature:winddown"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)

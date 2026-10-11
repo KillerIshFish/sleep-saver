@@ -10,6 +10,7 @@ import com.sleepsaver.core.data.testing.instant
 import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
+import com.sleepsaver.core.domain.nightsteps.Technique
 import org.junit.Test
 import java.time.Duration
 import java.time.LocalDate
@@ -39,6 +40,20 @@ class HabitMappersTest {
 
         assertThat(entity).isEqualTo(RoutineActivityEntity(4, "Puzzles", "🧩", isCustom = true, selected = true, sortOrder = 9))
         assertThat(entity.toDomain()).isEqualTo(activity)
+    }
+
+    @Test
+    fun `routine activity carries its technique and timing, an unknown technique reads as none`() {
+        val activity = RoutineActivity(
+            id = 2, label = "Slow tide breathing", emoji = "🌊", isCustom = false, selected = true,
+            technique = Technique.SLOW_TIDE, lead = Duration.ofMinutes(30), duration = Duration.ofMinutes(10),
+        )
+
+        val entity = activity.toEntity(sortOrder = 2)
+
+        assertThat(entity).isEqualTo(RoutineActivityEntity(2, "Slow tide breathing", "🌊", false, true, 2, "SLOW_TIDE", 30, 10))
+        assertThat(entity.toDomain()).isEqualTo(activity)
+        assertThat(entity.copy(techniqueKey = "FOOT_SOAK").toDomain().technique).isNull()
     }
 
     @Test
