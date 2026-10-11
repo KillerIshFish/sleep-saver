@@ -6,12 +6,17 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.db.AddedAwakeEntity
 import com.sleepsaver.core.data.db.ManualNapEntity
+import com.sleepsaver.core.data.db.MorningFeelEntity
 import com.sleepsaver.core.data.db.MorningReviewEntity
+import com.sleepsaver.core.data.db.NightMarkEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
+import com.sleepsaver.core.data.db.NightStepLogEntity
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.db.SourceKind
+import com.sleepsaver.core.data.db.TomorrowListEntity
 import com.sleepsaver.core.data.db.VitalEntity
 import com.sleepsaver.core.data.mapping.toEntity
+import com.sleepsaver.core.data.repository.RoutineActivityStore
 import com.sleepsaver.core.data.source.VitalIds
 import com.sleepsaver.core.data.sync.FakeSettingsRepository
 import com.sleepsaver.core.data.sync.FakeTimeProvider
@@ -49,6 +54,7 @@ class DemoModeControllerTest {
     private val settings = FakeSettingsRepository()
     private val demoSource = FakeSleepDataSource(time)
     private val writer = DemoDataWriter(demoSource, db.sleepSessionDao(), db.vitalDao(), time)
+    private val journalWriter = DemoJournalWriter(db, RoutineActivityStore(db, ApplicationProvider.getApplicationContext()), demoSource, time)
     private lateinit var backupFile: File
     private lateinit var backup: DemoEditBackupFile
     private lateinit var controller: DemoModeControllerImpl
@@ -66,6 +72,7 @@ class DemoModeControllerTest {
     private fun controller(backup: DemoEditBackupFile) = DemoModeControllerImpl(
         settingsRepository = settings,
         writer = writer,
+        journalWriter = journalWriter,
         database = db,
         timeProvider = time,
         backup = backup,
@@ -93,9 +100,16 @@ class DemoModeControllerTest {
         val awake: List<AddedAwakeEntity>,
         val naps: List<ManualNapEntity>,
         val reviews: List<MorningReviewEntity>,
+        val marks: List<NightMarkEntity> = emptyList(),
+        val feel: List<MorningFeelEntity> = emptyList(),
+        val stepLogs: List<NightStepLogEntity> = emptyList(),
+        val tomorrowLists: List<TomorrowListEntity> = emptyList(),
     )
 
-    /** Real edits on 2026-10-03 … 06 (the same wake dates the demo nights use). */
+    /**
+     * Real edits and journal rows on 2026-10-03 … 06 (the same dates the demo nights use). The journal rows are ones
+     * the demo journal never writes (Unwell, a feel from the ringing screen, activity 999, a Tomorrow list).
+     */
     private suspend fun insertRealEdits(): Edits {
         db.nightOverrideDao().upsert(override("2026-10-03", earlier, awakeMinutes = 15))
         db.nightOverrideDao().upsert(override("2026-10-05", earlier, awakeMinutes = 45))
@@ -103,6 +117,10 @@ class DemoModeControllerTest {
         db.manualNapDao().insert(ManualNapEntity(startEpochMs = earlier, endEpochMs = earlier + 1_800_000, offsetSec = -14_400, createdAtEpochMs = earlier))
         db.morningReviewDao().upsert(MorningReviewEntity("2026-10-03", "CONFIRMED", earlier, 60, 50))
         db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "DISMISSED", earlier, null, null))
+        db.nightMarkDao().insert(NightMarkEntity("2026-10-05", "UNWELL", earlier, -14_400))
+        db.morningFeelDao().upsert(MorningFeelEntity("2026-10-06", 2, earlier, -14_400, "RING"))
+        db.nightStepLogDao().upsert(NightStepLogEntity("2026-10-04", 999, null, earlier, -14_400))
+        db.tomorrowListDao().upsert(TomorrowListEntity("2026-10-05", "call Sam", earlier, -14_400))
         return currentEdits()
     }
 
@@ -111,6 +129,10 @@ class DemoModeControllerTest {
         awake = db.addedAwakeDao().getAll(),
         naps = db.manualNapDao().getAll(),
         reviews = db.morningReviewDao().getAll(),
+        marks = db.nightMarkDao().getAll(),
+        feel = db.morningFeelDao().getAll(),
+        stepLogs = db.nightStepLogDao().getAll(),
+        tomorrowLists = db.tomorrowListDao().getAll(),
     )
 
     private suspend fun assertEdits(expected: Edits) {
@@ -118,11 +140,25 @@ class DemoModeControllerTest {
         assertThat(db.addedAwakeDao().getAll()).containsExactlyElementsIn(expected.awake)
         assertThat(db.manualNapDao().getAll()).containsExactlyElementsIn(expected.naps)
         assertThat(db.morningReviewDao().getAll()).containsExactlyElementsIn(expected.reviews)
+        assertThat(db.nightMarkDao().getAll()).containsExactlyElementsIn(expected.marks)
+        assertThat(db.morningFeelDao().getAll()).containsExactlyElementsIn(expected.feel)
+        assertThat(db.nightStepLogDao().getAll()).containsExactlyElementsIn(expected.stepLogs)
+        assertThat(db.tomorrowListDao().getAll()).containsExactlyElementsIn(expected.tomorrowLists)
     }
 
-    private suspend fun assertNoEdits() = assertEdits(Edits(emptyList(), emptyList(), emptyList(), emptyList()))
+    /** No real edit left in the tables: the four edit tables are empty, the journal holds only demo rows. */
+    private suspend fun assertNoEdits() {
+        assertThat(db.nightOverrideDao().getAll()).isEmpty()
+        assertThat(db.addedAwakeDao().getAll()).isEmpty()
+        assertThat(db.manualNapDao().getAll()).isEmpty()
+        assertThat(db.morningReviewDao().getAll()).isEmpty()
+        assertThat(db.nightMarkDao().getAll().map { it.mark }).doesNotContain("UNWELL")
+        assertThat(db.morningFeelDao().getAll().map { it.source }).doesNotContain("RING")
+        assertThat(db.nightStepLogDao().getAll().map { it.activityId }).doesNotContain(999L)
+        assertThat(db.tomorrowListDao().getAll()).isEmpty()
+    }
 
-    /** What a user does while trying the demo: edits on the same wake dates as the real edits. */
+    /** What a user does while trying the demo: edits on the same dates as the real edits. */
     private suspend fun editDuringDemo() {
         time.now = time.now.plus(Duration.ofHours(1))
         val during = time.now.toEpochMilli()
@@ -131,6 +167,9 @@ class DemoModeControllerTest {
         db.manualNapDao().insert(ManualNapEntity(startEpochMs = during, endEpochMs = during + 1_800_000, offsetSec = -14_400, createdAtEpochMs = during))
         db.addedAwakeDao().insert(AddedAwakeEntity(wakeDate = "2026-10-05", startEpochMs = during, endEpochMs = during + 600_000, createdAtEpochMs = during))
         db.morningReviewDao().upsert(MorningReviewEntity("2026-10-06", "ADJUSTED", during, 120, 90))
+        db.nightMarkDao().insert(NightMarkEntity("2026-10-05", "STRESS", during, -14_400))
+        db.morningFeelDao().upsert(MorningFeelEntity("2026-10-05", 5, during, -14_400, "RING"))
+        db.tomorrowListDao().upsert(TomorrowListEntity("2026-10-06", "demo list", during, -14_400))
     }
 
     // ------------------------------------------------------------ on / off
@@ -168,6 +207,46 @@ class DemoModeControllerTest {
         assertThat(saved.addedAwake.map { it.toEntity() }).containsExactlyElementsIn(real.awake)
         assertThat(saved.manualNaps.map { it.toEntity() }).containsExactlyElementsIn(real.naps)
         assertThat(saved.reviews.map { it.toEntity() }).containsExactlyElementsIn(real.reviews)
+        assertThat(saved.version).isEqualTo(2)
+        assertThat(saved.nightMarks.map { it.toEntity() }).containsExactlyElementsIn(real.marks)
+        assertThat(saved.morningFeel.map { it.toEntity() }).containsExactlyElementsIn(real.feel)
+        assertThat(saved.nightStepLogs.map { it.toEntity() }).containsExactlyElementsIn(real.stepLogs)
+        assertThat(saved.tomorrowLists.map { it.toEntity() }).containsExactlyElementsIn(real.tomorrowLists)
+    }
+
+    @Test
+    fun enable_writesADemoJournalForTheDemoNights_andDisableRemovesIt() = runTest {
+        val real = insertRealEdits()
+
+        controller.setDemoMode(true)
+
+        val wakeDates = demoSource.generate().sessions.map { it.end.atZone(zone).toLocalDate() }.toSet()
+        val marks = db.nightMarkDao().getAll()
+        val feel = db.morningFeelDao().getAll()
+        val stepLogs = db.nightStepLogDao().getAll()
+        // Marks on about 20 % of the nights, and two marks with enough nights on each side for the statistics.
+        val markedNights = marks.map { it.wakeDate }.toSet()
+        assertThat(markedNights.size).isIn(9..16)
+        assertThat(marks.groupBy { it.mark }.values.count { it.size >= 6 }).isAtLeast(2)
+        assertThat(marks.all { LocalDate.parse(it.wakeDate) in wakeDates }).isTrue()
+        // Morning feel on about 70 % of the nights, Night steps on about 60 % of the evenings (each one done).
+        assertThat(feel.size).isIn(30..54)
+        assertThat(feel.all { it.level in 1..5 && LocalDate.parse(it.wakeDate) in wakeDates }).isTrue()
+        val evenings = stepLogs.groupBy { it.nightOf }
+        assertThat(evenings.size).isIn(25..47)
+        assertThat(evenings.values.all { logs -> logs.map { it.activityId }.toSet().size >= 2 }).isTrue()
+        assertThat(db.tomorrowListDao().getAll()).isEmpty()
+
+        // The same nights always get the same rows.
+        controller.setDemoMode(false)
+        assertEdits(real)
+        controller.setDemoMode(true)
+        assertThat(db.nightMarkDao().getAll()).containsExactlyElementsIn(marks)
+        assertThat(db.morningFeelDao().getAll()).containsExactlyElementsIn(feel)
+        assertThat(db.nightStepLogDao().getAll()).containsExactlyElementsIn(stepLogs)
+
+        controller.setDemoMode(false)
+        assertEdits(real)
     }
 
     @Test
@@ -231,11 +310,17 @@ class DemoModeControllerTest {
     fun enable_keepsABackupLeftByAnInterruptedSwitch() = runTest {
         // A switch that saved the real edits and emptied the tables, then died before setting the flag.
         val real = insertRealEdits()
-        backup.write(DemoEditBackup.of(real.overrides, real.awake, real.naps, real.reviews))
+        backup.write(
+            DemoEditBackup.of(real.overrides, real.awake, real.naps, real.reviews, real.marks, real.feel, real.stepLogs, real.tomorrowLists),
+        )
         db.nightOverrideDao().deleteAll()
         db.addedAwakeDao().deleteAll()
         db.manualNapDao().deleteAll()
         db.morningReviewDao().deleteAll()
+        db.nightMarkDao().deleteAll()
+        db.morningFeelDao().deleteAll()
+        db.nightStepLogDao().deleteAll()
+        db.tomorrowListDao().deleteAll()
         val savedBytes = backupFile.readBytes()
 
         controller.setDemoMode(true)

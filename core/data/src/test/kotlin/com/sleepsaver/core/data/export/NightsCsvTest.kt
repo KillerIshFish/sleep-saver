@@ -24,8 +24,20 @@ class NightsCsvTest {
 
         assertThat(csv).isEqualTo(
             "wake_date,night_of,fell_asleep_local,woke_up_local,total_min,main_min,awake_min,nap_min," +
-                "deep_min,light_min,rem_min,efficiency_pct,interruptions,source,edited,manual\r\n",
+                "deep_min,light_min,rem_min,efficiency_pct,interruptions,source,edited,manual," +
+                "morning_feel,marks,anchor_latency_min\r\n",
         )
+    }
+
+    @Test
+    fun `the v2 columns hold Morning feel, lowercased marks and the anchor latency`() {
+        val night = testNight(date)
+
+        val row = NightsCsv.row(night, CsvExtras(morningFeel = 2, marks = listOf("ALCOHOL", "STRESS"), anchorLatencyMin = 15))
+        val csv = buildString { NightsCsv.write(listOf(night), this) { CsvExtras(morningFeel = 5, marks = emptyList(), anchorLatencyMin = null) } }
+
+        assertThat(row.takeLast(3)).containsExactly("2", "alcohol;stress", "15").inOrder()
+        assertThat(csv.split("\r\n")[1]).endsWith(",5,,")
     }
 
     @Test
@@ -52,7 +64,7 @@ class NightsCsvTest {
 
         assertThat(NightsCsv.row(night)).containsExactly(
             "2026-10-06", "2026-10-05", "2026-10-05 23:10", "2026-10-06 06:40",
-            "440", "420", "30", "20", "80", "250", "90", "93", "2", GARMIN, "false", "false",
+            "440", "420", "30", "20", "80", "250", "90", "93", "2", GARMIN, "false", "false", "", "", "",
         ).inOrder()
     }
 
@@ -75,9 +87,9 @@ class NightsCsvTest {
         val manualRow = NightsCsv.row(manual)
 
         assertThat(napRow).containsExactly(
-            "2026-10-06", "2026-10-05", "", "", "25", "0", "0", "25", "", "", "", "", "0", GARMIN, "false", "false",
+            "2026-10-06", "2026-10-05", "", "", "25", "0", "0", "25", "", "", "", "", "0", GARMIN, "false", "false", "", "", "",
         ).inOrder()
-        assertThat(manualRow.takeLast(3)).containsExactly("", "true", "true").inOrder()
+        assertThat(manualRow.subList(13, 16)).containsExactly("", "true", "true").inOrder()
         assertThat(manualRow[11]).isEqualTo("100")
     }
 
@@ -108,7 +120,7 @@ class NightsCsvTest {
 
         assertThat(lines).hasSize(4)
         assertThat(lines.last()).isEmpty()
-        assertThat(lines[1]).isEqualTo("2026-10-06,2026-10-05,2026-10-05 23:00,2026-10-06 07:00,480,480,0,0,,,,100,0,\"com.example,tracker\",false,false")
+        assertThat(lines[1]).isEqualTo("2026-10-06,2026-10-05,2026-10-05 23:00,2026-10-06 07:00,480,480,0,0,,,,100,0,\"com.example,tracker\",false,false,,,")
         assertThat(lines[2]).startsWith("2026-10-07,2026-10-06,")
     }
 }

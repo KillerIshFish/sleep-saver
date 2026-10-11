@@ -2,16 +2,21 @@ package com.sleepsaver.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.testing.FakeHabitsRepository
+import com.sleepsaver.core.data.testing.FakeScheduleRepository
 import com.sleepsaver.core.data.testing.FakeSettingsRepository
 import com.sleepsaver.core.data.testing.FakeSleepRepository
 import com.sleepsaver.core.data.testing.FakeTimeProvider
 import com.sleepsaver.core.data.testing.GARMIN
 import com.sleepsaver.core.data.testing.assumeInsightsEngineImplemented
 import com.sleepsaver.core.data.testing.instant
+import com.sleepsaver.core.data.testing.latencySource
 import com.sleepsaver.core.data.testing.napOnlyDay
 import com.sleepsaver.core.data.testing.testNight
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.energy.EnergyScheduleCalculator
+import com.sleepsaver.core.domain.journal.Anchor
+import com.sleepsaver.core.domain.journal.AnchorSource
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.BlockKind
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.model.HabitSettings
@@ -19,16 +24,20 @@ import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepBlock
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
@@ -39,11 +48,22 @@ class InsightsRepositoryImplTest {
     private val settings = FakeSettingsRepository()
     private val habits = FakeHabitsRepository()
     private val time = FakeTimeProvider(now = instant("2026-10-06T09:00:00Z"))
+    private val schedule = FakeScheduleRepository()
+    private val anchors = MutableStateFlow<List<Anchor>>(emptyList())
 
     private fun TestScope.repository(
         sleepRepository: SleepRepository = sleep,
         habitsRepository: HabitsRepository = habits,
-    ) = InsightsRepositoryImpl(sleepRepository, settings, habitsRepository, time, backgroundScope, StandardTestDispatcher(testScheduler))
+    ) = InsightsRepositoryImpl(
+        sleepRepository,
+        settings,
+        habitsRepository,
+        schedule,
+        latencySource(sleepRepository, anchors, time),
+        time,
+        backgroundScope,
+        StandardTestDispatcher(testScheduler),
+    )
 
     @Test
     fun `starts loading, then reports no nights while none is present`() = runTest {
@@ -233,5 +253,35 @@ class InsightsRepositoryImplTest {
         runCurrent()
 
         assertThat(schedules.last()?.actualWake).isEqualTo(instant("2026-10-07T06:10:00Z"))
+    }
+
+    @Test
+    fun `the schedule follows the week plan, its Night steps switch and the personal latency`() = runTest {
+        assumeInsightsEngineImplemented()
+        val tomorrow = today.plusDays(1)
+        sleep.state.value = (0L..6L).map { testNight(today.minusDays(it)) }.reversed()
+        settings.state.update { it.copy(sleep = it.sleep.copy(bedtimeMode = BedtimeMode.SLEEP_NEED, sleepNeed = Duration.ofHours(8))) }
+        // Wednesday morning at 05:30; Tuesday evening without Night steps.
+        schedule.weekState.update { week ->
+            val wednesday = week.day(DayOfWeek.WEDNESDAY)
+            val tuesday = week.day(DayOfWeek.TUESDAY)
+            week.with(wednesday.copy(morning = wednesday.morning.copy(wakeTime = LocalTime.of(5, 30))))
+                .with(tuesday.copy(evening = tuesday.evening.copy(nightStepsOn = false)))
+        }
+        val repository = repository()
+
+        val planned = repository.schedule(today).first()!!
+        assertThat(repository.schedule(tomorrow).first()!!.typicalWake.toLocalTime()).isEqualTo(LocalTime.of(5, 30))
+        assertThat(planned.nightStepsOn).isFalse()
+        // B = Wednesday 05:30 − 8 h need − the default 15 min to fall asleep.
+        assertThat(planned.targetBedtime).isEqualTo(instant("2026-10-06T21:15:00Z"))
+
+        // Seven Drop anchors 40 min before the watch's onset: the personal latency (40 min) replaces the default.
+        anchors.value = (0L..6L).map { back ->
+            val wakeDate = today.minusDays(back)
+            Anchor(back + 1, wakeDate.minusDays(1).atTime(22, 20).toInstant(ZoneOffset.UTC), ZoneOffset.UTC, wakeDate, AnchorSource.TONIGHT, false)
+        }
+        assertThat(repository.schedule(today).first { it?.targetBedtime != planned.targetBedtime }!!.targetBedtime)
+            .isEqualTo(instant("2026-10-06T20:50:00Z"))
     }
 }

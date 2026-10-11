@@ -12,12 +12,14 @@ import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.VitalEntity
 import com.sleepsaver.core.data.export.NightsCsv
 import com.sleepsaver.core.data.testing.FakeHabitsRepository
+import com.sleepsaver.core.data.testing.FakeScheduleRepository
 import com.sleepsaver.core.data.testing.FakeSettingsRepository
 import com.sleepsaver.core.data.testing.FakeTimeProvider
 import com.sleepsaver.core.data.testing.GARMIN
 import com.sleepsaver.core.data.testing.assumeNightAssemblyImplemented
 import com.sleepsaver.core.data.testing.inMemoryDatabase
 import com.sleepsaver.core.data.testing.instant
+import com.sleepsaver.core.data.testing.latencySource
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.NightOverride
 import com.sleepsaver.core.domain.model.SourceSelection
@@ -225,7 +227,16 @@ class SleepRepositoryImplTest {
         ExportRepositoryImpl(db, repository, settings, time, StandardTestDispatcher(testScheduler)).exportCsv(out)
         assertThat(out.toString(Charsets.UTF_8.name())).isEqualTo(buildString { NightsCsv.write(emptyList(), this) })
 
-        val insights = InsightsRepositoryImpl(repository, settings, FakeHabitsRepository(), time, backgroundScope, StandardTestDispatcher(testScheduler))
+        val insights = InsightsRepositoryImpl(
+            repository,
+            settings,
+            FakeHabitsRepository(),
+            FakeScheduleRepository(),
+            latencySource(repository, db, time),
+            time,
+            backgroundScope,
+            StandardTestDispatcher(testScheduler),
+        )
         assertThat(insights.state.first { it != InsightsState.Loading }).isEqualTo(InsightsState.NoNights)
 
         // Once the row is fixed the nights come back.

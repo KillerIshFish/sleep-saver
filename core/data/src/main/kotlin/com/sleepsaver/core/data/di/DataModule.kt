@@ -26,8 +26,18 @@ import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.HabitsRepositoryImpl
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsRepositoryImpl
+import com.sleepsaver.core.data.repository.JournalRepository
+import com.sleepsaver.core.data.repository.JournalRepositoryImpl
+import com.sleepsaver.core.data.repository.NightLogRepository
+import com.sleepsaver.core.data.repository.NightLogRepositoryImpl
+import com.sleepsaver.core.data.repository.NightStepsRepository
+import com.sleepsaver.core.data.repository.NightStepsRepositoryImpl
+import com.sleepsaver.core.data.repository.PatternsRepository
+import com.sleepsaver.core.data.repository.PatternsRepositoryImpl
 import com.sleepsaver.core.data.repository.ReviewRepository
 import com.sleepsaver.core.data.repository.ReviewRepositoryImpl
+import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.data.repository.ScheduleRepositoryImpl
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SettingsRepositoryImpl
 import com.sleepsaver.core.data.repository.SleepRepository
@@ -124,4 +134,21 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun dataResetter(impl: DataResetterImpl): DataResetter
+
+    // v2. Allowed repository → repository edges: §3.4 (each impl's KDoc lists its own).
+
+    @Binds
+    abstract fun scheduleRepository(impl: ScheduleRepositoryImpl): ScheduleRepository
+
+    @Binds
+    abstract fun nightStepsRepository(impl: NightStepsRepositoryImpl): NightStepsRepository
+
+    @Binds
+    abstract fun journalRepository(impl: JournalRepositoryImpl): JournalRepository
+
+    @Binds
+    abstract fun nightLogRepository(impl: NightLogRepositoryImpl): NightLogRepository
+
+    @Binds
+    abstract fun patternsRepository(impl: PatternsRepositoryImpl): PatternsRepository
 }

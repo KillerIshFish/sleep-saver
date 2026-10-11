@@ -15,6 +15,9 @@ import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepDebt
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.patterns.PersonalLatency
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -34,12 +37,22 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Runs the domain engine over the stored nights. All computation happens on the default dispatcher. */
+/**
+ * Runs the domain engine over the stored nights. All computation happens on the default dispatcher.
+ *
+ * The sleep settings it computes with carry the week plan, its one-offs and the active personal latency, so the
+ * schedule (W, B, wind-down length, Night steps switch) follows the plan everywhere: home, timeline, reminders.
+ *
+ * DI edges (§3.4): the v1 dependencies plus [ScheduleRepository] and [PersonalLatencySource] (neither depends back on
+ * Insights).
+ */
 @Singleton
-class InsightsRepositoryImpl @Inject constructor(
+class InsightsRepositoryImpl @Inject internal constructor(
     sleepRepository: SleepRepository,
     private val settingsRepository: SettingsRepository,
     habitsRepository: HabitsRepository,
+    scheduleRepository: ScheduleRepository,
+    latencySource: PersonalLatencySource,
     private val timeProvider: TimeProvider,
     @ApplicationScope scope: CoroutineScope,
     @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
@@ -52,9 +65,15 @@ class InsightsRepositoryImpl @Inject constructor(
     /** Nights that never fail: an error reads as no nights (SleepRepositoryImpl already guarantees this). */
     private val nights: Flow<List<Night>> = sleepRepository.nights.orFallback(TAG, "Nights") { emptyList() }
 
-    private val sleepSettings: Flow<UserSleepSettings> = settingsRepository.settings
-        .orFallback(TAG, "Settings") { AppSettings() }
-        .map { it.sleep }
+    /** The Settings values with the week plan, its one-offs and the personal latency (once active) merged in. */
+    private val sleepSettings: Flow<UserSleepSettings> = combine(
+        settingsRepository.settings.orFallback(TAG, "Settings") { AppSettings() }.map { it.sleep },
+        scheduleRepository.weekPlan.orFallback(TAG, "Week plan") { WeekPlan.DEFAULT },
+        scheduleRepository.oneOffs.orFallback(TAG, "One-offs") { OneOffs() },
+        latencySource.latency.orFallback(TAG, "Personal latency") { PersonalLatency(values = 0, median = null, active = false) },
+    ) { sleep, week, oneOffs, latency ->
+        sleep.copy(week = week, oneOffs = oneOffs, personalLatency = latency.median?.takeIf { latency.active })
+    }
         .distinctUntilChanged()
 
     /**
