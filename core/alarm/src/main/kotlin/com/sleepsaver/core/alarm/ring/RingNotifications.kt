@@ -86,7 +86,7 @@ internal object RingNotifications {
         return builder.build().apply { flags = flags or Notification.FLAG_INSISTENT }
     }
 
-    /** 302, while snoozed: "Snoozed until 6:40" (" · then the last ring"), ongoing and silent, Stop, opens the ring screen. */
+    /** 302, while snoozed: "Snoozed until 6:40" (" · then the last ring"), ongoing and silent, Stop, opens Tonight. */
     fun snoozed(context: Context, until: Instant, lastOne: Boolean, zone: ZoneId, use24h: Boolean): Notification {
         val time = AlarmText.clock(until, zone, use24h)
         return base(context, AlarmIntents.CHANNEL_QUIET)
@@ -94,7 +94,9 @@ internal object RingNotifications {
             .setOngoing(true)
             .setSilent(true)
             .setShowWhen(false)
-            .setContentIntent(AlarmPendingIntents.fullScreen(context))
+            // The app, like the snooze's next-alarm entry: nothing rings while snoozed, so the ringing screen would
+            // close the moment it opened.
+            .setContentIntent(AlarmPendingIntents.show(context))
             .addAction(0, context.getString(R.string.alarm_action_stop), AlarmPendingIntents.stopSnoozed(context))
             .build()
     }

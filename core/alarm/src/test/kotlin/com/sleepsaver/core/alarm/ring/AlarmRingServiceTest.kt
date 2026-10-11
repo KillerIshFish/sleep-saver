@@ -175,6 +175,8 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(snoozed.channelId).isEqualTo(AlarmIntents.CHANNEL_QUIET)
         assertThat(snoozed.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Snoozed until 6:39\u00A0AM · then the last ring")
         assertThat(snoozed.actions.single().title.toString()).isEqualTo("Stop")
+        // Tapping it opens the app: the ringing screen has nothing to show while snoozed and would close at once.
+        assertThat(shadowOf(snoozed.contentIntent).savedIntent.data.toString()).isEqualTo(AlarmIntents.DEEP_LINK_TONIGHT)
         assertThat(ringExtraAt).isEqualTo(at(today, "06:39:20"))
         assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.SNOOZE)
         assertThat(m.extra?.snoozesUsed).isEqualTo(1)
