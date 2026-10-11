@@ -146,6 +146,17 @@ class EnergyScreenshotTest : ScreenshotTest() {
         }
     }
 
+    /** At night the now pill reads "Now", with no time. */
+    @Test
+    fun nightMode() = captureScreen("energy_night_mode") { Screen(EnergyTestData.nightMode()) }
+
+    @Test
+    fun nightModeLargeFont() = captureScreen("energy_night_mode_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+            Screen(EnergyTestData.nightMode())
+        }
+    }
+
     @Test
     fun eveningWindDown24h() = captureScreen("energy_evening_24h") {
         CompositionLocalProvider(LocalUse24HourClock provides true) { Screen(EnergyTestData.ready(now = at(21, 10))) }

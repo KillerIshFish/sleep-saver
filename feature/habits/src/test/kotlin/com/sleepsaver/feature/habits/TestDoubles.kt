@@ -4,12 +4,14 @@ import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.RoutineActivity
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.plus
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import java.io.IOException
+import java.time.DayOfWeek
 import java.time.Duration
 
 /** Counts replans so tests can check that every reminder-relevant change re-arms the alarms. */
@@ -67,3 +69,9 @@ class SlowOffsetHabitsRepository(val delegate: FakeHabitsRepository = FakeHabits
 /** The fake's default activities plus one custom tile. */
 val ActivitiesWithCustom: List<RoutineActivity> =
     FakeHabitsRepository.DEFAULT_ACTIVITIES + RoutineActivity(8, "Herbal tea", "🍵", isCustom = true, selected = true)
+
+/** The default week plan with Night steps switched off on [evenings]. */
+fun weekWithStepsOff(vararg evenings: DayOfWeek): WeekPlan = evenings.fold(WeekPlan.DEFAULT) { week, day ->
+    val plan = week.day(day)
+    week.with(plan.copy(evening = plan.evening.copy(nightStepsOn = false)))
+}

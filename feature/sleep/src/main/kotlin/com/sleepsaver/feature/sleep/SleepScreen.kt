@@ -75,6 +75,8 @@ class SleepActions(
     val onUseSuggestedNeed: () -> Unit = {},
     val onDismissNeedSuggestion: () -> Unit = {},
     val onReminderChange: (HabitType, Boolean) -> Unit = { _, _ -> },
+    /** The "Tonight" row: the Tonight tab. */
+    val onOpenTonight: () -> Unit = {},
 )
 
 @Composable
@@ -88,6 +90,7 @@ internal fun SleepScreen(
     onOpenSettings: () -> Unit,
     onOpenHealthConnectSetup: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenTonight: () -> Unit = {},
     viewModel: SleepViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -107,6 +110,7 @@ internal fun SleepScreen(
     val openHabits by rememberUpdatedState(onOpenHabits)
     val openEnergy by rememberUpdatedState(onOpenEnergy)
     val openHealthConnectSetup by rememberUpdatedState(onOpenHealthConnectSetup)
+    val openTonight by rememberUpdatedState(onOpenTonight)
 
     val actions = remember(viewModel, context, lifecycle) {
         // Leaving the app: a second tap while the first launch is under way would open it twice.
@@ -143,6 +147,7 @@ internal fun SleepScreen(
                 viewModel.onReminderChange(type, on)
                 if (on) notifications.onReminderTurnedOn()
             },
+            onOpenTonight = { openTonight() },
         )
     }
     SleepContent(state = state, actions = actions, modifier = modifier)

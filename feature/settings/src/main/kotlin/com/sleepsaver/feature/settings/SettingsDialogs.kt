@@ -18,6 +18,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Checklist
@@ -567,6 +568,7 @@ internal fun ResetDialogCard(resetting: Boolean, onConfirm: () -> Unit, onDismis
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
             ResetItem(Icons.Rounded.Bedtime, stringResource(R.string.settings_reset_item_nights))
             ResetItem(Icons.Rounded.Checklist, stringResource(R.string.settings_reset_item_habits))
+            ResetItem(Icons.Rounded.Alarm, stringResource(R.string.settings_reset_item_alarms))
             ResetItem(Icons.Rounded.Tune, stringResource(R.string.settings_reset_item_settings))
         }
         Spacer(Modifier.height(Spacing.l))

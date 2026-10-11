@@ -9,11 +9,11 @@
     <string name="nav_learn">Learn</string>
 
     <string name="privacy_title">Privacy</string>
-    <string name="privacy_intro">Sleep Saver turns the sleep your watch records into a sleep-debt number and a daily energy schedule. Here is exactly what it touches.</string>
+    <string name="privacy_intro">Sleep Saver turns the sleep your watch records into a sleep-debt number and a daily energy schedule, and wakes you with the alarms you set. Here is exactly what it touches.</string>
     <string name="privacy_what_title">What we read</string>
-    <string name="privacy_what_body">From Health Connect, with your permission: sleep sessions and sleep stages, and, if you allow them, heart rate, resting heart rate, heart rate variability and steps. Sleep is required; everything else is optional and only used for the Sleep Quality charts.</string>
+    <string name="privacy_what_body">From Health Connect, with your permission: sleep sessions and sleep stages, and, if you allow them, heart rate, resting heart rate, heart rate variability and steps. Sleep is required; everything else is optional and only used for the Sleep Quality charts. From this phone, only while your alarm\'s surfacing window or the optional movement log runs: the motion sensor, reduced to one movement number per 30 seconds. No microphone. What you enter: marks, Morning feel, Night steps check-offs and Tomorrow lists. What the app records: your alarm history (when it rang, snoozes and stops), when you dropped anchor, and when Hush played.</string>
     <string name="privacy_where_title">Where it goes</string>
-    <string name="privacy_where_body">Nowhere. Everything is stored in a private database on this phone. Sleep Saver has no account, no servers, no analytics and makes no network requests.</string>
+    <string name="privacy_where_body">Nowhere. Everything is stored in a private database on this phone. Sleep Saver has no account, no servers, no analytics and makes no network requests. Your next alarm is also kept in a small file the phone can read before you unlock it after a restart, so it still rings.</string>
     <string name="privacy_write_title">What we write</string>
     <string name="privacy_write_body">Nothing to Health Connect. When you adjust a night, your change is saved inside Sleep Saver next to the original data, so you can always revert it.</string>
     <string name="privacy_control_title">Your control</string>

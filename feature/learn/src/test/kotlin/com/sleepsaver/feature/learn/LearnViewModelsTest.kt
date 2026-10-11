@@ -35,7 +35,7 @@ class LearnViewModelsTest {
 
         val state = viewModel.uiState.first { it is LearnUiState.Ready } as LearnUiState.Ready
 
-        assertThat(state.articles).hasSize(10)
+        assertThat(state.articles).hasSize(13)
         assertThat(state.articles.map { it.order }).isInStrictOrder()
     }
 

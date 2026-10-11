@@ -2,7 +2,6 @@
 <resources>
     <!-- Shared -->
     <string name="habits_back">Back</string>
-    <string name="habits_cancel">Cancel</string>
     <string name="habits_go_back">Go back</string>
     <string name="habits_loading">Loading your habits</string>
     <!-- Shown instead of a time when there is no schedule yet. -->
@@ -44,7 +43,7 @@
     <string name="habits_why_dim_lights">Bright evening light tells your body it\'s still daytime and holds sleepiness back. Turning down lamps and screens as your wind-down starts lets your natural night-time signals build.</string>
     <string name="habits_why_evening_routine">A short, familiar routine tells your mind the day is over. Pick a few easy things you enjoy and start them as your wind-down begins, so drifting off comes more naturally.</string>
     <string name="habits_why_bedtime">This is when your best window for falling asleep opens, worked out from your rhythm and sleep need. Getting into bed now makes it easier to drift off and helps you pay down sleep debt.</string>
-    <string name="habits_why_nap_window">Energy naturally sags in the early afternoon, which makes it the easiest time to nap. Keep it to 20–30 minutes so you wake up refreshed and still sleep well tonight.</string>
+    <string name="habits_why_nap_window">Energy naturally sags in the early afternoon, which makes it the easiest time to nap. Keep it to 10–20 minutes so you wake up refreshed and still sleep well tonight.</string>
 
     <!-- Habit detail -->
     <string name="habits_detail_today">Today</string>
@@ -59,7 +58,10 @@
     <string name="habits_detail_default">Default: %1$s</string>
     <string name="habits_detail_activities">Your activities</string>
     <string name="habits_detail_activities_none">You haven\'t picked any activities yet.</string>
-    <string name="habits_detail_choose_activities">Choose activities</string>
+    <string name="habits_detail_edit_night_steps">Edit Night steps</string>
+    <!-- Evenings the week plan switches Night steps off for. "Off on Fri, Sat · from your week plan" -->
+    <string name="habits_detail_steps_off">Off on %1$s · from your week plan</string>
+    <string name="habits_detail_steps_off_every_evening">Off every evening · from your week plan</string>
     <string name="habits_detail_not_found_title">This habit isn\'t available</string>
     <string name="habits_detail_not_found_body">It may have changed in an update. Head back to see the habits you can use.</string>
     <string name="habits_detail_times_pending">Your time for this appears once your first night has synced.</string>
@@ -99,26 +101,4 @@
     <string name="habits_notifications_off_title">Notifications are off</string>
     <string name="habits_notifications_off_body">Reminders can\'t reach you until Sleep Saver is allowed to send notifications.</string>
     <string name="habits_notifications_turn_on">Turn on notifications</string>
-
-    <!-- Evening routine -->
-    <string name="habits_routine_close">Close</string>
-    <string name="habits_routine_title">Evening routine</string>
-    <string name="habits_routine_subtitle">Spend the last of today\'s energy, then ease into sleep.</string>
-    <string name="habits_routine_hint">Pick wind-down activities you look forward to: low effort and relaxing.</string>
-    <string name="habits_routine_custom">Custom</string>
-    <string name="habits_routine_add_custom">Add your own activity</string>
-    <string name="habits_routine_add_to_schedule">Add to schedule</string>
-    <string name="habits_routine_save">Save routine</string>
-    <string name="habits_routine_long_press_hint">Press and hold one of your own to remove it.</string>
-    <string name="habits_routine_remove_action">Remove</string>
-    <!-- "Remove “Tea”?" -->
-    <string name="habits_routine_delete_title">Remove “%1$s”?</string>
-    <string name="habits_routine_delete_body">It comes out of your routine. You can add it again any time.</string>
-    <string name="habits_routine_delete_confirm">Remove</string>
-    <string name="habits_routine_custom_title">Add your own</string>
-    <string name="habits_routine_custom_body">Anything calm you enjoy before bed.</string>
-    <string name="habits_routine_custom_label">Activity</string>
-    <string name="habits_routine_custom_label_placeholder">e.g. Herbal tea</string>
-    <string name="habits_routine_custom_emoji">Emoji</string>
-    <string name="habits_routine_custom_add">Add</string>
 </resources>

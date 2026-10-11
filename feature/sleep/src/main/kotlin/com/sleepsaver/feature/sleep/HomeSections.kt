@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.EventBusy
@@ -79,6 +80,7 @@ import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatNightLabel
 import com.sleepsaver.core.ui.format.formatShift
+import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.format.timeRange
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
@@ -100,6 +102,16 @@ internal fun ColumnScope.ReadyBody(state: SleepUiState.Ready, actions: SleepActi
     }
     Spacer(Modifier.height(if (banner != null) Spacing.xl else Spacing.l))
     DebtSummary(state, actions, onOpenSource)
+
+    state.tonight?.let { tonight ->
+        Spacer(Modifier.height(Spacing.xl))
+        TonightRow(
+            tonight = tonight,
+            state = state,
+            onOpen = actions.onOpenTonight,
+            modifier = ScreenPadding.fillMaxWidth(),
+        )
+    }
 
     state.needSuggestion?.let { suggestion ->
         Spacer(Modifier.height(Spacing.xl))
@@ -358,6 +370,66 @@ internal fun SourceLabel.shortName(): String = when (this) {
     is SourceLabel.App -> name
 }
 
+// ---------------------------------------------------------------- Tonight
+
+/**
+ * One tappable line about tonight, opening the Tonight tab: "Night steps from 9:45 PM · Alarm 6:30 AM". At night it
+ * only says how the morning goes ("Alarm set · never later than 6:30 AM"), dimmed, and never the current time.
+ */
+@Composable
+private fun TonightRow(
+    tonight: TonightSummary,
+    state: SleepUiState.Ready,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val alarm = tonight.alarm?.let { clockTime(it).unbreakable() }
+    val line = when {
+        state.nightMode -> when {
+            alarm == null -> stringResource(R.string.sleep_tonight_night_no_alarm)
+            tonight.surfacing -> stringResource(R.string.sleep_tonight_night_surfacing, alarm)
+            else -> stringResource(R.string.sleep_tonight_night_fixed, alarm)
+        }
+        tonight.stepsFrom != null -> {
+            val from = clockTime(tonight.stepsFrom, state.zone).unbreakable()
+            if (alarm != null) {
+                stringResource(R.string.sleep_tonight_steps_alarm, from, alarm)
+            } else {
+                stringResource(R.string.sleep_tonight_steps_no_alarm, from)
+            }
+        }
+        alarm != null -> stringResource(R.string.sleep_tonight_alarm, alarm)
+        else -> stringResource(R.string.sleep_tonight_no_alarm)
+    }
+    val tint = if (state.nightMode) SleepSaverTheme.colors.textSecondary else MaterialTheme.colorScheme.primary
+    SleepSaverCard(modifier = modifier, onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Outlined.Alarm, tint = tint)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.sleep_tonight_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = SleepSaverTheme.colors.textSecondary,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = SleepSaverTheme.colors.textTertiary,
+            )
+        }
+    }
+}
+
 // ---------------------------------------------------------------- Sleep need suggestion
 
 @Composable
@@ -559,8 +631,13 @@ private fun NextUpCard(
         } else {
             clockTime(habit.time, state.zone).unbreakable()
         }
-        val wait = Duration.between(state.now, habit.time).coerceAtLeast(Duration.ofMinutes(1))
-        stringResource(R.string.sleep_next_up_at_in, at, formatDuration(wait).unbreakable())
+        if (state.nightMode) {
+            // No countdown at night: just when it is.
+            at
+        } else {
+            val wait = Duration.between(state.now, habit.time).coerceAtLeast(Duration.ofMinutes(1))
+            stringResource(R.string.sleep_next_up_at_in, at, formatDuration(wait).unbreakable())
+        }
     }
     SectionCard(
         title = stringResource(R.string.sleep_next_up),
@@ -591,6 +668,3 @@ private fun NextUpCard(
 
 /** "8h 35m" or "9:30 AM" never splits across lines. */
 internal fun String.unbreakable(): String = replace(' ', '\u00A0')
-
-/** "9:30 AM – 12:30 PM" may wrap at the dash, but never between a time and its AM/PM. */
-internal fun String.keepTimesTogether(): String = replace(" AM", "\u00A0AM").replace(" PM", "\u00A0PM")

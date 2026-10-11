@@ -18,6 +18,8 @@ import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.SleepNeedEstimate
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.model.UserSleepSettings
+import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
@@ -128,6 +130,38 @@ class SleepScreenshotTest : ScreenshotTest() {
     @Test
     fun twentyFourHourClock() = captureScreen("sleep_home_24h_scrolled") {
         CompositionLocalProvider(LocalUse24HourClock provides true) { Scrolled(ready()) }
+    }
+
+    // ---------------------------------------------------------------- Tonight row and night mode
+
+    /** Tonight's steps but no alarm tomorrow: "Night steps from 9:30 PM · No alarm". */
+    @Test
+    fun tonightRow() = captureScreen("sleep_home_tonight_row") {
+        SleepContent(ready(alarms = emptyList()), SleepActions())
+    }
+
+    /** Only a fixed alarm (no Night steps this evening): "Alarm 7:00 AM". */
+    @Test
+    fun tonightRowAlarmOnly() = captureScreen("sleep_home_tonight_row_alarm_only") {
+        val fixed = PlanSamples.plannedAlarm(time = LocalTime.of(7, 0), mode = AlarmMode.FIXED)
+        CompositionLocalProvider(LocalUse24HourClock provides true) {
+            SleepContent(ready(alarms = listOf(fixed), steps = PlanSamples.nightStepsSession(enabled = false)), SleepActions())
+        }
+    }
+
+    /** Anchored at 10:55 PM, looked at 11:30 PM: no clock, no countdown, "Alarm set · never later than 6:45 AM". */
+    private fun atNight(): SleepUiState.Ready =
+        ready(SampleData.insights(now = at(23, 30)), anchoredAt = at(22, 55))
+
+    @Test
+    fun nightMode() = captureScreen("sleep_home_night_mode") { SleepContent(atNight(), SleepActions()) }
+
+    @Test
+    fun nightModeScrolled() = captureScreen("sleep_home_night_mode_scrolled") { Scrolled(atNight()) }
+
+    @Test
+    fun nightModeLargeFont() = captureScreen("sleep_home_night_mode_large_font") {
+        LargeFont { SleepContent(atNight(), SleepActions()) }
     }
 
     @Test

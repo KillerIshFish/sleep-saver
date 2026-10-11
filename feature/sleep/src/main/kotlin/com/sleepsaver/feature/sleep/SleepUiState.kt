@@ -4,9 +4,11 @@ import androidx.compose.runtime.Immutable
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
 import com.sleepsaver.core.data.healthconnect.syncOpensGarmin
 import com.sleepsaver.core.data.repository.AppSettings
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.DailyInsights
 import com.sleepsaver.core.domain.model.DebtStatus
@@ -17,9 +19,12 @@ import com.sleepsaver.core.domain.model.Phase
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.need.SleepNeedEstimator
+import com.sleepsaver.core.domain.nightsteps.NightStepsSession
+import com.sleepsaver.core.domain.schedule.AlarmMode
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 
 /** Everything the home screen shows. */
@@ -68,6 +73,10 @@ sealed interface SleepUiState {
         /** Nothing is left today: [phases] are tonight's wind-down and melatonin window. */
         val phasesAreTonight: Boolean,
         val nextHabit: NextHabit?,
+        /** The "Tonight" row; null hides it. */
+        val tonight: TonightSummary? = null,
+        /** The no-clock night (§5.0): no current time and no "in X" anywhere on the screen. */
+        val nightMode: Boolean = false,
     ) : SleepUiState
 }
 
@@ -109,6 +118,20 @@ data class NextHabit(
     val reminderOn: Boolean,
 )
 
+/**
+ * The "Tonight" row: when tonight's Night steps start and the alarm for the next wake. Example: "Night steps from
+ * 9:45 PM · Alarm 6:30 AM"; at night "Alarm set · never later than 6:30 AM".
+ */
+@Immutable
+data class TonightSummary(
+    /** The Night steps window's start; null when the evening's steps are switched off or none are picked. */
+    val stepsFrom: Instant?,
+    /** The alarm's wake time (the latest it rings); null = no alarm. */
+    val alarm: LocalTime?,
+    /** The alarm may ring earlier, at a restless moment in its window (SURFACING); false for FIXED. */
+    val surfacing: Boolean = false,
+)
+
 /** Health Connect as last checked (on start and every resume). */
 data class HealthConnectCheck(val status: HealthConnectStatus, val sleepGranted: Boolean)
 
@@ -124,7 +147,11 @@ internal fun emptyReason(demoMode: Boolean, check: HealthConnectCheck): EmptyRea
     else -> EmptyReason.NO_DATA
 }
 
-/** Builds the ready state from the repositories' current values. Pure, so screenshot tests can use it too. */
+/**
+ * Builds the ready state from the repositories' current values. Pure, so screenshot tests can use it too.
+ * [alarms] are the upcoming planned alarms, [steps] tonight's Night steps and [anchoredAt] the night state's anchor
+ * (`NightController.state.night?.anchoredAt`); together they give the "Tonight" row and night mode.
+ */
 internal fun readyState(
     insights: DailyInsights,
     settings: AppSettings,
@@ -134,6 +161,10 @@ internal fun readyState(
     source: SourceLabel,
     isRefreshing: Boolean = false,
     needEstimator: SleepNeedEstimator = SleepNeedEstimator(),
+    alarms: List<PlannedAlarm> = emptyList(),
+    steps: NightStepsSession? = null,
+    anchoredAt: Instant? = null,
+    config: SleepConfig = SleepConfig.DEFAULT,
 ): SleepUiState.Ready {
     val banner = when (insights.lastNightState) {
         LastNightState.WAITING -> LastNightBanner.WAITING
@@ -163,6 +194,8 @@ internal fun readyState(
     } else {
         listOfNotNull(current).map { PhaseItem(it, isCurrent = true) } + upcoming.map { PhaseItem(it, isCurrent = false) }
     }
+
+    val night = homeNight(insights.schedule, insights.now, alarms, anchoredAt, config)
 
     val nextHabit = insights.nextHabit?.let { habit ->
         NextHabit(
@@ -197,5 +230,28 @@ internal fun readyState(
         phases = phases,
         phasesAreTonight = phasesAreTonight,
         nextHabit = nextHabit,
+        tonight = tonightSummary(night, insights.schedule.date, alarms, steps),
+        nightMode = night.isNight,
+    )
+}
+
+/**
+ * The "Tonight" row's content. At night it names the alarm that ends the night; otherwise the alarm for the morning
+ * after this evening ([evening] = the schedule's date) and this evening's Night steps, when they are on and picked.
+ */
+internal fun tonightSummary(
+    night: HomeNight,
+    evening: LocalDate,
+    alarms: List<PlannedAlarm>,
+    steps: NightStepsSession?,
+): TonightSummary {
+    val alarm = if (night.isNight) night.alarm else alarms.firstOrNull { it.occurrence.date == evening.plusDays(1) }
+    val stepsFrom = steps
+        ?.takeIf { !night.isNight && it.nightOf == evening && it.enabled && it.steps.isNotEmpty() }
+        ?.windowStart
+    return TonightSummary(
+        stepsFrom = stepsFrom,
+        alarm = alarm?.occurrence?.localTime,
+        surfacing = alarm?.occurrence?.settings?.mode == AlarmMode.SURFACING,
     )
 }

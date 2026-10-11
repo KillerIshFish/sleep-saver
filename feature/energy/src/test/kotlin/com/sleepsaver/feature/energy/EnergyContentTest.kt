@@ -70,6 +70,25 @@ class EnergyContentTest {
     }
 
     @Test
+    fun `before bedtime the now pill shows the time`() {
+        val state = EnergyTestData.ready(now = EnergyTestData.at(21, 10))
+        assertThat(state.nightMode).isFalse()
+        show(state)
+
+        compose.onNodeWithText("Now 9:10", substring = true).assertExists()
+    }
+
+    @Test
+    fun `at night the now pill shows no time`() {
+        val state = EnergyTestData.nightMode()
+        assertThat(state.nightMode).isTrue()
+        show(state)
+
+        compose.onNodeWithText("Now").assertExists()
+        compose.onNodeWithText("Now 11:30", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `tapping last night's block edits that night`() {
         val state = EnergyTestData.ready()
         show(state, focusTime = state.lastNight!!.fellAsleep!! + Duration.ofHours(4))

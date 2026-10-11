@@ -8,15 +8,19 @@ import com.sleepsaver.core.data.repository.SyncError
 import com.sleepsaver.core.data.repository.SyncState
 import com.sleepsaver.core.data.repository.SyncStatus
 import com.sleepsaver.core.data.repository.SyncTrigger
+import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.testing.FakeHabitsRepository
 import com.sleepsaver.core.testing.FakeHealthConnectGateway
 import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.FakeSettingsRepository
 import com.sleepsaver.core.testing.FakeSleepRepository
 import com.sleepsaver.core.testing.FakeSyncRepository
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +53,8 @@ class EnergyViewModelTest {
     private val habits = FakeHabitsRepository()
     private val sync = FakeSyncRepository()
     private val time = FakeTimeProvider(SampleData.now)
+    private val schedule = FakeScheduleRepository(upcoming = listOf(PlanSamples.plannedAlarm()))
+    private val night = FakeNightController()
 
     private val dispatcher = UnconfinedTestDispatcher()
 
@@ -61,7 +67,7 @@ class EnergyViewModelTest {
     private val healthConnect = FakeHealthConnectGateway()
 
     private fun viewModel() =
-        EnergyViewModel(insights, sleep, settings, habits, sync, healthConnect, SavedStateHandle(), time, dispatcher)
+        EnergyViewModel(insights, sleep, settings, habits, sync, healthConnect, schedule, night, SavedStateHandle(), time, dispatcher)
 
     @Test
     fun `starts loading`() = runTest {
@@ -140,6 +146,32 @@ class EnergyViewModelTest {
 
         val state = viewModel.uiState.value as EnergyUiState.Ready
         assertThat(state.now).isEqualTo(SampleData.now + Duration.ofMinutes(1))
+    }
+
+    @Test
+    fun `night mode comes on at bedtime and with Drop anchor, and the window opening ends it`() = runTest {
+        val bedtime = SampleData.insights().schedule.targetBedtime
+        val evening = EnergyTestData.at(21, 10)
+        time.ticks.value = evening
+        insights.mutableState.value = SampleData.readyState(now = evening)
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        fun nightMode() = (viewModel.uiState.value as EnergyUiState.Ready).nightMode
+
+        assertThat(nightMode()).isFalse()
+
+        // Drop anchor before bedtime: night at once, and "I'm up" ends it at once.
+        night.clock = { evening }
+        night.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
+        assertThat(nightMode()).isTrue()
+        night.endNight()
+        assertThat(nightMode()).isFalse()
+
+        // Past bedtime it is night without an anchor, until tomorrow's 6:15 window opens.
+        time.ticks.value = bedtime + Duration.ofMinutes(20)
+        assertThat(nightMode()).isTrue()
+        time.ticks.value = PlanSamples.plannedAlarm().window.start
+        assertThat(nightMode()).isFalse()
     }
 
     @Test

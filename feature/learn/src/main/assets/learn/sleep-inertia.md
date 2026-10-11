@@ -34,4 +34,4 @@ The first block of your energy schedule is grogginess. It begins when you actual
 
 The more sleep debt you carry, the longer the block, because inertia tends to hit harder when you're behind on sleep. Your morning peak never starts before grogginess ends.
 
-If the block often feels long, bringing your debt down is usually the most effective way to shorten it.
+If the block often feels long, bringing your debt down is usually the most effective way to shorten it. How you're woken matters too: *Waking at a restless moment*, also in Learn, explains how a **Surfacing alarm** tries to catch you nearer the surface of your sleep.

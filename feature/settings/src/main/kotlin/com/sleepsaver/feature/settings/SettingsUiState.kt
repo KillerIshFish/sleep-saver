@@ -9,6 +9,10 @@ import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.LearnedSleepTiming
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.WeekPlan
+import com.sleepsaver.core.ui.platform.AlarmBlocker
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -31,10 +35,19 @@ data class SettingsUiState(
     val bedtime: LocalTime = LocalTime.of(23, 0),
     /** Wake and fall-asleep times learned from recent nights. */
     val learned: LearnedSleepTiming = LearnedSleepTiming(),
-    /** Today's wake time and tonight's bedtime as the schedule uses them; null until insights are ready. */
-    val scheduleWake: LocalTime? = null,
-    val scheduleBedtime: LocalTime? = null,
+    /**
+     * The usual wake time and bedtime for the next date (learned or the user's own, the week plan ignored): what days
+     * without their own time use. They don't move when the plan or tomorrow's alarm changes. null until worked out.
+     */
+    val usualWake: LocalTime? = null,
+    val usualBedtime: LocalTime? = null,
     val needSuggestion: NeedSuggestion? = null,
+    /** The Week plan row's summary; null while the plan loads. */
+    val weekPlan: WeekPlanSummary? = null,
+
+    // Alarms
+    /** When the pending test ring rings; null when none is set. */
+    val testRingAt: Instant? = null,
 
     // Goals
     val streakThreshold: Duration = Duration.ofHours(5),
@@ -73,6 +86,41 @@ data class SettingsUiState(
     /** For "Last synced" and file names. */
     val now: Instant = Instant.EPOCH,
     val zone: ZoneId = ZoneOffset.UTC,
+)
+
+/** The Week plan row in a few words: "Weekdays · 6:30 AM", "Different times through the week" or "No alarms set". */
+@Immutable
+sealed interface WeekPlanSummary {
+    data object NoAlarms : WeekPlanSummary
+
+    /** Every alarm day ([days]) wakes at [time]. */
+    data class OneTime(val days: Set<DayOfWeek>, val time: LocalTime) : WeekPlanSummary
+
+    /** Alarm days wake at different times. */
+    data object Varied : WeekPlanSummary
+}
+
+/** Sums up the weekly plan's alarm days (mode on and a set time); one-offs and pauses aren't part of it. */
+internal fun weekPlanSummary(plan: WeekPlan): WeekPlanSummary {
+    val alarmDays = plan.days
+        .filter { it.morning.alarm.mode != AlarmMode.OFF }
+        .mapNotNull { day -> day.morning.wakeTime?.let { day.day to it } }
+    val times = alarmDays.map { it.second }.distinct()
+    return when (times.size) {
+        0 -> WeekPlanSummary.NoAlarms
+        1 -> WeekPlanSummary.OneTime(alarmDays.mapTo(LinkedHashSet()) { it.first }, times.single())
+        else -> WeekPlanSummary.Varied
+    }
+}
+
+/**
+ * What the Alarms section shows from the phone's own settings, read on screen (not by the ViewModel): how many
+ * blocking problems Alarm check would list, and the problem that stopped the last "Test ring" tap (with its fix).
+ */
+@Immutable
+data class AlarmsStatus(
+    val issues: Int = 0,
+    val testRingBlocker: AlarmBlocker? = null,
 )
 
 /** The engine's sleep-need estimate, offered when it differs from the current setting. */
@@ -155,6 +203,12 @@ enum class SettingsMessage {
     RESET_FAILED,
     SAVE_FAILED,
     SETTINGS_UNAVAILABLE,
+
+    /** "Test ring set for 9:14 PM" (the time is [SettingsUiState.testRingAt]). */
+    TEST_RING_SET,
+
+    /** A ring is already set or sounding, so the test ring wasn't set. */
+    TEST_RING_BUSY,
 }
 
 /** The ranges the pickers allow. The ViewModel clamps to them as well, whatever the UI sends. */
@@ -200,4 +254,12 @@ interface SettingsActions {
     fun onClockFormatChange(format: ClockFormat) {}
     fun onResetAll() {}
     fun onMessageShown() {}
+    fun onOpenWeekPlan() {}
+    fun onOpenAlarmCheck() {}
+
+    /** "Test ring in 1 minute": checks notifications and the "Alarm" category first (§5.0). */
+    fun onTestRing() {}
+
+    /** The fix for the problem that stopped a test ring ("Allow", "Open settings"). */
+    fun onFixAlarmBlocker(blocker: AlarmBlocker) {}
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.di.IoDispatcher
 import com.sleepsaver.core.data.healthconnect.HealthConnectGateway
 import com.sleepsaver.core.data.healthconnect.HealthConnectStatus
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.ClockFormat
@@ -13,6 +14,8 @@ import com.sleepsaver.core.data.repository.DemoModeController
 import com.sleepsaver.core.data.repository.ExportRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.PatternsRepository
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
 import com.sleepsaver.core.data.repository.SyncError
@@ -24,9 +27,13 @@ import com.sleepsaver.core.data.repository.SyncTrigger
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.LearnedSleepTiming
+import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepNeedEstimateResult
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.model.WakeTimeMode
+import com.sleepsaver.core.domain.patterns.PersonalLatency
+import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import com.sleepsaver.feature.settings.platform.SettingsPlatform
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -46,9 +53,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 
+/**
+ * Settings: the stored settings, the data source list, sync and Health Connect status, the week plan's summary, the
+ * usual wake time and bedtime (plan-free) and the test ring. [patternsRepository] gives the personal latency the usual
+ * bedtime is timed with; [nightController] sets the test ring.
+ */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
@@ -60,6 +75,9 @@ class SettingsViewModel @Inject constructor(
     private val dataResetter: DataResetter,
     private val healthConnect: HealthConnectGateway,
     private val platform: SettingsPlatform,
+    scheduleRepository: ScheduleRepository,
+    patternsRepository: PatternsRepository,
+    private val nightController: NightController,
     private val timeProvider: TimeProvider,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
@@ -104,6 +122,26 @@ class SettingsViewModel @Inject constructor(
 
     private val clock = timeProvider.minuteTicks.distinctUntilChanged()
 
+    /**
+     * The Wake time and Bedtime rows: the usual times for the next date, worked out from every night and the user's
+     * own settings, never from the week plan (so they don't move with tomorrow's alarm). Off the main thread.
+     */
+    private val usual = combine(
+        settingsRepository.settings.map { it.sleep }.distinctUntilChanged(),
+        sleepRepository.nights,
+        patternsRepository.personalLatency.catch { emit(PersonalLatency(values = 0, median = null, active = false)) },
+        clock.map { it.atZone(timeProvider.zone()).toLocalDate() }.distinctUntilChanged(),
+    ) { sleep, nights, latency, today -> usualTimes(sleep, nights, latency, today, timeProvider.zone()) }
+        .flowOn(ioDispatcher)
+        .catch { emit(UsualTimes()) }
+
+    /** The week plan, the usual times and the pending test ring. A plan that can't be read shows no summary. */
+    private val plan = combine(
+        scheduleRepository.weekPlan.map(::weekPlanSummary).catch<WeekPlanSummary?> { emit(null) },
+        usual,
+        nightController.state.map { it.testPendingAt }.distinctUntilChanged(),
+    ) { summary, times, testRingAt -> PlanBits(summary, times, testRingAt) }
+
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.settings,
         sourceOptions,
@@ -113,6 +151,14 @@ class SettingsViewModel @Inject constructor(
     ) { settings, options, sync, insights, local ->
         build(settings, options, sync, insights, local)
     }
+        .combine(plan) { state, bits ->
+            state.copy(
+                usualWake = bits.usual.wake,
+                usualBedtime = bits.usual.bedtime,
+                weekPlan = bits.summary,
+                testRingAt = bits.testRingAt,
+            )
+        }
         .combine(clock) { state, now -> state.copy(now = now, zone = timeProvider.zone()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 
@@ -249,6 +295,23 @@ class SettingsViewModel @Inject constructor(
         save { settingsRepository.setClockFormat(format) }
     }
 
+    // ------------------------------------------------------------------ Alarms
+
+    /**
+     * Rings a test alarm in a minute through the real alarm path. The screen has already checked notifications and
+     * the "Alarm" category; this says whether it was set or another ring is already set or sounding.
+     */
+    fun testRing() {
+        val set = try {
+            nightController.testRing()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        local.update { it.copy(message = if (set) SettingsMessage.TEST_RING_SET else SettingsMessage.TEST_RING_BUSY) }
+    }
+
     // ------------------------------------------------------------------ Reset
 
     /** Deletes everything, then sets [SettingsUiState.resetDone]. Not cancelled by leaving the screen. */
@@ -330,8 +393,6 @@ class SettingsViewModel @Inject constructor(
             bedtimeMode = sleep.bedtimeMode,
             bedtime = sleep.bedtime,
             learned = insights.learned,
-            scheduleWake = insights.scheduleWake,
-            scheduleBedtime = insights.scheduleBedtime,
             needSuggestion = suggestion,
             streakThreshold = sleep.streakThreshold,
             lowDebtMax = sleep.lowDebtMax,
@@ -361,21 +422,18 @@ class SettingsViewModel @Inject constructor(
     private data class InsightsBits(
         val suggestion: NeedSuggestion? = null,
         val learned: LearnedSleepTiming = LearnedSleepTiming(),
-        val scheduleWake: LocalTime? = null,
-        val scheduleBedtime: LocalTime? = null,
     )
 
     private fun InsightsState.toInsightsBits(): InsightsBits {
         val insights = (this as? InsightsState.Ready)?.insights ?: return InsightsBits()
         val estimate = (insights.needEstimate as? SleepNeedEstimateResult.Available)?.estimate
-        val schedule = insights.schedule
         return InsightsBits(
             suggestion = estimate?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed) },
             learned = insights.learnedTiming,
-            scheduleWake = schedule.typicalWake.toLocalTime(),
-            scheduleBedtime = schedule.targetBedtime.atZone(schedule.zone).toLocalTime(),
         )
     }
+
+    private data class PlanBits(val summary: WeekPlanSummary?, val usual: UsualTimes, val testRingAt: Instant?)
 
     private companion object {
         const val MINUTES_PER_DAY = 24 * 60
@@ -406,4 +464,28 @@ class SettingsViewModel @Inject constructor(
             fallback
         }
     }
+}
+
+/** The usual wake time and bedtime the Wake time and Bedtime rows show; null until worked out. */
+internal data class UsualTimes(val wake: LocalTime? = null, val bedtime: LocalTime? = null)
+
+/**
+ * The usual times for the next date: [ScheduleTimes.usualWake] for tomorrow and [ScheduleTimes.usualBedtime] for
+ * tonight, called without a plan-aware wake, so neither follows the week plan or tomorrow's alarm. Once [latency] is
+ * active, the personal latency replaces the default the way it does in the schedule.
+ * Example: a learned weekday wake of 6:52 and an 8h need, bedtime by sleep need → 6:52 AM and 10:37 PM.
+ */
+internal fun usualTimes(
+    sleep: UserSleepSettings,
+    nights: List<Night>,
+    latency: PersonalLatency,
+    today: LocalDate,
+    zone: ZoneId,
+    config: SleepConfig = SleepConfig.DEFAULT,
+): UsualTimes {
+    val timing = sleep.copy(personalLatency = latency.median?.takeIf { latency.active }).timing
+    val times = ScheduleTimes(config)
+    val wake = times.usualWake(today.plusDays(1), nights, timing).first
+    val bedtime = times.usualBedtime(today, zone, nights, sleep.sleepNeed, timing).first
+    return UsualTimes(wake = wake, bedtime = bedtime.atZone(zone).toLocalTime())
 }

@@ -59,17 +59,20 @@ import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.components.WellnessDisclaimer
 import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.clockTime
+import com.sleepsaver.core.ui.format.formatDayShort
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.platform.rememberNotificationAccess
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
+import java.time.DayOfWeek
 import java.time.Duration
 import kotlin.math.abs
 
+/** [onEditNightSteps]: the Night steps habit's "Edit Night steps" (the routine editor). */
 @Composable
 internal fun HabitDetailScreen(
     onBack: () -> Unit,
-    onChooseActivities: () -> Unit,
+    onEditNightSteps: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HabitDetailViewModel = hiltViewModel(),
 ) {
@@ -89,7 +92,7 @@ internal fun HabitDetailScreen(
         },
         onTimingChange = viewModel::setTimingValue,
         onResetTiming = viewModel::resetTiming,
-        onChooseActivities = onChooseActivities,
+        onEditNightSteps = onEditNightSteps,
         notificationsBlocked = !notifications.allowed,
         onTurnOnNotifications = notifications::turnOn,
         modifier = modifier,
@@ -104,7 +107,7 @@ internal fun HabitDetailContent(
     onToggleReminder: (Boolean) -> Unit,
     onTimingChange: (Int) -> Unit,
     onResetTiming: () -> Unit,
-    onChooseActivities: () -> Unit,
+    onEditNightSteps: () -> Unit,
     modifier: Modifier = Modifier,
     notificationsBlocked: Boolean = false,
     onTurnOnNotifications: () -> Unit = {},
@@ -146,7 +149,7 @@ internal fun HabitDetailContent(
                     onToggleReminder = onToggleReminder,
                     onTimingChange = onTimingChange,
                     onResetTiming = onResetTiming,
-                    onChooseActivities = onChooseActivities,
+                    onEditNightSteps = onEditNightSteps,
                     onTurnOnNotifications = onTurnOnNotifications,
                 )
             }
@@ -163,7 +166,7 @@ private fun HabitDetailBody(
     onToggleReminder: (Boolean) -> Unit,
     onTimingChange: (Int) -> Unit,
     onResetTiming: () -> Unit,
-    onChooseActivities: () -> Unit,
+    onEditNightSteps: () -> Unit,
     onTurnOnNotifications: () -> Unit,
 ) {
     Column(
@@ -193,7 +196,7 @@ private fun HabitDetailBody(
             NotificationsOffNotice(onTurnOnNotifications, Modifier.padding(top = Spacing.cardGap))
         }
         if (state.type == HabitType.EVENING_ROUTINE) {
-            ActivitiesCard(state.activities, onChooseActivities, Modifier.padding(top = Spacing.cardGap))
+            ActivitiesCard(state.activities, state.stepsOffEvenings, onEditNightSteps, Modifier.padding(top = Spacing.cardGap))
         }
         TimingCard(state, onTimingChange, onResetTiming, Modifier.padding(top = Spacing.cardGap))
         WellnessDisclaimer(Modifier.padding(top = Spacing.xxl))
@@ -306,8 +309,17 @@ private fun ToggleRow(
     }
 }
 
+/**
+ * The every-evening Night steps, the evenings the week plan switches them off ("Off on Fri, Sat · from your week
+ * plan") and "Edit Night steps", which opens the routine editor.
+ */
 @Composable
-private fun ActivitiesCard(activities: List<RoutineActivity>, onChooseActivities: () -> Unit, modifier: Modifier = Modifier) {
+private fun ActivitiesCard(
+    activities: List<RoutineActivity>,
+    stepsOffEvenings: Set<DayOfWeek>,
+    onEditNightSteps: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SectionCard(title = stringResource(R.string.habits_detail_activities), modifier = modifier.fillMaxWidth()) {
         if (activities.isEmpty()) {
             Text(
@@ -323,9 +335,22 @@ private fun ActivitiesCard(activities: List<RoutineActivity>, onChooseActivities
                 activities.forEach { InfoChip(text = "${it.emoji}  ${it.label}") }
             }
         }
+        if (stepsOffEvenings.isNotEmpty()) {
+            Text(
+                text = if (stepsOffEvenings.size == DayOfWeek.entries.size) {
+                    stringResource(R.string.habits_detail_steps_off_every_evening)
+                } else {
+                    val days = stepsOffEvenings.sorted().joinToString(", ") { formatDayShort(it) }
+                    stringResource(R.string.habits_detail_steps_off, days)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = SleepSaverTheme.colors.textSecondary,
+                modifier = Modifier.padding(top = Spacing.m),
+            )
+        }
         SecondaryButton(
-            text = stringResource(R.string.habits_detail_choose_activities),
-            onClick = onChooseActivities,
+            text = stringResource(R.string.habits_detail_edit_night_steps),
+            onClick = onEditNightSteps,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = Spacing.xs),

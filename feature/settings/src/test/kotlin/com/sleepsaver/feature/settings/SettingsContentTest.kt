@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.ClockFormat
 import com.sleepsaver.core.domain.model.SourceSelection
+import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import org.junit.Rule
 import org.junit.Test
@@ -47,12 +48,16 @@ class SettingsContentTest {
         override fun onClockFormatChange(format: ClockFormat) { calls += "clock:$format" }
         override fun onResetAll() { calls += "reset" }
         override fun onMessageShown() { calls += "messageShown" }
+        override fun onOpenWeekPlan() { calls += "weekPlan" }
+        override fun onOpenAlarmCheck() { calls += "alarmCheck" }
+        override fun onTestRing() { calls += "testRing" }
+        override fun onFixAlarmBlocker(blocker: AlarmBlocker) { calls += "fix:$blocker" }
     }
 
     private val actions = Recorder()
 
-    private fun show(state: SettingsUiState = SettingsSamples.ready) {
-        compose.setContent { SleepSaverTheme { SettingsContent(state, actions) } }
+    private fun show(state: SettingsUiState = SettingsSamples.ready, alarms: AlarmsStatus = AlarmsStatus()) {
+        compose.setContent { SleepSaverTheme { SettingsContent(state, actions, alarms = alarms) } }
     }
 
     private fun scrollTo(text: String) {
@@ -248,6 +253,7 @@ class SettingsContentTest {
 
         compose.onNodeWithText("Reset all data?").assertIsDisplayed()
         compose.onNodeWithText("Nights, naps and every edit you made").assertIsDisplayed()
+        compose.onNodeWithText("Alarms, Night steps history, marks and Morning feel").assertIsDisplayed()
         assertThat(actions.calls).isEmpty()
 
         compose.onNodeWithText("Erase everything").performClick()
@@ -261,6 +267,69 @@ class SettingsContentTest {
         compose.onNodeWithText("Version 1.0.0 (1)").assertIsDisplayed()
         scrollTo("All data stays on this phone. No account, no servers, no analytics.")
         compose.onNodeWithText("All data stays on this phone. No account, no servers, no analytics.").assertIsDisplayed()
+    }
+
+    // ---------------------------------------------------------------- Week plan and alarms
+
+    @Test
+    fun `the week plan row sums up the plan and opens it`() {
+        show()
+        scrollTo("Week plan")
+        compose.onNodeWithText("Weekdays · 6:30", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Week plan").performClick()
+
+        assertThat(actions.calls).containsExactly("weekPlan")
+    }
+
+    @Test
+    fun `the week plan row says when times differ or nothing is set`() {
+        show(SettingsSamples.ready.copy(weekPlan = WeekPlanSummary.Varied))
+        scrollTo("Week plan")
+        compose.onNodeWithText("Different times through the week").assertIsDisplayed()
+    }
+
+    @Test
+    fun `wake time and bedtime show the usual times and say what they're for`() {
+        show()
+        scrollTo("Used on days without their own time.")
+        compose.onNodeWithText("10:55", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `the alarms section opens Alarm check and sets a test ring`() {
+        show()
+        scrollTo("Alarm check")
+        compose.onNodeWithText("Everything looks ready").assertIsDisplayed()
+        compose.onNodeWithText("Alarm check").performClick()
+        scrollTo("Test ring in 1 minute")
+        compose.onNodeWithText("Test ring in 1 minute").performClick()
+        scrollTo("Alarm sounds and Hush are made on this phone. Nothing is downloaded.")
+
+        assertThat(actions.calls).containsExactly("alarmCheck", "testRing").inOrder()
+    }
+
+    @Test
+    fun `alarm check counts what needs fixing`() {
+        show(alarms = AlarmsStatus(issues = 2))
+        scrollTo("Alarm check")
+        compose.onNodeWithText("2 things to fix").assertIsDisplayed()
+    }
+
+    @Test
+    fun `a test ring stopped by blocked notifications shows how to allow them`() {
+        show(alarms = AlarmsStatus(issues = 1, testRingBlocker = AlarmBlocker.NOTIFICATIONS_OFF))
+        scrollTo("Alarms need notifications to show the Stop button.")
+        compose.onNodeWithText("Allow").performClick()
+
+        assertThat(actions.calls).containsExactly("fix:NOTIFICATIONS_OFF")
+    }
+
+    @Test
+    fun `a pending test ring says when`() {
+        show(SettingsSamples.testRingSet.copy(message = SettingsMessage.TEST_RING_SET))
+        compose.onNodeWithText("Test ring set for 10:21", substring = true).assertIsDisplayed()
+        scrollTo("Test ring in 1 minute")
+        compose.onNodeWithText("Set for 10:21", substring = true).assertIsDisplayed()
     }
 
     @Test
