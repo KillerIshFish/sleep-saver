@@ -11,6 +11,25 @@ class AlarmConfigTest {
     private val alarm = SleepConfig.DEFAULT.alarm
 
     @Test
+    fun `a test ring plays every style from its speaker start and is full and vibrating well before it ends`() {
+        WakeStyle.entries.forEach { style ->
+            val test = alarm.ringCue(RingKind.TEST, style)
+
+            assertThat(test).isEqualTo(alarm.testCue(style))
+            assertThat(test.speakerAfter).isEqualTo(Duration.ZERO)
+            assertThat(test.firstChime).isFalse()
+            assertThat(test.swell).isLessThan(alarm.testRingLength)
+            assertThat(test.vibrationAfter).isAtMost(test.swell)
+            assertThat(alarm.ringCue(RingKind.PLANNED, style)).isEqualTo(alarm.cue(style))
+            assertThat(alarm.ringCue(RingKind.NAP, style)).isEqualTo(alarm.cue(style))
+        }
+        assertThat(alarm.testCue(WakeStyle.QUIET_BED).vibrationAfter).isEqualTo(Duration.ZERO)
+        assertThat(alarm.testCue(WakeStyle.CALM).swell).isEqualTo(Duration.ofSeconds(30))
+        assertThat(alarm.testCue(WakeStyle.CALM).vibrationAfter).isEqualTo(Duration.ofSeconds(30))
+        assertThat(alarm.testCue(WakeStyle.FIRM)).isEqualTo(alarm.cue(WakeStyle.FIRM))
+    }
+
+    @Test
     fun `a ring stops itself after ringTimeout, a test ring after testRingLength`() {
         WakeStyle.entries.forEach { style ->
             assertThat(alarm.ringCap(RingKind.PLANNED, style, uiBlocked = false)).isEqualTo(alarm.ringTimeout)

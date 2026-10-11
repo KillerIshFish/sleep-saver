@@ -162,7 +162,8 @@ internal class AlarmRingService : Service() {
             setReferenceCounted(false)
             acquire(cap.toMillis() + AlarmPlatform.RING_WAKE_LOCK_MS)
         }
-        val timeline = CueTimeline(config.alarm.cue(alarm.wakeStyle), alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
+        val cue = config.alarm.ringCue(ringing.kind, alarm.wakeStyle)
+        val timeline = CueTimeline(cue, alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
         active.job = main.launch { runTimeline(active, timeline, cap) }
         publish()
         if (ringing.isPlanned) scheduler.replanAfterRing()
