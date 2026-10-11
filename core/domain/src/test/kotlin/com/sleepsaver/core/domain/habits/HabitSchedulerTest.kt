@@ -10,6 +10,7 @@ import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.ReminderCategory
 import com.sleepsaver.core.domain.model.ScheduledHabit
 import com.sleepsaver.core.domain.model.SleepTiming
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.domain.testing.Fx
 import java.time.Duration
 import java.time.Instant
@@ -134,6 +135,48 @@ class HabitSchedulerTest {
         assertThat(scheduler.nextUp(habits, at("22:30"))?.type).isEqualTo(HabitType.BEDTIME)
         assertThat(scheduler.nextUp(habits, at("23:15"))).isNull()
     }
+
+    @Test
+    fun `dim lights and the evening routine last the evening's wind-down`() {
+        val week = WeekPlan.DEFAULT.let { plan ->
+            plan.with(plan.day(date.dayOfWeek).let { it.copy(evening = it.evening.copy(windDownLength = Duration.ofMinutes(90))) })
+        }
+        val longWindDown = scheduleWith(week)
+        val windDown = longWindDown.phase(PhaseType.WIND_DOWN)!!
+
+        val habits = scheduler.schedule(longWindDown, catalog.defaultSettings())
+
+        assertThat(habits.of(HabitType.DIM_LIGHTS).time).isEqualTo(at("20:45"))
+        assertThat(habits.of(HabitType.DIM_LIGHTS).windowEnd).isEqualTo(windDown.end)
+        assertThat(habits.of(HabitType.EVENING_ROUTINE).windowEnd).isEqualTo(at("22:15"))
+        // Other windows keep the catalog's.
+        assertThat(habits.of(HabitType.BEDTIME).windowEnd).isEqualTo(at("23:15"))
+    }
+
+    @Test
+    fun `with Night steps off the evening routine stays listed without a reminder`() {
+        val week = WeekPlan.DEFAULT.let { plan ->
+            plan.with(plan.day(date.dayOfWeek).let { it.copy(evening = it.evening.copy(nightStepsOn = false)) })
+        }
+        val stepsOff = scheduleWith(week)
+
+        val habits = scheduler.schedule(stepsOff, catalog.defaultSettings())
+
+        assertThat(stepsOff.nightStepsOn).isFalse()
+        assertThat(habits.of(HabitType.EVENING_ROUTINE).enabled).isTrue()
+        assertThat(habits.of(HabitType.EVENING_ROUTINE).reminderEnabled).isFalse()
+        assertThat(habits.of(HabitType.DIM_LIGHTS).reminderEnabled).isTrue()
+        assertThat(scheduler.schedule(schedule, catalog.defaultSettings()).of(HabitType.EVENING_ROUTINE).reminderEnabled).isTrue()
+    }
+
+    private fun scheduleWith(week: WeekPlan): EnergySchedule = EnergyScheduleCalculator().schedule(
+        date = date,
+        zone = Fx.UTC,
+        nights = (0L..6L).map { Fx.night(date.minusDays(it), "23:00", "07:00") },
+        need = Duration.ofHours(8),
+        debt = Duration.ZERO,
+        timing = SleepTiming(wakeTime = LocalTime.of(7, 0), bedtimeMode = BedtimeMode.SLEEP_NEED, week = week),
+    )
 
     @Test
     fun `catalog defaults match the plan`() {
