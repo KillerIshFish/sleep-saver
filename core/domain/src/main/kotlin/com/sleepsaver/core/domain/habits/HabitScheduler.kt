@@ -37,22 +37,27 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
 
     /**
      * One [ScheduledHabit] per HabitType, ordered by time. Missing settings fall back to the catalog defaults.
-     * time = anchor instant + offset; windowEnd = time + definition.window (if any).
+     * time = anchor instant + offset; windowEnd = time + definition.window (if any), except for WIND_DOWN_START habits
+     * (dim lights, evening routine): time + the wind-down phase's length, which follows the evening plan.
      * Anchors: TYPICAL_WAKE = schedule.typicalWake, TARGET_BEDTIME = schedule.targetBedtime,
      * WIND_DOWN_START / MELATONIN_START / AFTERNOON_DIP_START = that phase's start.
+     * EVENING_ROUTINE is still listed when the evening's Night steps are off, without a reminder.
      */
     fun schedule(schedule: EnergySchedule, settings: List<HabitSettings>): List<ScheduledHabit> {
         val byType = settings.associateBy { it.type }
+        val windDownLength = schedule.phase(PhaseType.WIND_DOWN)?.let { Duration.between(it.start, it.end) }
         return catalog.all.mapNotNull { definition ->
             val setting = byType[definition.type]
                 ?: HabitSettings(definition.type, definition.defaultEnabled, definition.defaultReminder, definition.defaultOffset)
             val time = anchorTime(schedule, definition.anchor)?.plus(setting.offset) ?: return@mapNotNull null
+            val window = if (definition.anchor == HabitAnchor.WIND_DOWN_START) windDownLength else definition.window
+            val stepsOff = definition.type == HabitType.EVENING_ROUTINE && !schedule.nightStepsOn
             ScheduledHabit(
                 type = definition.type,
                 time = time,
-                windowEnd = definition.window?.let { time + it },
+                windowEnd = window?.let { time + it },
                 enabled = setting.enabled,
-                reminderEnabled = setting.reminderEnabled,
+                reminderEnabled = setting.reminderEnabled && !stepsOff,
                 category = definition.category,
             )
         }.sortedBy { it.time }

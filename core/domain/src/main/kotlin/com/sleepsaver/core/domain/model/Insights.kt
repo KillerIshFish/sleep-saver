@@ -1,5 +1,9 @@
 package com.sleepsaver.core.domain.model
 
+import com.sleepsaver.core.domain.config.SleepConfig
+import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -21,9 +25,18 @@ data class UserSleepSettings(
     val streakThreshold: Duration = Duration.ofHours(5),
     val lowDebtMax: Duration = Duration.ofHours(2),
     val highDebtMin: Duration = Duration.ofHours(5),
-    val source: SourceSelection = SourceSelection.Single(com.sleepsaver.core.domain.config.SleepConfig.GARMIN_CONNECT_PACKAGE),
+    val source: SourceSelection = SourceSelection.Single(SleepConfig.GARMIN_CONNECT_PACKAGE),
+    /**
+     * The week plan, its one-offs and the personal latency (Drop anchor). Filled by InsightsRepositoryImpl /
+     * ScheduleRepositoryImpl from the week-plan tables and anchors; SettingsRepository leaves the defaults.
+     */
+    val week: WeekPlan = WeekPlan.DEFAULT,
+    val oneOffs: OneOffs = OneOffs(),
+    /** The personal latency; null = `SleepConfig.sleepLatency`. */
+    val personalLatency: Duration? = null,
 ) {
-    val timing: SleepTiming get() = SleepTiming(wakeTimeMode, typicalWake, bedtimeMode, bedtime)
+    val timing: SleepTiming
+        get() = SleepTiming(wakeTimeMode, typicalWake, bedtimeMode, bedtime, week, oneOffs, personalLatency)
 }
 
 /** Where the schedule's wake time comes from. */
@@ -49,13 +62,21 @@ enum class BedtimeMode {
 
 /**
  * The user's choices for the schedule's two anchors. [wakeTime] and [bedtime] are their own times: used when the
- * mode is FIXED, and as the fallback while there aren't enough nights to learn from.
+ * mode is FIXED, and as the fallback while there aren't enough nights to learn from. A day's set times in [week]
+ * (and its one-offs) win over both (see ScheduleTimes): with Tuesday's morning set to 05:30, Tuesday's W is 05:30
+ * whatever the mode.
  */
 data class SleepTiming(
     val wakeTimeMode: WakeTimeMode = WakeTimeMode.FROM_DATA,
     val wakeTime: LocalTime = LocalTime.of(7, 0),
     val bedtimeMode: BedtimeMode = BedtimeMode.FROM_DATA,
     val bedtime: LocalTime = LocalTime.of(23, 0),
+    /** Per-day set wake times, bedtimes, wind-down lengths and Night steps switches. */
+    val week: WeekPlan = WeekPlan.DEFAULT,
+    /** Day off, Just this once and Pause alarms rows. */
+    val oneOffs: OneOffs = OneOffs(),
+    /** The personal latency (time to fall asleep after Drop anchor); null = `SleepConfig.sleepLatency`. */
+    val latency: Duration? = null,
 )
 
 /** Where a schedule's wake time or bedtime actually came from. */
@@ -71,6 +92,9 @@ enum class TimingSource {
 
     /** Learning was asked for but there aren't enough nights yet: the user's own time stands in. */
     NOT_ENOUGH_DATA,
+
+    /** The week plan's set time or a one-off ("Just this once"). */
+    WEEK_PLAN,
 }
 
 /**
@@ -232,6 +256,8 @@ data class EnergySchedule(
     val phases: List<Phase>,
     val curve: EnergyCurve,
     val anchor: CircadianAnchor,
+    /** The evening plan's Night steps switch for [date]'s evening. */
+    val nightStepsOn: Boolean = true,
 ) {
     fun phase(type: PhaseType): Phase? = phases.firstOrNull { it.type == type }
     fun currentPhase(now: Instant): Phase? = phases.lastOrNull { it.contains(now) }
@@ -287,12 +313,20 @@ data class ScheduledHabit(
     val category: ReminderCategory,
 )
 
+/**
+ * A wind-down activity (a Night step). [selected] = on the every-evening list. Placed [lead] before the target
+ * bedtime and [duration] long: Slow tide with lead 30 min and duration 10 min runs 22:30–22:40 for a 23:00 bedtime.
+ */
 data class RoutineActivity(
     val id: Long,
     val label: String,
     val emoji: String,
     val isCustom: Boolean,
     val selected: Boolean,
+    /** The technique this activity is (null for custom activities and unknown stored names). */
+    val technique: Technique? = null,
+    val lead: Duration = SleepConfig.DEFAULT.steps.customLead,
+    val duration: Duration = SleepConfig.DEFAULT.steps.customDuration,
 )
 
 // ---------------------------------------------------------------- Home screen roll-up

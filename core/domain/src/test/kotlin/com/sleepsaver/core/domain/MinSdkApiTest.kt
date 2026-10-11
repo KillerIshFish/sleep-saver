@@ -41,6 +41,7 @@ class MinSdkApiTest {
         assertThat(classes.keys.map { it.substringBeforeLast('/') }.toSet()).containsAtLeast(
             "$PACKAGE/circadian", "$PACKAGE/config", "$PACKAGE/debt", "$PACKAGE/energy", "$PACKAGE/habits",
             "$PACKAGE/insights", "$PACKAGE/model", "$PACKAGE/need", "$PACKAGE/night",
+            "$PACKAGE/schedule", "$PACKAGE/alarm", "$PACKAGE/nightsteps", "$PACKAGE/journal", "$PACKAGE/patterns",
         )
 
         val violations = classes.flatMap { (name, bytes) ->

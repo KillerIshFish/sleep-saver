@@ -95,8 +95,10 @@ data class SleepConfig(
         nominalStart = hours(10.0), nominalEnd = hours(13.0), searchStart = hours(9.0), searchEnd = hours(14.5),
     ),
     val phaseMaxSlide: Duration = Duration.ofMinutes(45),
+    /** The default time to fall asleep; a personal latency (Drop anchor, SleepTiming.latency) replaces it. */
     val sleepLatency: Duration = Duration.ofMinutes(15),
     val melatoninHalfWidth: Duration = Duration.ofMinutes(30),
+    /** The default wind-down length of a day's evening plan (EveningPlan.windDownLength). */
     val windDownLength: Duration = Duration.ofMinutes(60),
     val wakeZoneHalfWidth: Duration = Duration.ofMinutes(30),
     /** A phase squeezed below this (e.g. the morning peak after long grogginess) is extended to this length. */
@@ -116,6 +118,18 @@ data class SleepConfig(
     val exerciseCutoffBeforeBed: Duration = Duration.ofHours(2),
     val napMaxLength: Duration = Duration.ofMinutes(30),
     val napIdealLength: Duration = Duration.ofMinutes(20),
+
+    // --- v2 (PLAN §3.11–3.16), grouped so the constructor stays far below the JVM's 255-slot limit.
+    // Access looks like `config.alarm.ringTimeout`.
+    val week: WeekPlanConfig = WeekPlanConfig(),
+    val alarm: AlarmConfig = AlarmConfig(),
+    val surfacing: SurfacingConfig = SurfacingConfig(),
+    val steps: NightStepsConfig = NightStepsConfig(),
+    val journal: JournalConfig = JournalConfig(),
+    val keel: KeelConfig = KeelConfig(),
+    val anchor: AnchorConfig = AnchorConfig(),
+    val catnap: CatnapConfig = CatnapConfig(),
+    val hush: HushConfig = HushConfig(),
 ) {
     companion object {
         const val GARMIN_CONNECT_PACKAGE = "com.garmin.android.apps.connectmobile"
