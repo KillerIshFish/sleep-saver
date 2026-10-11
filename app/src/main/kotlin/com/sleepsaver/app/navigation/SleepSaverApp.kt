@@ -207,7 +207,8 @@ internal fun NavGraphBuilder.appGraph(navController: NavHostController, openPriv
     nightStepsGraph(
         navController = navController,
         onOpenDayPlan = navController::navigateToDayPlan,
-        onOpenTonight = openTonight,
+        // After Drop anchor: the Tonight screen itself, not the tab's saved stack (which has Night steps on top).
+        onOpenTonight = navController::showTonight,
     )
     progressScreen(
         onOpenNight = navController::navigateToNightDetail,
@@ -271,6 +272,17 @@ internal fun NavHostController.navigateToTab(tab: TopLevel) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/**
+ * The Tonight screen itself, with nothing on top: back to it when it is below (Night steps opened from the Tonight
+ * tab), else the tab the way the bottom bar opens it, then down to the tab's root if its saved stack came back with a
+ * screen on top. [navigateToTab] alone would restore the tab's stack, Night steps included, and stay put.
+ */
+internal fun NavHostController.showTonight() {
+    if (currentDestination?.hasRoute<TonightRoute>() == true || popBackStack<TonightRoute>(inclusive = false)) return
+    navigateToTab(TopLevel.TONIGHT)
+    if (currentDestination?.hasRoute<TonightRoute>() != true) popBackStack<TonightRoute>(inclusive = false)
 }
 
 /** sleepsaver:// links ([openDeepLink]) for the launch intent and for intents delivered while the activity runs. */

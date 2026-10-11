@@ -24,6 +24,7 @@ import com.sleepsaver.feature.tonight.navigation.NightRoute
 import com.sleepsaver.feature.tonight.navigation.TonightRoute
 import com.sleepsaver.feature.tonight.navigation.WeekPlanRoute
 import com.sleepsaver.feature.winddown.navigation.NightStepsRoute
+import com.sleepsaver.feature.winddown.navigation.navigateToNightSteps
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -96,6 +97,36 @@ class AppNavigationTest {
 
         assertThat(isOn(SleepRoute::class)).isTrue()
     }
+
+    @Test
+    fun `Drop anchor in Night steps opened from the Tonight tab lands on Tonight, not back on Night steps`() {
+        navController.navigateToTab(TopLevel.TONIGHT)
+        navController.navigateToNightSteps()
+
+        navController.showTonight()
+
+        assertThat(routes()).containsExactly("SleepRoute", "TonightRoute").inOrder()
+    }
+
+    @Test
+    fun `Drop anchor in Night steps opened from a reminder shows the Tonight tab's own screen`() {
+        // Tonight was left with Night steps on top, then a reminder opened Night steps over the Sleep tab.
+        navController.navigateToTab(TopLevel.TONIGHT)
+        navController.navigateToNightSteps()
+        navController.navigateToTab(TopLevel.SLEEP)
+        navController.openDeepLink(link(AlarmIntents.DEEP_LINK_NIGHT_STEPS))
+
+        navController.showTonight()
+
+        assertThat(routes()).containsExactly("SleepRoute", "TonightRoute").inOrder()
+        navController.showTonight() // already there: nothing changes
+        assertThat(routes()).containsExactly("SleepRoute", "TonightRoute").inOrder()
+    }
+
+    /** The back stack's screens by route class name (the root graph left out). */
+    private fun routes(): List<String> = navController.currentBackStack.value
+        .filter { it.destination.parent != null }
+        .mapNotNull { it.destination.route?.substringAfterLast('.') }
 
     @Test
     fun `other links are left alone`() {
