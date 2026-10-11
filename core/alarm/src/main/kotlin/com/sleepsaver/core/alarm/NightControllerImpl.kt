@@ -50,6 +50,7 @@ import com.sleepsaver.core.domain.schedule.WakeStyle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -156,8 +157,14 @@ internal class NightControllerImpl @Inject constructor(
     }
 
     override fun endNight() {
-        coordinator.apply { m -> MirrorUpdate(m.copy(night = null), Unit) }
-        NightService.current?.stopWholeNightLog()
+        val ended = coordinator.apply { m -> MirrorUpdate(m.copy(night = null), m.night) }
+        val service = NightService.current
+        if (service != null) {
+            service.stopWholeNightLog()
+        } else {
+            // The log's service is gone (it stopped unexpectedly): close its row here, or it stays open for good.
+            closeOrphanLog(ended?.logId)
+        }
     }
 
     override fun resumeMovementLog() {
@@ -305,15 +312,7 @@ internal class NightControllerImpl @Inject constructor(
         val scheduler = scheduler.get()
         if (result.planned) {
             val service = NightService.current
-            if (service != null) {
-                service.stopAll()
-            } else {
-                val logId = result.endedNight?.logId
-                if (logId != null && scheduler.unlocked()) {
-                    val end = time.now()
-                    scope.launch { runCatching { nightLog.get().endMovementLog(logId, end) } }
-                }
-            }
+            if (service != null) service.stopAll() else closeOrphanLog(result.endedNight?.logId)
         }
         scheduler.replanAfterRing()
         scheduler.flushEventsAsync()
@@ -343,9 +342,10 @@ internal class NightControllerImpl @Inject constructor(
         val sound = ringOutputs.sound(tone, locked = !scheduler.get().unlocked())
         preview = sound
         sound.start(volume.coerceIn(config.alarm.minVolume, 1f))
-        previewJob = scope.launch {
+        // On the main thread, like the UI calls, and only for this preview: a newer one started meanwhile keeps playing.
+        previewJob = scope.launch(Dispatchers.Main) {
             delay(config.alarm.previewLength.toMillis())
-            stopPreview()
+            if (preview === sound) stopPreview()
         }
     }
 
@@ -373,6 +373,13 @@ internal class NightControllerImpl @Inject constructor(
     }
 
     // ---------------------------------------------------------------- Internals
+
+    /** Ends the whole-night log row [logId] at now when no NightService holds it (Room, so only once unlocked). */
+    private fun closeOrphanLog(logId: Long?) {
+        if (logId == null || !scheduler.get().unlocked()) return
+        val end = time.now()
+        scope.launch { runCatching { nightLog.get().endMovementLog(logId, end) }.onFailure { Log.w(TAG, "Movement log not closed", it) } }
+    }
 
     private fun ringingNow(): Boolean = synchronized(lock) { ringing != null } || AlarmRingService.current?.isSounding == true
 

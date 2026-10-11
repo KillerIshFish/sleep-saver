@@ -161,11 +161,17 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             if (occurrenceId == null || armed == null || armed.occurrenceId != occurrenceId || !armed.isSurfacing || now >= armed.target) {
                 return reachForeground()
             }
-            windowRun?.let { endWindowRun() }
+            // A run for another occurrence ends here without the foreground update: on the main thread that update
+            // runs at once and, with no other reason left, would stopSelf() the service this new run is starting in.
+            val replaced = windowRun != null
+            windowRun?.let { endWindowRun(updateForeground = false) }
             val wanted = mask(sensing = true, hush = hush != null)
             if (!applyForeground(wanted, onlyIfChanged = false)) {
                 markUnavailable(occurrenceId)
-                return reachForeground()
+                if (!replaced) return reachForeground()
+                updateForeground() // the ended run's reason is gone too
+                publishSensing()
+                return
             }
             val active = stream ?: startStream(armed.wakeDate, mode = SensingMode.WINDOW, anchorId = null, occurrenceId = occurrenceId)
             if (active == null) {
@@ -301,8 +307,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
         }
     }
 
-    /** Must hold [lock]. */
-    private fun endWindowRun() {
+    /** Must hold [lock]. [updateForeground] false: the caller sets the foreground itself right after. */
+    private fun endWindowRun(updateForeground: Boolean = true) {
         windowRun ?: return
         windowRun = null
         windowTimer?.cancel()
@@ -312,6 +318,7 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             closeStream(active, time.now())
             stream = null
         }
+        if (!updateForeground) return
         main.launch {
             updateForeground()
             publishSensing()

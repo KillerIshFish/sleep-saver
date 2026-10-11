@@ -8,6 +8,7 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredExtra
+import com.sleepsaver.core.alarm.mirror.MirroredNight
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
 import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.data.hooks.SensingMode
@@ -217,6 +218,47 @@ internal class NightServiceTest : AlarmRobolectricTest() {
 
         assertThat(night.get().windowRunId).isNull()
         assertThat(m.armed?.occurrenceId).isEqualTo(tomorrowAlarm.occurrence.id)
+    }
+
+    @Test
+    fun `a WINDOW for another occurrence replaces the run and keeps the service running`() {
+        armToday()
+        now = at(today, "05:45")
+        val night = startNight(AlarmActions.ACTION_WINDOW, id)
+        graph.seed { it.copy(armed = mirrored(tomorrowAlarm)) } // armed moved on without telling the service
+
+        night.send(nightIntent(AlarmActions.ACTION_WINDOW, tomorrowAlarm.occurrence.id))
+        idleMain()
+
+        assertThat(night.get().windowRunId).isEqualTo(tomorrowAlarm.occurrence.id)
+        assertThat(night.get().foregroundServiceType).isEqualTo(health)
+        assertThat(shadowOf(night.get()).isStoppedBySelf).isFalse()
+        assertThat(graph.nightLog.movementLogsEnded).hasSize(1) // the old run's log
+        assertThat(graph.nightLog.movementLogsStarted.map { it.occurrenceId })
+            .containsExactly(id, tomorrowAlarm.occurrence.id).inOrder()
+    }
+
+    @Test
+    fun `I'm up closes a whole-night log whose service is gone`() {
+        graph.seed {
+            it.copy(
+                night = MirroredNight(
+                    anchorId = 4,
+                    anchoredAtEpochMs = at(today, "00:10").toEpochMilli(),
+                    offsetSec = -4 * 3600,
+                    wholeNightLog = true,
+                    logId = 7,
+                    endsAtEpochMs = at(today, "16:10").toEpochMilli(),
+                ),
+            )
+        }
+        assertThat(graph.nightController.state.value.sensing?.running).isFalse() // Resume is offered
+
+        graph.nightController.endNight()
+
+        assertThat(graph.nightLog.movementLogsEnded).containsExactly(7L to now)
+        assertThat(graph.nightController.state.value.night).isNull()
+        assertThat(graph.nightController.state.value.sensing).isNull()
     }
 
     // ---------------------------------------------------------------- Fire (T4)

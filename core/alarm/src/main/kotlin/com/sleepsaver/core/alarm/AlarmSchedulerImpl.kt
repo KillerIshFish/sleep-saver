@@ -122,9 +122,18 @@ internal class AlarmSchedulerImpl @Inject constructor(
             rearmFromMirror()
             return
         }
+        val reconcileAt = time.now()
+        val runningWindowId = NightService.current?.windowRunId // before the coordinator's lock (lock order)
         val reconciled = coordinator.apply { m ->
-            val r = reconciler.reconcile(m, time.now(), AlarmRingService.running, NightService.running, time.zone())
-            MirrorUpdate(r.state, r, r.actions)
+            val r = reconciler.reconcile(m, reconcileAt, AlarmRingService.running, NightService.running, time.zone())
+            if (r.state.armed?.occurrenceId == m.armed?.occurrenceId) {
+                MirrorUpdate(r.state, r, r.actions)
+            } else {
+                // The armed wake time passed and reconcile promoted the next alarm from `upcoming`: arm it from the
+                // mirror now, so it still rings when the plan below can't be read (that failure keeps AlarmManager).
+                val armed = arming.arm(r.state, reconcileAt, runningWindowId)
+                MirrorUpdate(armed.state, r, r.actions + armed.actions)
+            }
         }
         afterReconcile(reconciled)
         repeat(PLAN_ATTEMPTS) {

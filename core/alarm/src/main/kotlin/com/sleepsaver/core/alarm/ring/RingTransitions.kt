@@ -68,19 +68,23 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
      *  - CATNAP rings `mirror.catnap`.
      *  - While a ring sounds: a planned ring for another occurrence is queued; a catnap or test ring is dropped; a
      *    duplicate planned extra is cleared (the sounding ring answers it).
+     *
+     * [offset] = the device zone's offset now: a catnap's event (and a planned ring whose alarm left the mirror) is
+     * recorded in it, never in UTC.
      */
-    fun onRing(m: MirrorState, request: RingRequest, now: Instant, sounding: MirroredRinging?): MirrorUpdate<RingDecision> = when (request.source) {
-        RingSource.PLAN -> onPlan(m, request, now, sounding)
-        RingSource.EXTRA -> onExtra(m, request, now, sounding)
-        RingSource.CATNAP -> onCatnap(m, now, sounding)
-    }
+    fun onRing(m: MirrorState, request: RingRequest, now: Instant, sounding: MirroredRinging?, offset: ZoneOffset): MirrorUpdate<RingDecision> =
+        when (request.source) {
+            RingSource.PLAN -> onPlan(m, request, now, sounding, offset)
+            RingSource.EXTRA -> onExtra(m, request, now, sounding)
+            RingSource.CATNAP -> onCatnap(m, now, sounding, offset)
+        }
 
-    private fun onPlan(m: MirrorState, request: RingRequest, now: Instant, sounding: MirroredRinging?): MirrorUpdate<RingDecision> {
+    private fun onPlan(m: MirrorState, request: RingRequest, now: Instant, sounding: MirroredRinging?, offset: ZoneOffset): MirrorUpdate<RingDecision> {
         val id = request.occurrenceId?.takeIf { it.isNotEmpty() } ?: return m.unchanged(RingDecision.Ignore("no occurrence"))
         if (id in m.handledIds) return m.unchanged(RingDecision.Ignore("already handled"))
         if (sounding != null && sounding.isPlanned && sounding.occurrenceId == id) return m.unchanged(RingDecision.Ignore("already sounding"))
         val alarm = listOfNotNull(m.armed, m.extra?.alarm, m.ringing?.alarm).plus(m.upcoming).firstOrNull { it.occurrenceId == id }
-            ?: fallbackAlarm(id, now)
+            ?: fallbackAlarm(id, now, offset)
         var state = m
         val actions = mutableListOf<AlarmAction>()
         val extra = m.extra
@@ -125,7 +129,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
         return start(cleared, ringing, cancel, catnapConsumed = false)
     }
 
-    private fun onCatnap(m: MirrorState, now: Instant, sounding: MirroredRinging?): MirrorUpdate<RingDecision> {
+    private fun onCatnap(m: MirrorState, now: Instant, sounding: MirroredRinging?, offset: ZoneOffset): MirrorUpdate<RingDecision> {
         val catnap = m.catnap ?: return m.unchanged(RingDecision.Ignore("no catnap"))
         val cleared = m.copy(catnap = null)
         val cancel = listOf(AlarmAction.Cancel(PendingAlarm.RING_CATNAP))
@@ -133,7 +137,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
         val napSnooze = config.catnap.snooze.multipliedBy(config.catnap.snoozeCount.toLong())
         val napAlarm = MirroredAlarm.adHoc(
             at = catnap.ringAt,
-            offset = m.armed?.offset ?: ZoneOffset.UTC,
+            offset = offset,
             style = WakeStyle.STANDARD,
             tone = catnap.alarmTone,
             volume = catnap.volume,
@@ -298,10 +302,10 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
     }
 
     /** A RING_PLAN whose alarm is no longer in the mirror still rings, at its own time with default settings. */
-    private fun fallbackAlarm(id: String, now: Instant): MirroredAlarm {
+    private fun fallbackAlarm(id: String, now: Instant, offset: ZoneOffset): MirroredAlarm {
         val date = runCatching { LocalDate.parse(id.substringBefore('T')) }.getOrNull()
         val time = runCatching { LocalTime.parse(id.substringAfter('T')) }.getOrNull()
-        val base = MirroredAlarm.adHoc(now, ZoneOffset.UTC, cfg.defaultWeekdayStyle, cfg.defaultTone, cfg.defaultVolume, SnoozeSettings())
+        val base = MirroredAlarm.adHoc(now, offset, cfg.defaultWeekdayStyle, cfg.defaultTone, cfg.defaultVolume, SnoozeSettings())
         return base.copy(occurrenceId = id, date = date?.toString() ?: base.date, localTime = time?.toString() ?: base.localTime)
     }
 

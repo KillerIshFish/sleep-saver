@@ -22,6 +22,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import java.time.Duration
+import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 
 @RunWith(AndroidJUnit4::class)
 internal class AlarmRingServiceTest : AlarmRobolectricTest() {
@@ -104,6 +106,38 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         advance(Duration.ofMinutes(5))
         assertThat(sound.gains.last()).isEqualTo(0.8f)
         assertThat(sound.stopped).isFalse()
+    }
+
+    @Test
+    fun `the snooze label is posted again when its minute changes, not on every tick`() {
+        armAndReachWakeTime()
+        startRing(AlarmActions.KIND_PLAN, id)
+        // 06:30:02: "Snooze until 6:39 · last one" (the second snooze would fall under the minimum before 6:40).
+        repeat(8) { advance(Duration.ofMillis(250)) }
+        val shown = checkNotNull(graph.nightController.state.value.ringing)
+        assertThat(shown.snooze.until?.truncatedTo(ChronoUnit.MINUTES)).isEqualTo(at(today, "06:39"))
+        assertThat(shown.snooze.lastOne).isTrue()
+
+        repeat(8) { advance(Duration.ofMillis(250)) } // 06:30:04: the offer moved to 06:39:04, its label didn't
+        assertThat(graph.nightController.state.value.ringing).isSameInstanceAs(shown)
+
+        repeat(240) { advance(Duration.ofMillis(250)) } // 06:31:04: capped at the wake time + overrun
+        assertThat(graph.nightController.state.value.ringing?.snooze?.until).isEqualTo(at(today, "06:40"))
+        assertThat(notifications.getNotification(AlarmActions.ID_RINGING).actions.first().title.toString())
+            .isEqualTo("Snooze until 6:40 AM")
+    }
+
+    @Test
+    fun `a catnap with no alarm armed is recorded in the phone's offset, not UTC`() {
+        assertThat(graph.nightController.startCatnap(Duration.ofMinutes(20))).isTrue()
+        now = checkNotNull(m.catnap).ringAt
+
+        startRing(AlarmActions.KIND_CATNAP)
+
+        val event = events.single()
+        assertThat(event.kind).isEqualTo(RingKind.NAP)
+        assertThat(event.offset).isEqualTo(ZoneOffset.ofHours(-4)) // New York in October
+        assertThat(event.wakeDate).isEqualTo(today)
     }
 
     // ---------------------------------------------------------------- T8

@@ -37,6 +37,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 
 /**
@@ -110,7 +112,8 @@ internal class AlarmRingService : Service() {
         // The window run's last word first: a SURFACING ring at the wake time is logged by its sensing outcome.
         if (request.source == RingSource.PLAN) NightService.current?.concludeWindowRun(request.occurrenceId)
         val now = time.now()
-        when (val decision = coordinator.apply { m -> transitions.onRing(m, request, now, sounding?.ringing) }) {
+        val offset = time.zone().rules.getOffset(now)
+        when (val decision = coordinator.apply { m -> transitions.onRing(m, request, now, sounding?.ringing, offset) }) {
             is RingDecision.Ignore -> {
                 Log.i(TAG, "Ring ignored: ${decision.why}")
                 if (sounding == null) finishIdle()
@@ -132,6 +135,8 @@ internal class AlarmRingService : Service() {
             // mirror keeps the ring (marked fallback) so those actions work and reconcile lets it time out.
             Log.w(TAG, "Ring service refused; showing the fallback notification", e)
             coordinator.apply { m -> transitions.markFallback(m, ringing.since) }
+            RingNotifications.cancel(this, AlarmActions.ID_SNOOZED)
+            if (catnapConsumed) RingNotifications.cancel(this, AlarmActions.ID_CATNAP)
             RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, time.zone(), use24h))
             val scheduler = scheduler.get()
             if (ringing.isPlanned) scheduler.replanAfterRing()
@@ -290,14 +295,22 @@ internal class AlarmRingService : Service() {
         active.wakeLock?.let { if (it.isHeld) it.release() }
     }
 
-    /** The snooze label moves with the clock ("Snooze until 6:40"): refresh it when the offer changes. */
+    /**
+     * The snooze label moves with the clock ("Snooze until 6:40"): re-post 300 and re-publish only when what they show
+     * changes (the minute, last one, none left). The offer's `until` itself moves with every 250-ms tick while it isn't
+     * capped, and re-posting the full-screen notification four times a second would hit the notification rate limit.
+     */
     private fun refreshOffer(active: Sounding) {
         val offer = transitions.offer(active.ringing, time.now())
-        if (offer == active.offer) return
+        val shownChanged = offer.shown() != active.offer.shown()
         active.offer = offer
+        if (!shownChanged) return
         RingNotifications.post(this, AlarmActions.ID_RINGING, ringNotification(active))
         publish()
     }
+
+    /** What the notification and the ringing screen show of an offer: its minute and whether it is the last one. */
+    private fun SnoozeOffer.shown(): Pair<Instant?, Boolean> = until?.truncatedTo(ChronoUnit.MINUTES) to lastOne
 
     private fun ringNotification(active: Sounding): Notification =
         RingNotifications.ring(this, active.ringing, active.offer, time.zone(), coordinator.read().use24h)

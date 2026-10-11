@@ -36,7 +36,8 @@ internal class AlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
             AlarmActions.ACTION_RING -> onRing(context, intent, entry)
             AlarmActions.ACTION_WINDOW -> onWindow(context, intent, entry)
-            AlarmActions.ACTION_STOP_SNOOZED -> entry.nightController().stopFromMirror()
+            // Stop on "Snoozed until …": also stops the ring when the snooze end is already sounding (a stale 302).
+            AlarmActions.ACTION_STOP_SNOOZED -> entry.nightController().stopRinging()
             AlarmActions.ACTION_CANCEL_CATNAP -> entry.nightController().cancelCatnap()
             AlarmActions.ACTION_HUSH_STOP -> entry.nightController().stopHush()
             AlarmActions.ACTION_HUSH_EXTEND -> entry.nightController().extendHush(SleepConfig.DEFAULT.hush.extendStep)
@@ -77,12 +78,15 @@ internal class AlarmReceiver : BroadcastReceiver() {
         val time = entry.time()
         val now = time.now()
         val decision = entry.coordinator().apply { m ->
-            val update = transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null)
+            val update = transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null, offset = time.zone().rules.getOffset(now))
             val started = update.value as? RingDecision.Start ?: return@apply update
             val marked = transitions.markFallback(update.state, started.ringing.since).state
             update.copy(state = marked, value = started.copy(ringing = marked.ringing ?: started.ringing))
         }
         if (decision !is RingDecision.Start) return
+        // The snooze or the catnap this ring answers is over: only 303 stands for it now.
+        RingNotifications.cancel(context, AlarmActions.ID_SNOOZED)
+        if (decision.catnapConsumed) RingNotifications.cancel(context, AlarmActions.ID_CATNAP)
         val use24h = entry.coordinator().read().use24h
         val offer = transitions.offer(decision.ringing, now)
         RingNotifications.post(context, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(context, decision.ringing, offer, time.zone(), use24h))

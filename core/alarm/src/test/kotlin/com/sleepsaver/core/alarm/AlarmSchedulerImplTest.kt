@@ -129,6 +129,22 @@ internal class AlarmSchedulerImplTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `once the wake time passed, the next alarm from the mirror is armed even when the plan can't be read`() {
+        plan(todayAlarm, tomorrowAlarm)
+        reschedule()
+        graph.seed { it.handle(todayAlarm.occurrence.id, kept = 8) } // today's ring was answered
+        now = target + Duration.ofMinutes(1)
+
+        graph.fakeSchedule.alarmPlanError = IOException("disk")
+        reschedule()
+
+        assertThat(m.armed?.occurrenceId).isEqualTo(tomorrowAlarm.occurrence.id)
+        assertThat(ringPlanId).isEqualTo(tomorrowAlarm.occurrence.id)
+        assertThat(ringPlanAt).isEqualTo(at(tomorrow, "06:30"))
+        assertThat(windowAt).isEqualTo(at(tomorrow, "05:45"))
+    }
+
+    @Test
     fun `a successful plan of no alarm cancels the plan channel`() {
         plan(todayAlarm)
         reschedule()
