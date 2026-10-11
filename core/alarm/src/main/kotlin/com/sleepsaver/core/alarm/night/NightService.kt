@@ -221,13 +221,15 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
      */
     internal fun onEpochs(closed: List<MovementEpoch>, sampleTime: Instant) {
         if (closed.isEmpty()) return
-        synchronized(lock) {
+        val ended = synchronized(lock) {
             val active = stream ?: return
             active.add(closed)
             persist(active, force = false)
-            val run = windowRun ?: return
-            evaluate(run, active, sampleTime)
+            windowRun?.let { run -> evaluate(run, active, sampleTime) }
+            wholeNight?.takeIf { sampleTime >= it.endsAt }
         }
+        // The whole-night log's night is over (a sample keeps its own time, also in a batch that arrives late).
+        if (ended != null) main.launch { endWholeNightLog(ended.anchorId, ended.endsAt) }
     }
 
     /** T4. Must hold [lock]. */
@@ -353,22 +355,33 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
                 val until = listOfNotNull(armedTarget?.plus(config.surfacing.wholeNightWakeLockMargin), night.endsAt).minOrNull() ?: night.endsAt
                 active.holdWakeLock(Duration.between(time.now(), until))
             }
-            main.launch {
-                delay(Duration.between(time.now(), night.endsAt).toMillis().coerceAtLeast(0))
-                stopWholeNightLog()
-            }
+            // No timer for the night's end: a delay counts uptime, which stands still while the CPU sleeps between
+            // sensor batches (and could then stop a later night's log). The first sample past the end stops the log
+            // (onEpochs), and so does the reconcile that clears the ended night (onNightEnded).
         }
         publishSensing()
     }
 
-    /** "I'm up", undo, or the night's end: the whole-night log stops (a window run keeps its stream). */
-    fun stopWholeNightLog() {
+    /** "I'm up" or undo: the whole-night log stops now (a window run keeps its stream). */
+    fun stopWholeNightLog() = endWholeNightLog(anchorId = null, end = time.now())
+
+    /**
+     * Reconcile cleared the night of [anchorId], which ended at [endsAt]: its log stops there, on the main thread. A
+     * later night's log keeps going.
+     */
+    fun onNightEnded(anchorId: Long, endsAt: Instant) {
+        main.launch { endWholeNightLog(anchorId, minOf(time.now(), endsAt)) }
+    }
+
+    /** Stops the whole-night log of [anchorId] (null: whichever runs) at [end]; a window run keeps its stream. */
+    private fun endWholeNightLog(anchorId: Long?, end: Instant) {
         synchronized(lock) {
-            wholeNight ?: return
+            val log = wholeNight ?: return
+            if (anchorId != null && log.anchorId != anchorId) return
             wholeNight = null
             val active = stream
             if (active != null && windowRun == null) {
-                closeStream(active, time.now())
+                closeStream(active, end)
                 stream = null
             }
         }

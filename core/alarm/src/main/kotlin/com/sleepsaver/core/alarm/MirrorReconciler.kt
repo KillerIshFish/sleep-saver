@@ -6,6 +6,7 @@ import com.sleepsaver.core.alarm.mirror.MirrorState
 import com.sleepsaver.core.alarm.mirror.MirroredAlarm
 import com.sleepsaver.core.alarm.mirror.MirroredEvent
 import com.sleepsaver.core.alarm.mirror.MirroredExtra
+import com.sleepsaver.core.alarm.mirror.MirroredNight
 import com.sleepsaver.core.alarm.mirror.PendingAlarm
 import com.sleepsaver.core.alarm.mirror.localTimeOrNull
 import com.sleepsaver.core.alarm.ring.RingTransitions
@@ -27,6 +28,8 @@ internal data class Reconciled(
     val logsToClose: List<Pair<Long, Instant>> = emptyList(),
     /** Hush plays to end: (play id, end). */
     val hushPlaysToEnd: List<Pair<Long, Instant>> = emptyList(),
+    /** The night this reconcile cleared because it ended: a NightService still logging it stops. */
+    val endedNight: MirroredNight? = null,
 )
 
 /**
@@ -50,8 +53,8 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
      *     later than extraMatchTolerance reads CATCH_UP); an older one is dropped, a planned one as MISSED + handled.
      *  4. `armed` with a past target: when its id isn't excluded (handled, sounding, or a pending planned ring) it
      *     catches up within missedGrace, else it is MISSED + handled. Then the next `upcoming` alarm is promoted.
-     *  5. `night` past its end is cleared (its movement log closes once unlocked); `hush` without a live NightService
-     *     is cleared (Hush never restarts by itself).
+     *  5. `night` past its end is cleared (its movement log closes once unlocked, and a NightService still logging it
+     *     stops); `hush` without a live NightService is cleared (Hush never restarts by itself).
      */
     fun reconcile(state: MirrorState, now: Instant, ringServiceRunning: Boolean, nightServiceRunning: Boolean, zone: ZoneId? = null): Reconciled {
         var m = if (zone != null) resolveIn(state, zone) else state
@@ -170,11 +173,10 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
         }
 
         // 5. Night and Hush.
-        m.night?.let { night ->
-            if (night.endsAt <= now) {
-                night.logId?.let { logs += it to night.endsAt }
-                m = m.copy(night = null)
-            }
+        val endedNight = m.night?.takeIf { it.endsAt <= now }
+        if (endedNight != null) {
+            endedNight.logId?.let { logs += it to endedNight.endsAt }
+            m = m.copy(night = null)
         }
         m.hush?.let { hush ->
             if (!nightServiceRunning) {
@@ -182,7 +184,7 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
                 m = m.copy(hush = null)
             }
         }
-        return Reconciled(m, actions, logs, plays)
+        return Reconciled(m, actions, logs, plays, endedNight)
     }
 
     /** The first upcoming alarm that is still ahead and not excluded becomes `armed`; the ones before it are gone. */

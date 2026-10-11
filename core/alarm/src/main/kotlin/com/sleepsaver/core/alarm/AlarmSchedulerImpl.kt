@@ -197,8 +197,12 @@ internal class AlarmSchedulerImpl @Inject constructor(
         NightService.current?.let { service -> if (service.windowRunId != null && service.windowRunId != armed?.occurrenceId) service.onArmedChanged(armed) }
     }
 
-    /** Room writes the reconcile asked for, once unlocked: close expired movement logs, end orphaned Hush plays, flush. */
+    /**
+     * What the reconcile asked for outside the mirror: a NightService still logging a night that ended stops that log;
+     * then the Room writes, once unlocked: close expired movement logs, end orphaned Hush plays, flush.
+     */
     private fun afterReconcile(r: Reconciled) {
+        r.endedNight?.let { night -> NightService.current?.onNightEnded(night.anchorId, night.endsAt) }
         if (!unlocked()) return
         scope.launch {
             r.logsToClose.forEach { (id, end) -> optional { nightLog.get().endMovementLog(id, end) } }

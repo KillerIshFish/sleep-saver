@@ -253,6 +253,8 @@ class MirrorReconcilerTest {
 
         assertThat(r.state.night).isNull()
         assertThat(r.logsToClose).containsExactly(9L to at("12:00"))
+        assertThat(r.endedNight).isEqualTo(night) // a NightService still logging it stops
+        assertThat(reconciler.reconcile(MirrorState(night = night), at("11:00"), false, false).endedNight).isNull()
     }
 
     @Test

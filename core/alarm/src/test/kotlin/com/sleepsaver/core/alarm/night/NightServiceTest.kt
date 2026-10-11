@@ -404,6 +404,50 @@ internal class NightServiceTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `the whole-night log stops at the first sample past the night's end, with no timer to wait for`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+        // A wake-up accelerometer: no wake lock, so the CPU sleeps between batches and no uptime delay moves on.
+        now = ended.endsAt + Duration.ofMinutes(1)
+
+        night.get().onEpochs(listOf(MovementEpoch(ended.endsAt, 12.0)), ended.endsAt + Duration.ofSeconds(30))
+
+        assertThat(graph.motion.sources.single().stopped).isTrue()
+        assertThat(graph.nightLog.movementLogsEnded).containsExactly(ended.logId to ended.endsAt)
+        assertThat(shadowOf(night.get()).isStoppedBySelf).isTrue()
+    }
+
+    @Test
+    fun `the reconcile that clears an ended night stops the log its service still runs`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+        now = ended.endsAt + Duration.ofHours(3) // no sample since: the phone slept
+
+        reschedule()
+        idleMain()
+
+        assertThat(m.night).isNull()
+        assertThat(graph.motion.sources.single().stopped).isTrue()
+        assertThat(graph.nightLog.movementLogsEnded.toSet()).containsExactly(ended.logId to ended.endsAt)
+        assertThat(shadowOf(night.get()).isStoppedBySelf).isTrue()
+        assertThat(graph.nightController.state.value.sensing).isNull()
+    }
+
+    @Test
+    fun `the end of another night leaves the running log alone`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+
+        night.get().onNightEnded(ended.anchorId + 1, ended.endsAt)
+
+        assertThat(graph.motion.sources.single().stopped).isFalse()
+        assertThat(graph.nightLog.movementLogsEnded).isEmpty()
+    }
+
+    @Test
     fun `stopAll closes the log and the Hush play, then stops`() {
         armToday()
         runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
