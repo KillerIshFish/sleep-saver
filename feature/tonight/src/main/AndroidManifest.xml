@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <application />
+    <application>
+        <!--
+            The ringing screen. Started only by core:alarm with an explicit component (AlarmIntents.RINGING_ACTIVITY),
+            so it has no intent filter and isn't exported. It shows over the lock screen, turns the screen on and
+            works before the first unlock after a reboot (direct boot). No theme: it inherits Theme.SleepSaver from
+            the application.
+        -->
+        <activity
+            android:name=".ringing.RingingActivity"
+            android:directBootAware="true"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:turnScreenOn="true" />
+    </application>
 </manifest>

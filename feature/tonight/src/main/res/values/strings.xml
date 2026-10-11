@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared -->
+    <string name="tonight_back">Back</string>
+    <string name="tonight_cancel">Cancel</string>
+    <string name="tonight_settings">Settings</string>
+    <string name="tonight_loading">Loading tonight</string>
+    <string name="tonight_unavailable_title">Tonight isn\'t available right now</string>
+    <string name="tonight_unavailable_body">Something went wrong reading your plan. Try again in a moment.</string>
+    <!-- %1$d: minutes, e.g. "30 min". -->
+    <string name="tonight_minutes">%1$d min</string>
+    <!-- Same as tonight_minutes, for formatting outside composition. -->
+    <string name="tonight_minutes_format">%d min</string>
+    <!-- %1$d: a percentage, e.g. "80 %". -->
+    <string name="tonight_percent">%1$d%%</string>
+    <string name="tonight_ring_refused">A ring is already set or sounding</string>
+    <string name="tonight_test_ring">Test ring in 1 minute</string>
+    <!-- %1$s: when the test ring rings, e.g. "9:14 PM". -->
+    <string name="tonight_test_set">Test ring set for %1$s</string>
+    <string name="tonight_test_set_night">Test ring set</string>
+    <string name="tonight_alarm_check">Alarm check</string>
+
+    <!-- Tonight tab: header -->
+    <string name="tonight_title">Tonight</string>
+    <string name="tonight_subtitle_morning">Good morning</string>
+    <!-- %1$s: when the Night steps window starts, e.g. "9:45 PM". -->
+    <string name="tonight_subtitle_day">Night steps from %1$s</string>
+    <!-- %1$s: the target bedtime, e.g. "11:15 PM". -->
+    <string name="tonight_subtitle_evening">Bedtime %1$s</string>
+    <string name="tonight_subtitle_no_nights">Timed from your settings for now</string>
+    <string name="tonight_morning_review">Morning review</string>
+    <string name="tonight_demo">Demo data: alarms still ring as you set them.</string>
+
+    <!-- Tonight tab: alarm card -->
+    <!-- %1$s: the short day name, e.g. "Tue". -->
+    <string name="tonight_alarm_tomorrow">Tomorrow, %1$s</string>
+    <string name="tonight_alarm_this_morning">This morning</string>
+    <!-- %1$s: the window start, e.g. "6:00 AM"; %2$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_alarm_surfacing">May ring from %1$s at a restless moment, never later than %2$s</string>
+    <string name="tonight_alarm_debt_aware">The window opens a little earlier tonight because you\'re short on sleep.</string>
+    <!-- %1$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_alarm_fixed">Rings at %1$s</string>
+    <string name="tonight_alarm_just_once">Just this once</string>
+    <!-- %1$s: the short day name, e.g. "Tue". -->
+    <string name="tonight_alarm_no_alarm_day">No alarm %1$s</string>
+    <string name="tonight_alarm_day_off">Day off</string>
+    <!-- %1$s: the next alarm's day and time, e.g. "Wed 6:45 AM". -->
+    <string name="tonight_alarm_next">Next alarm: %1$s</string>
+    <string name="tonight_alarm_paused">Alarms paused</string>
+    <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->
+    <string name="tonight_alarm_paused_until">Until %1$s</string>
+    <string name="tonight_alarm_none">No alarm tomorrow</string>
+    <string name="tonight_alarm_none_today">No alarm this morning</string>
+    <string name="tonight_action_day_off">Day off</string>
+    <string name="tonight_action_just_once">Just this once</string>
+    <string name="tonight_action_week_plan">Week plan</string>
+    <string name="tonight_action_turn_back_on">Turn back on</string>
+    <string name="tonight_action_resume">Resume alarms</string>
+    <string name="tonight_action_resume_short">Resume</string>
+    <!-- %1$s: the short day name, e.g. "Tue". -->
+    <string name="tonight_action_set_one">Set one for %1$s</string>
+    <string name="tonight_blocked_title">Your alarm might not ring</string>
+    <string name="tonight_action_alarm_check">Alarm check</string>
+
+    <!-- Debt preview -->
+    <!-- %1$s: asleep-by time, e.g. "11:10 PM"; %2$s: "tomorrow" or "on Thu"; %3$s: hours, e.g. "3.1"; %4$s: signed change, e.g. "−0.4". -->
+    <string name="tonight_debt_preview">Asleep by %1$s → debt %2$s about %3$s h (%4$s h)</string>
+    <string name="tonight_debt_tomorrow">tomorrow</string>
+    <!-- %1$s: the short day name, e.g. "Thu". -->
+    <string name="tonight_debt_on_day">on %1$s</string>
+    <!-- %1$d: nights needed (3); %2$d: nights so far. -->
+    <string name="tonight_debt_needs_nights">Debt preview needs %1$d nights (%2$d so far)</string>
+    <string name="tonight_estimate">Estimate</string>
+
+    <!-- Tonight tab: Night steps -->
+    <string name="tonight_steps_title">Night steps</string>
+    <!-- %1$s: the window start, e.g. "9:45 PM"; %2$s: the bedtime, e.g. "11:15 PM". -->
+    <string name="tonight_steps_window">Night steps from %1$s · bedtime %2$s</string>
+    <!-- %1$d: steps checked; %2$d: steps tonight. -->
+    <string name="tonight_steps_done">%1$d of %2$d done</string>
+    <!-- %1$s: the step's emoji; %2$s: its name. -->
+    <string name="tonight_steps_next">Next: %1$s %2$s</string>
+    <string name="tonight_steps_all_done">All done. Settle in when you\'re ready.</string>
+    <string name="tonight_steps_open">Open Night steps</string>
+    <string name="tonight_steps_open_short">Open</string>
+    <string name="tonight_steps_off">Night steps are off this evening.</string>
+    <!-- %1$s: the day's full name, e.g. "Tuesday". -->
+    <string name="tonight_steps_change_evening">Change %1$s evening</string>
+    <string name="tonight_steps_empty">No steps picked yet.</string>
+    <string name="tonight_steps_pick">Pick steps</string>
+    <string name="tonight_steps_settings_only">Timed from your bedtime setting until Sleep Saver has your nights.</string>
+    <plurals name="tonight_steps_tonight">
+        <item quantity="one">%d step tonight</item>
+        <item quantity="other">%d steps tonight</item>
+    </plurals>
+    <!-- %1$d: evenings with steps done; %2$d: evenings counted. Quantity: evenings counted. -->
+    <plurals name="tonight_adherence">
+        <item quantity="one">%1$d of the last night</item>
+        <item quantity="other">%1$d of the last %2$d nights</item>
+    </plurals>
+
+    <!-- Tonight tab: Drop anchor -->
+    <string name="tonight_drop_anchor">Drop anchor</string>
+    <string name="tonight_drop_anchor_body">Settling in? Drop anchor and Sleep Saver keeps quiet until morning.</string>
+    <string name="tonight_anchor_sheet_title">Settling in</string>
+    <string name="tonight_anchor_sheet_body">Your alarm stays as it is. Reminders stop for the night.</string>
+    <string name="tonight_anchor_log">Log movement all night</string>
+    <string name="tonight_anchor_battery">Uses more battery.</string>
+    <string name="tonight_anchor_dropped">Anchor dropped</string>
+    <string name="tonight_anchor_undo">Undo</string>
+    <string name="tonight_anchor_failed">Couldn\'t save that. Try again.</string>
+    <string name="tonight_marks_title">Anything to mark for tonight?</string>
+
+    <!-- Tonight tab: Catnap -->
+    <string name="tonight_catnap_title">Catnap</string>
+    <string name="tonight_catnap_dip">You\'re in your afternoon dip: a good time for a short nap.</string>
+    <string name="tonight_catnap_bedtime">Close to bedtime: a nap now may make it harder to fall asleep tonight.</string>
+    <string name="tonight_catnap_early">Early in the day for a nap.</string>
+    <!-- %1$d: the nap length in minutes (30). -->
+    <string name="tonight_catnap_groggy">%1$d min may leave you groggy at first.</string>
+    <string name="tonight_catnap_coffee">Tip: a small coffee right before a 20-minute nap can help you wake up clearer.</string>
+    <!-- %1$d: minutes added to fall asleep (5). -->
+    <string name="tonight_catnap_fall_asleep">Includes %1$d minutes to fall asleep.</string>
+    <string name="tonight_catnap_start">Start catnap</string>
+    <!-- %1$s: when it rings, e.g. "2:47 PM". -->
+    <string name="tonight_catnap_running">Catnap · rings at %1$s</string>
+    <string name="tonight_catnap_cancel">Cancel</string>
+
+    <!-- Tonight tab: this week, list -->
+    <string name="tonight_week_title">This week</string>
+    <string name="tonight_week_none">—</string>
+    <string name="tonight_list_title">Your list from last night</string>
+
+    <!-- Night (no clock) -->
+    <string name="tonight_night_title">Good night</string>
+    <!-- %1$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_night_never_later">Alarm set · never later than %1$s</string>
+    <!-- %1$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_night_at">Alarm set · %1$s</string>
+    <string name="tonight_night_no_alarm">No alarm in the morning</string>
+    <string name="tonight_night_logging">Logging movement</string>
+    <string name="tonight_night_log_stopped">Movement log stopped</string>
+    <string name="tonight_night_resume">Resume</string>
+    <string name="tonight_night_cant_sleep">Can\'t sleep?</string>
+    <string name="tonight_night_up">I\'m up</string>
+    <string name="tonight_night_end_title">End the night?</string>
+    <string name="tonight_night_end_body">Your alarm stays set.</string>
+    <string name="tonight_night_end_confirm">End night</string>
+    <string name="tonight_night_end_cancel">Not yet</string>
+
+    <!-- Week plan -->
+    <string name="tonight_week_plan_title">Week plan</string>
+    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM"; %2$d: its window in minutes. -->
+    <string name="tonight_week_next_window">Next: %1$s · window %2$d min</string>
+    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM". -->
+    <string name="tonight_week_next">Next: %1$s</string>
+    <!-- At night, without "Next". %1$s: day and time; %2$d: window in minutes. -->
+    <string name="tonight_week_alarm_window">%1$s · window %2$d min</string>
+    <string name="tonight_week_no_alarms">No alarms set</string>
+    <!-- %1$s: the last paused day, e.g. "Sun". -->
+    <string name="tonight_week_paused">Alarms paused until %1$s</string>
+    <string name="tonight_week_paused_body">No alarm rings until then. The week plan stays as it is.</string>
+    <string name="tonight_oneoffs_title">One-off changes</string>
+    <string name="tonight_oneoffs_none">None right now.</string>
+    <string name="tonight_oneoff_change">Change one day</string>
+    <!-- %1$s: the date, e.g. "Tue, Oct 7". -->
+    <string name="tonight_oneoff_day_off">%1$s: day off</string>
+    <!-- %1$s: the date, e.g. "Wed, Oct 8"; %2$s: the time, e.g. "5:30 AM". -->
+    <string name="tonight_oneoff_just_once">%1$s: %2$s just this once</string>
+    <!-- %1$s: the date; %2$s: the time. -->
+    <string name="tonight_oneoff_just_once_no_alarm">%1$s: %2$s just this once, no alarm</string>
+    <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->
+    <string name="tonight_oneoff_paused">Paused until %1$s</string>
+    <string name="tonight_oneoff_undo">Undo</string>
+    <!-- %1$s: the wake time, e.g. "8:10 AM". -->
+    <string name="tonight_row_usual">usual %1$s</string>
+    <!-- %1$d: the surfacing window in minutes. -->
+    <string name="tonight_row_surfacing">Surfacing %1$d min</string>
+    <string name="tonight_row_no_alarm">no alarm</string>
+    <string name="tonight_row_evening">Evening</string>
+    <!-- %1$s: when the Night steps start, e.g. "9:45 PM". -->
+    <string name="tonight_row_steps_from">Night steps from %1$s</string>
+    <string name="tonight_row_steps_on">Night steps on</string>
+    <string name="tonight_row_steps_off">Night steps off</string>
+    <!-- %1$s: the set bedtime, e.g. "10:45 PM". -->
+    <string name="tonight_row_bedtime">bedtime %1$s</string>
+    <plurals name="tonight_row_steps">
+        <item quantity="one">%d step</item>
+        <item quantity="other">%d steps</item>
+    </plurals>
+    <!-- %1$s: the day's full name, e.g. "Tuesday". -->
+    <string name="tonight_row_switch">Alarm on %1$s</string>
+    <!-- %1$d: the planned keel score (0–100). -->
+    <string name="tonight_planned_keel">Planned keel %1$d</string>
+    <!-- %1$d: days measured (14); %2$d: the measured Keel. -->
+    <string name="tonight_planned_keel_last">" · last %1$d days: %2$d"</string>
+    <string name="tonight_plan_notice_title">Social jetlag</string>
+    <!-- %1$s: e.g. "1 h 40 m". -->
+    <string name="tonight_plan_free_shift">Free days wake %1$s later than alarm days. Keeping it within an hour steadies your Keel; a short early-afternoon catnap is one alternative.</string>
+    <!-- %1$s: e.g. "1 h 10 m". -->
+    <string name="tonight_plan_jetlag">Your planned sleep on free days sits %1$s later than on alarm days.</string>
+    <string name="tonight_plan_got_it">Got it</string>
+    <string name="tonight_quick_title">Quick setup</string>
+    <string name="tonight_preset_work">Work week + free weekend</string>
+    <string name="tonight_preset_same">Same every day</string>
+    <string name="tonight_quick_wake">Wake time</string>
+    <string name="tonight_quick_apply">Apply</string>
+
+    <!-- Day plan -->
+    <string name="tonight_day_plan_title">Day plan</string>
+    <!-- %1$s: the day's full name, e.g. "Tuesday". -->
+    <string name="tonight_morning_title">%1$s morning</string>
+    <string name="tonight_wake_title">Wake time</string>
+    <string name="tonight_wake_usual">Usual wake time</string>
+    <!-- %1$s: the learned wake time, e.g. "7:05 AM". -->
+    <string name="tonight_wake_learned">%1$s (learned)</string>
+    <!-- %1$s: the wake time from Settings, e.g. "7:00 AM". -->
+    <string name="tonight_wake_setting">%1$s (your setting)</string>
+    <string name="tonight_wake_set">Set a time</string>
+    <string name="tonight_wake_alarm_caption">Days with an alarm use a set time, so the alarm never moves on its own.</string>
+    <string name="tonight_alarm_label">Alarm</string>
+    <string name="tonight_window_title">Surfacing window</string>
+    <!-- %1$d: the window in minutes; %2$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_window_caption">May ring up to %1$d min before %2$s when you\'re restless. Always rings by %2$s.</string>
+    <string name="tonight_style_title">Wake-up style</string>
+    <string name="tonight_sound_title">Sound</string>
+    <!-- %1$s: the sound's name, e.g. "Soft chimes". -->
+    <string name="tonight_sound_preview">Preview %1$s</string>
+    <string name="tonight_volume_title">Volume</string>
+    <string name="tonight_volume_caption">Relative to your phone\'s alarm volume.</string>
+    <string name="tonight_snooze_title">Snooze</string>
+    <string name="tonight_snooze_length">Length</string>
+    <string name="tonight_snooze_count">Snoozes</string>
+    <plurals name="tonight_snoozes">
+        <item quantity="one">%d snooze</item>
+        <item quantity="other">%d snoozes</item>
+    </plurals>
+    <string name="tonight_overrun_title">Latest snooze</string>
+    <!-- %1$s: e.g. "10 min". -->
+    <string name="tonight_overrun_caption">Latest snooze ends %1$s after your wake time</string>
+    <string name="tonight_overrun_zero">No snooze goes past your wake time.</string>
+    <!-- %1$s: the day's full name, e.g. "Tuesday"; %2$s: the next day's, e.g. "Wednesday". -->
+    <string name="tonight_evening_title">%1$s evening (before %2$s)</string>
+    <string name="tonight_bedtime_title">Bedtime</string>
+    <string name="tonight_bedtime_rule">Settings rule</string>
+    <string name="tonight_bedtime_set">Set a time</string>
+    <string name="tonight_steps_toggle">Night steps</string>
+    <string name="tonight_steps_start">Night steps start</string>
+    <string name="tonight_steps_before">before bedtime</string>
+    <!-- %1$s: when they start, e.g. "9:45 PM". -->
+    <string name="tonight_steps_from">From %1$s</string>
+    <plurals name="tonight_steps_every_evening">
+        <item quantity="one">%d step · same as every evening</item>
+        <item quantity="other">%d steps · same as every evening</item>
+    </plurals>
+    <plurals name="tonight_steps_own_list">
+        <item quantity="one">%d step · own list</item>
+        <item quantity="other">%d steps · own list</item>
+    </plurals>
+    <string name="tonight_steps_edit">Edit steps</string>
+    <string name="tonight_copy">Copy to…</string>
+    <!-- %1$s: the day's full name, e.g. "Tuesday". -->
+    <string name="tonight_copy_title">Copy %1$s to…</string>
+    <string name="tonight_copy_morning">Morning: wake time and alarm</string>
+    <string name="tonight_copy_evening">Evening: bedtime and Night steps</string>
+    <string name="tonight_copy_apply">Copy</string>
+
+    <!-- One-off sheet -->
+    <string name="tonight_oneoff_title">Change for one day</string>
+    <string name="tonight_oneoff_day_off_title">Day off</string>
+    <!-- %1$s: the short day name, e.g. "Tue". -->
+    <string name="tonight_oneoff_day_off_body">No alarm on %1$s. The week plan stays as it is.</string>
+    <!-- %1$s: the short day name. -->
+    <string name="tonight_oneoff_day_off_apply">Take %1$s off</string>
+    <string name="tonight_oneoff_once_title">Just this once</string>
+    <string name="tonight_oneoff_mode_none">No alarm, just the time</string>
+    <!-- %1$s: the short day name. -->
+    <string name="tonight_oneoff_once_apply">Set for %1$s</string>
+    <string name="tonight_oneoff_pause_title">Pause alarms until…</string>
+    <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->
+    <string name="tonight_oneoff_pause_apply">Pause until %1$s</string>
+
+    <!-- Alarm check -->
+    <string name="tonight_check_title">Alarm check</string>
+    <string name="tonight_check_intro">Things that can stop an alarm from ringing on this phone.</string>
+    <string name="tonight_check_pass_notifications">Notifications allowed</string>
+    <string name="tonight_check_pass_ring_channel">Alarm notifications on</string>
+    <string name="tonight_check_pass_exact">Alarms &amp; reminders allowed</string>
+    <string name="tonight_check_pass_full_screen">Full-screen alarms allowed</string>
+    <string name="tonight_check_pass_background">Battery use not restricted</string>
+    <string name="tonight_check_pass_volume">Alarm volume on</string>
+    <string name="tonight_check_pass_silence">Do Not Disturb lets alarms through</string>
+    <string name="tonight_check_pass_battery">Battery optimisation off</string>
+    <string name="tonight_check_pass_bluetooth">Sound plays on this phone</string>
+    <string name="tonight_check_placement_title">Where the phone goes</string>
+    <string name="tonight_check_test_title">Test ring</string>
+    <!-- %1$s: the time, e.g. "9:14 PM"; %2$s: the date, e.g. "Oct 6". -->
+    <string name="tonight_check_last_test">Last test: rang at %1$s on %2$s</string>
+    <string name="tonight_check_no_test">No test ring yet.</string>
+    <string name="tonight_check_trigger_title">Restless trigger</string>
+    <string name="tonight_check_trigger_standard">Standard</string>
+    <!-- %1$s: when it changed, e.g. "Oct 3". -->
+    <string name="tonight_check_trigger_raised">Waits for a clearer restless moment (since %1$s)</string>
+    <!-- %1$s: when it changed, e.g. "Oct 3". -->
+    <string name="tonight_check_trigger_lowered">Reacts to smaller movements (since %1$s)</string>
+    <string name="tonight_check_trigger_reset">Reset to default</string>
+
+    <!-- Ringing screen -->
+    <string name="tonight_ring_title_planned">Good morning</string>
+    <string name="tonight_ring_title_catnap">Catnap over</string>
+    <string name="tonight_ring_title_test">Test ring</string>
+    <!-- %1$s: how early, e.g. "18 min"; %2$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_ring_restless">A restless moment · %1$s before %2$s</string>
+    <string name="tonight_ring_wake_time">Your wake time</string>
+    <string name="tonight_ring_snooze_over">Snooze over</string>
+    <string name="tonight_ring_catnap">Time to get up</string>
+    <string name="tonight_ring_test">This is how your alarm looks and sounds.</string>
+    <!-- %1$s: the wake time, e.g. "6:30 AM". -->
+    <string name="tonight_ring_catch_up">Your %1$s alarm, a little late</string>
+    <string name="tonight_ring_backup">Your alarm again</string>
+    <!-- %1$s: when the snooze ends, e.g. "6:40 AM". -->
+    <string name="tonight_ring_snooze">Snooze until %1$s</string>
+    <string name="tonight_ring_last_snooze">After this snooze, the next ring is the last ring.</string>
+    <string name="tonight_ring_last_ring">Last ring</string>
+    <string name="tonight_ring_stop">Stop</string>
+    <string name="tonight_after_light">Get bright light soon: open the curtains, step outside, or switch on bright lights if it\'s still dark.</string>
+    <string name="tonight_after_done">Done</string>
+    <string name="tonight_after_review">Open morning review</string>
+    <string name="tonight_after_test">Your real alarms haven\'t changed.</string>
+</resources>
