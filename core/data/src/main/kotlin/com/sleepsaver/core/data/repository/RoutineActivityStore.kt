@@ -35,7 +35,10 @@ internal class RoutineActivityStore @Inject constructor(
     /** Seeds DEFAULT_ACTIVITIES when the table is empty; under the store's own Mutex. */
     suspend fun seedIfEmpty() = lock.withLock { seedLocked() }
 
-    /** seedIfEmpty(), then [block] under the Mutex (find-or-insert, reorder). */
+    /**
+     * seedIfEmpty(), then [block] under the Mutex (find-or-insert, reorder). The Mutex isn't reentrant: inside [block]
+     * use the DAO it gets (`dao.maxSortOrder()`, `dao.insert`), never [seedIfEmpty], [insertAtEnd] or [locked] again.
+     */
     suspend fun <T> locked(block: suspend (RoutineActivityDao) -> T): T = lock.withLock {
         seedLocked()
         block(dao)

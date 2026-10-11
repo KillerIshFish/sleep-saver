@@ -298,16 +298,22 @@ object PlanSamples {
 
     /**
      * This morning's planned 06:45 alarm, stopped 2 min after it rang. RESTLESS rang at 06:27 (18 min early);
-     * FIXED_TIME is a FIXED alarm (zero window); every other reason rang at the wake time.
+     * FIXED_TIME is a FIXED alarm (zero window); every other reason rang at the wake time. TEST and CATNAP_END give
+     * a TEST / NAP event instead (no occurrence id, zero window), as `lastTestRing` and the history expect.
      */
     fun alarmEvent(reason: RingReason = RingReason.RESTLESS, wakeDate: LocalDate = today): AlarmEvent {
         val target = at(wakeDate, wakeTime)
-        val fixed = reason == RingReason.FIXED_TIME
+        val kind = when (reason) {
+            RingReason.TEST -> RingKind.TEST
+            RingReason.CATNAP_END -> RingKind.NAP
+            else -> RingKind.PLANNED
+        }
+        val fixed = reason == RingReason.FIXED_TIME || kind != RingKind.PLANNED
         val firstRing = if (reason == RingReason.RESTLESS) at(wakeDate, LocalTime.of(6, 27)) else target
         return AlarmEvent(
             id = 1,
-            kind = RingKind.PLANNED,
-            occurrenceId = AlarmOccurrence.occurrenceId(wakeDate, wakeTime),
+            kind = kind,
+            occurrenceId = if (kind == RingKind.PLANNED) AlarmOccurrence.occurrenceId(wakeDate, wakeTime) else null,
             wakeDate = wakeDate,
             target = target,
             windowStart = if (fixed) target else target - Duration.ofMinutes(30),
@@ -407,7 +413,8 @@ object PlanSamples {
                     target = catnapRing,
                     wakeDate = null,
                     earlyBy = Duration.ZERO,
-                    snooze = SnoozeOffer(until = catnapRing + Duration.ofMinutes(9), lastOne = false),
+                    // A catnap snoozes FIXED(catnap.snooze × catnap.snoozeCount) (§4.4 T16): one 5-min snooze, the last.
+                    snooze = SnoozeOffer(until = catnapRing + config.catnap.snooze, lastOne = config.catnap.snoozeCount <= 1),
                     style = WakeStyle.STANDARD,
                     use24h = use24h,
                     zone = zone,

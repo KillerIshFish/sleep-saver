@@ -2,7 +2,9 @@ package com.sleepsaver.core.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.alarm.LandingStage
+import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.RingReason
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.nightsteps.EveningState
@@ -63,6 +65,33 @@ class PlanSamplesTest {
         assertThat(alarm.window.length).isEqualTo(Duration.ofMinutes(40))
         assertThat(alarm.window.target).isEqualTo(alarm.occurrence.target)
         assertThat(PlanSamples.plannedAlarm(mode = AlarmMode.FIXED).window.length).isEqualTo(Duration.ZERO)
+    }
+
+    @Test
+    fun `alarm events carry the ring kind their reason implies`() {
+        assertThat(PlanSamples.alarmEvent(RingReason.RESTLESS).kind).isEqualTo(RingKind.PLANNED)
+        assertThat(PlanSamples.alarmEvent(RingReason.TEST).kind).isEqualTo(RingKind.TEST)
+        assertThat(PlanSamples.alarmEvent(RingReason.TEST).occurrenceId).isNull()
+        assertThat(PlanSamples.alarmEvent(RingReason.CATNAP_END).kind).isEqualTo(RingKind.NAP)
+    }
+
+    @Test
+    fun `a ringing catnap offers its one catnap-length snooze as the last`() {
+        val ringing = PlanSamples.nightState(PlanSamples.NightVariant.RINGING_CATNAP).ringing!!
+
+        assertThat(Duration.between(ringing.since, checkNotNull(ringing.snooze.until))).isEqualTo(SleepConfig.DEFAULT.catnap.snooze)
+        assertThat(ringing.snooze.lastOne).isTrue()
+        assertThat(ringing.offersMorningFeel).isFalse()
+    }
+
+    @Test
+    fun `the night controller fake's state is writable`() {
+        val night = FakeNightController()
+
+        night.state.value = PlanSamples.nightState(PlanSamples.NightVariant.RINGING_PLANNED)
+
+        assertThat(night.state.value.ringing?.kind).isEqualTo(RingKind.PLANNED)
+        assertThat(night.mutableState.value).isEqualTo(night.state.value)
     }
 
     @Test

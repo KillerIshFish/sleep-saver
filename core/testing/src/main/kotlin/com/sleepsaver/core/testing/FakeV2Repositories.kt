@@ -56,8 +56,6 @@ import com.sleepsaver.core.domain.schedule.WeekPreset
 import com.sleepsaver.core.domain.schedule.withPreset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -518,15 +516,19 @@ class FakeAlarmScheduler : AlarmScheduler {
 
 /**
  * Records every call as "name(args)" in [nightControllerCalls] and applies the obvious state change, so screens can
- * be driven through [state]. [dropAnchorResult] null = the anchor couldn't be saved.
+ * be driven through [state] (`fake.state.value = PlanSamples.nightState(...)`). [dropAnchorResult] null = the anchor
+ * couldn't be saved.
  */
 class FakeNightController(
     initial: NightState = NightState(),
     var clock: () -> Instant = { SampleData.now },
     var zone: ZoneId = SampleData.zone,
 ) : NightController {
-    val mutableState = MutableStateFlow(initial)
-    override val state: StateFlow<NightState> = mutableState.asStateFlow()
+    /** Writable, as SPEC_V2 §3.5 promises (`FakeNightController.state: MutableStateFlow<NightState>`). */
+    override val state: MutableStateFlow<NightState> = MutableStateFlow(initial)
+
+    /** The same flow as [state], under the name the other fakes in this module use. */
+    val mutableState: MutableStateFlow<NightState> get() = state
 
     val nightControllerCalls = mutableListOf<String>()
     var dropAnchorResult: Long? = 1L
