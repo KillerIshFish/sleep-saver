@@ -111,6 +111,25 @@ class MovementMeterTest {
         assertThat(noisy.single().activity).isEqualTo(0.0)
     }
 
+    @Test
+    fun `a sample with a NaN or infinite axis is dropped and the baseline survives`() {
+        val clean = MovementMeter().still(0, 70_000)
+        val meter = MovementMeter()
+        val glitched = ArrayList<MovementEpoch>()
+        var t = 0L
+        while (t <= 70_000) {
+            if (t == 10_000L) {
+                assertThat(meter.add(at("06:00").plusMillis(t - 20), Float.NaN, 0f, g)).isEmpty()
+                assertThat(meter.add(at("06:00").plusMillis(t - 10), 0f, Float.POSITIVE_INFINITY, g)).isEmpty()
+            }
+            glitched += meter.add(at("06:00").plusMillis(t), 0f, 0f, g)
+            t += 40
+        }
+
+        assertThat(glitched).isEqualTo(clean)
+        assertThat(glitched.map { it.activity }).containsExactly(0.0, 0.0).inOrder()
+    }
+
     // ---------------------------------------------------------------- flush
 
     @Test

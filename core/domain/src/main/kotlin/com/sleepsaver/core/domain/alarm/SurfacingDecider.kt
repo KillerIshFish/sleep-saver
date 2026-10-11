@@ -71,7 +71,11 @@ class SurfacingDecider(private val config: SleepConfig = SleepConfig.DEFAULT) {
         return Calibration(median = median, sigma = sigma, epochs = values.size)
     }
 
-    /** Called after each epoch closes, with every epoch of the stream so far (oldest first). */
+    /**
+     * Called after each epoch closes, with every epoch of the stream so far (oldest first). [now] is the time of the
+     * sample that closed the latest epoch, not the wall clock when a batched delivery arrives: the epoch weighed as
+     * "just closed" is the slot before slotStart(now), and a later now makes it a slot that hasn't closed yet (missing).
+     */
     fun decide(night: SurfacingNight, epochs: List<MovementEpoch>, now: Instant): SurfacingDecision {
         val calibration = calibration(night, epochs)
         if (!now.isBefore(night.target)) return SurfacingDecision.Done(outcome(night, epochs, calibration))

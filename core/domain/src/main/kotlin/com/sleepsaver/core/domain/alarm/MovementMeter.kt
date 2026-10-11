@@ -15,7 +15,8 @@ data class MovementEpoch(val start: Instant, val activity: Double?)
  * gives the same activity.
  *
  *  - Slots are aligned to the instant: `slotStart(t) = floorDiv(t.epochMs, epochMs) · epochMs` (Long overload).
- *  - A sample whose time is ≤ the previous sample's time is dropped.
+ *  - A sample whose time is ≤ the previous sample's time is dropped, and so is one with a NaN or infinite axis (it
+ *    would poison the baseline for the rest of the run).
  *  - Per-axis baseline b, seeded by the first sample. For sample i: Δt_i = clamp(t_i − t_{i−1}, 0, maxSampleGap)
  *    (0 for the first); d_i = max(0, |a_i − b| − noiseFloor), computed before the update; then
  *    b ← b + α(a_i − b) with α = 1 − exp(−Δt_i / baselineTau). Δt_i and d_i·Δt_i go to sample i's own slot.
@@ -50,6 +51,7 @@ class MovementMeter(private val config: SleepConfig = SleepConfig.DEFAULT) {
     fun add(time: Instant, x: Float, y: Float, z: Float): List<MovementEpoch> {
         val previous = lastTime
         if (previous != null && !time.isAfter(previous)) return emptyList()
+        if (!x.isFinite() || !y.isFinite() || !z.isFinite()) return emptyList()
         val dtMs = if (previous == null) 0L else minOf(Duration.between(previous, time).toMillis(), maxGapMs)
         if (previous == null) {
             baseX = x.toDouble()
