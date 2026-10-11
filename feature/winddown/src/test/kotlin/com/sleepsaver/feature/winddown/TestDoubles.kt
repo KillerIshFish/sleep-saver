@@ -1,7 +1,16 @@
 package com.sleepsaver.feature.winddown
 
+import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.ReminderPlanner
+import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.InsightsRepository
+import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.data.repository.NightLogRepository
+import com.sleepsaver.core.data.repository.NightStepsRepository
+import com.sleepsaver.core.data.repository.PatternsRepository
+import com.sleepsaver.core.data.repository.PlannedAlarm
+import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.model.RoutineActivity
@@ -14,6 +23,11 @@ import com.sleepsaver.core.domain.patterns.EffectMetric
 import com.sleepsaver.core.domain.patterns.MarkEffect
 import com.sleepsaver.core.domain.patterns.PatternLabel
 import com.sleepsaver.core.domain.schedule.WeekPlan
+import com.sleepsaver.core.testing.FakeInsightsRepository
+import com.sleepsaver.core.testing.FakeNightController
+import com.sleepsaver.core.testing.FakeNightLogRepository
+import com.sleepsaver.core.testing.FakePatternsRepository
+import com.sleepsaver.core.testing.FakeScheduleRepository
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.feature.winddown.steps.NightStepsUiState
 import com.sleepsaver.feature.winddown.steps.nightStepsUiState
@@ -62,6 +76,20 @@ internal fun TestScope.writer(): WinddownWriter {
     val eager = UnconfinedTestDispatcher(testScheduler)
     return WinddownWriter(backgroundScope + eager, eager)
 }
+
+/**
+ * The night in focus over fakes. The insights default to no nights, so each night is timed from tonight's steps and
+ * that morning's alarm in [schedule] (its plannedBedtime and window).
+ */
+internal fun nightSource(
+    nightSteps: NightStepsRepository,
+    time: TimeProvider,
+    schedule: ScheduleRepository = FakeScheduleRepository(),
+    nightController: NightController = FakeNightController(),
+    insights: InsightsRepository = FakeInsightsRepository(InsightsState.NoNights),
+    nightLog: NightLogRepository = FakeNightLogRepository(),
+    patterns: PatternsRepository = FakePatternsRepository(),
+): WinddownNightSource = WinddownNightSource(insights, schedule, nightLog, patterns, nightSteps, nightController, time)
 
 /** PlanSamples' seven activities plus Body scan (8), Hush (9) and a custom Herbal tea (10), all three selected. */
 internal fun richActivities(): List<RoutineActivity> {
@@ -114,18 +142,27 @@ internal object WinddownSamples {
         adherence: StepAdherence = PlanSamples.adherence(),
         week: WeekPlan = PlanSamples.weekPlan(),
         now: Instant = evening,
+        alarm: PlannedAlarm? = PlanSamples.plannedAlarm(),
     ): NightStepsUiState = nightStepsUiState(
         session = session,
+        focus = winddownFocus(
+            now = now,
+            zone = PlanSamples.zone,
+            schedule = null,
+            session = session,
+            inputs = null,
+            alarms = listOfNotNull(alarm),
+            morningStop = null,
+            anchoredAt = nightState.night?.anchoredAt,
+        ),
         adherence = adherence,
         suggestions = suggestions,
         effects = effects,
         marks = marks,
         week = week,
-        nextAlarm = PlanSamples.plannedAlarm(),
-        schedule = null,
+        nextAlarm = alarm,
         nightState = nightState,
         hush = HushChoice(),
-        now = now,
         zone = PlanSamples.zone,
     )
 }

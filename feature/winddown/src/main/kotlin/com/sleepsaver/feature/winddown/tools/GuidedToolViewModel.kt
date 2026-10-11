@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.feature.winddown.WinddownNightSource
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.safely
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,15 +24,17 @@ internal sealed interface ToolStage<out C> {
 
 /**
  * Finishing a guided tool checks its technique off for tonight, when it is one of tonight's steps (and Night steps
- * are on this evening). Example: finishing Slow tide ticks "🌊 Slow tide breathing" in tonight's checklist.
+ * are on this evening). Example: finishing Slow tide ticks "🌊 Slow tide breathing" in tonight's checklist. "Tonight"
+ * is the evening in focus ([WinddownNightSource]): a body scan finished at 00:30 ticks the evening before.
  */
 internal class ToolCompletion @Inject constructor(
+    private val night: WinddownNightSource,
     private val nightSteps: NightStepsRepository,
     private val writer: WinddownWriter,
 ) {
     /** True when [technique] is (now) checked in tonight's steps. */
     suspend fun markDone(technique: Technique): Boolean {
-        val session = safely("Reading tonight's steps") { nightSteps.tonight.first() } ?: return false
+        val session = safely("Reading tonight's steps") { night.night.first().session } ?: return false
         if (!session.enabled) return false
         val step = session.steps.firstOrNull { it.activity.technique == technique } ?: return false
         if (step.done) return true
