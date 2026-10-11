@@ -15,6 +15,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -32,13 +33,15 @@ import com.sleepsaver.core.ui.R as UiR
 
 /**
  * "Settling in": the sheet behind Drop anchor. The whole-night movement log is opt-in (off by default) and says
- * where the phone goes and that it uses more battery; then Drop anchor ([onDrop] gets the log choice).
+ * where the phone goes and that it uses more battery; then Drop anchor ([onDrop] gets the log choice), once: a second
+ * tap while the sheet hides is ignored, since each drop saves an anchor.
  */
 @Composable
 internal fun AnchorSheet(onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var wholeNightLog by rememberSaveable { mutableStateOf(false) }
+    var dropping by remember { mutableStateOf(false) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -48,10 +51,14 @@ internal fun AnchorSheet(onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: ()
             wholeNightLog = wholeNightLog,
             onWholeNightLog = { wholeNightLog = it },
             onDrop = {
-                val log = wholeNightLog
-                scope.launch { sheetState.hide() }.invokeOnCompletion {
-                    onDismiss()
-                    onDrop(log)
+                if (!dropping) {
+                    dropping = true
+                    val log = wholeNightLog
+                    // Runs once, also when the hide is cancelled (the sheet leaving composition).
+                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        onDismiss()
+                        onDrop(log)
+                    }
                 }
             },
         )

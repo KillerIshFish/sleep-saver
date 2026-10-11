@@ -233,8 +233,11 @@ internal class DayPlanViewModel @Inject constructor(
 
     // ---------------------------------------------------------------- Morning
 
-    /** "Usual wake time" (only offered while the alarm is off). */
-    fun onWakeUsual() = update("wake time") { it.copy(morning = it.morning.copy(wakeTime = null)) }
+    /** "Usual wake time" (only offered while the alarm is off). A wake time still being scrubbed is dropped. */
+    fun onWakeUsual() {
+        dropScrub("wake") { it.copy(wake = null) }
+        update("wake time") { it.copy(morning = it.morning.copy(wakeTime = null)) }
+    }
 
     /** "Set a time": starts from the usual wake, rounded. */
     fun onWakeSet() {
@@ -291,7 +294,11 @@ internal class DayPlanViewModel @Inject constructor(
 
     // ---------------------------------------------------------------- Evening
 
-    fun onBedtimeRule() = update("bedtime") { it.copy(evening = it.evening.copy(bedtime = null)) }
+    /** "Settings rule". A bedtime still being scrubbed is dropped. */
+    fun onBedtimeRule() {
+        dropScrub("bedtime") { it.copy(bedtime = null) }
+        update("bedtime") { it.copy(evening = it.evening.copy(bedtime = null)) }
+    }
 
     /** "Set a time": starts from the Settings rule's bedtime, rounded. */
     fun onBedtimeSet() {
@@ -354,6 +361,16 @@ internal class DayPlanViewModel @Inject constructor(
             writer.write("Saving $day $key") { schedule.updateDay(day, change) }
             pending.update { if (it.day == day) settled(it) else it }
         }
+    }
+
+    /**
+     * Forgets the scrub under [key] without saving it: its save is cancelled and [clear] drops its value, so a choice
+     * made right after it (Usual wake time, Settings rule) isn't overwritten once the scrub settles or is flushed.
+     */
+    private fun dropScrub(key: String, clear: (PendingScrubs) -> PendingScrubs) {
+        scrubJobs.remove(key)?.cancel()
+        val day = day()
+        pending.update { if (it.day == day) clear(it) else it }
     }
 
     /** Saves whatever is still pending now (leaving, or switching days). */

@@ -67,8 +67,8 @@ import javax.inject.Singleton
 
 /**
  * What the phone is doing tonight, and the UI's handle on it (SPEC_V2 §3.6, §4.10). [state] is derived from the
- * reconciled mirror (night, Hush, catnap, snooze, test) plus what the running services publish (the sounding ring,
- * movement sensing). Every call returns at once; the work happens in the services and on the app scope.
+ * reconciled mirror (night, Hush, catnap, snooze, test, a fallback ring) plus what the running services publish (the
+ * sounding ring, movement sensing). Every call returns at once; the work happens in the services and on the app scope.
  *
  * Direct-boot safe: context, the coordinator, time, the app scope and Lazy repositories (resolved only when unlocked);
  * the ring outputs only take a context.

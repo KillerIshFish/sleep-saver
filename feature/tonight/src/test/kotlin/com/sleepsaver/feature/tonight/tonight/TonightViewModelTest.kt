@@ -154,6 +154,21 @@ class TonightViewModelTest {
     }
 
     @Test
+    fun `I'm up mid-minute ends night mode at once, not at the next tick`() = runTest {
+        val fakes = TonightFakes(now = at(23, 30))
+        val viewModel = viewModel(fakes)
+        // The last tick came at 23:30:00; the tap is 45 s later, before the 23:31 tick.
+        val tap = at(23, 30).plusSeconds(45)
+        fakes.time.now = tap
+
+        viewModel.onEndNight()
+
+        assertThat(fakes.endedNights.endedAt.value).isEqualTo(tap)
+        assertThat(viewModel.ready().phase).isNotEqualTo(TonightPhase.NIGHT)
+        assertThat(viewModel.ready().night).isNull()
+    }
+
+    @Test
     fun `resume restarts the movement log`() = runTest {
         val fakes = TonightFakes(now = at(23, 30))
         viewModel(fakes).onResumeLog()

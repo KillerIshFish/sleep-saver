@@ -175,6 +175,20 @@ internal class AlarmReceiverTest : AlarmRobolectricTest() {
         assertThat(graph.nightController.state.value.ringing).isNull()
     }
 
+    @Test
+    fun `the ringing screen's Snooze on a fallback ring snoozes it from the mirror`() {
+        armToday()
+        now = at(today, "06:30")
+        receive(broadcastOf(AlarmActions.RC_RING_PLAN), on = RefusingContext(context))
+
+        graph.nightController.snooze()
+
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(graph.nightController.state.value.snoozedUntil).isEqualTo(at(today, "06:39"))
+        assertThat(notifications.getNotification(AlarmActions.ID_RING_FALLBACK)).isNull()
+        assertThat(notifications.getNotification(AlarmActions.ID_SNOOZED)).isNotNull()
+    }
+
     // ---------------------------------------------------------------- WINDOW (T3)
 
     @Test

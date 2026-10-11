@@ -1,6 +1,9 @@
 package com.sleepsaver.feature.tonight.tonight
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -121,6 +124,26 @@ class TonightContentTest {
             "oneOff:$wednesday",
             "mark:ALCOHOL:true",
         ).inOrder()
+    }
+
+    @Test
+    fun `a double tap on the sheet's Drop anchor drops one anchor`() {
+        val drops = mutableListOf<Boolean>()
+        var open by mutableStateOf(true)
+        compose.setContent {
+            SleepSaverTheme { if (open) AnchorSheet(onDrop = { drops += it }, onDismiss = { open = false }) }
+        }
+        compose.waitForIdle()
+
+        // Both taps land while the sheet is still hiding.
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithText("Drop anchor").performClick()
+        compose.onNodeWithText("Drop anchor").performClick()
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+
+        assertThat(drops).containsExactly(false)
+        assertThat(open).isFalse()
     }
 
     @Test

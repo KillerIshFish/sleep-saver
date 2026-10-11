@@ -84,6 +84,19 @@ class WeekPlanViewModelTest {
     }
 
     @Test
+    fun `I'm up tapped mid-minute clears the night subtitle at once`() = runTest {
+        val fakes = TonightFakes(now = at(23, 30))
+        val viewModel = viewModel(fakes)
+        assertThat(viewModel.ready().night).isTrue()
+
+        // The last tick came at 23:30:00; the tap is 45 s later, before the 23:31 tick.
+        fakes.time.now = at(23, 30).plusSeconds(45)
+        fakes.endedNights.endedNow(fakes.time.now())
+
+        assertThat(viewModel.ready().night).isFalse()
+    }
+
+    @Test
     fun `turning an alarm on uses the default mode, off turns it off`() = runTest {
         val fakes = TonightFakes()
         val viewModel = viewModel(fakes)

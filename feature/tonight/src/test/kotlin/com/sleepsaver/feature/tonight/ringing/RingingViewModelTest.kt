@@ -144,6 +144,28 @@ class RingingViewModelTest {
     }
 
     @Test
+    fun `the next morning's stop starts with no feel, not the one tapped the morning before`() = runTest {
+        setUnlocked(true)
+        val controller = FakeNightController(PlanSamples.nightState(NightVariant.RINGING_PLANNED), clock = { ringAt })
+        val ringing = checkNotNull(controller.state.value.ringing)
+        val time = FakeTimeProvider(ringAt)
+        val viewModel = RingingViewModel(context, controller, CountingLazy { FakeJournalRepository() }, time)
+        viewModel.onStop()
+        viewModel.onFeel(MorningFeel.OKAY)
+        // Left with Home instead of Done: the same screen and ViewModel take the next morning's ring.
+
+        time.advance(Duration.ofDays(1))
+        val nextDate = wakeDate.plusDays(1)
+        controller.state.value = controller.state.value.copy(
+            ringing = ringing.copy(since = ringAt.plus(Duration.ofDays(1)), wakeDate = nextDate),
+        )
+        assertThat(viewModel.uiState.value).isInstanceOf(RingingUiState.Sounding::class.java)
+        viewModel.onStop()
+
+        assertThat(viewModel.uiState.value).isEqualTo(RingingUiState.AfterStop(RingKind.PLANNED, nextDate, feel = null, unlocked = true))
+    }
+
+    @Test
     fun `a new ring after stop sounds again`() = runTest {
         val controller = FakeNightController(PlanSamples.nightState(NightVariant.RINGING_PLANNED), clock = { ringAt })
         val ringing = checkNotNull(controller.state.value.ringing)

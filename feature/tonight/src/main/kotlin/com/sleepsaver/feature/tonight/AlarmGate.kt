@@ -33,6 +33,9 @@ internal enum class ArmSource {
     /** The one-off sheet's "Just this once". */
     ONE_OFF,
 
+    /** The one-off sheet's "Pause alarms until…" when it ends an earlier pause sooner, bringing alarms back. */
+    PAUSE,
+
     /** The day plan's "Copy to…" onto days without an alarm. */
     COPY,
     TEST_RING,
@@ -43,8 +46,8 @@ internal data class ArmAttempt(val source: ArmSource, val blocker: AlarmBlocker)
 
 /**
  * The arming gate (SPEC_V2 §5.0): anything that can make the phone ring (an alarm mode, a preset with alarms, Just
- * this once with a mode, "Turn back on", "Resume alarms", an Undo or a copy that brings an alarm back, a catnap, a test
- * ring) goes through [arm]. It first makes sure notifications are allowed, asking for POST_NOTIFICATIONS where Android
+ * this once with a mode, "Turn back on", "Resume alarms", an Undo, a shorter pause or a copy that brings an alarm back,
+ * a catnap, a test ring) goes through [arm]. It first makes sure notifications are allowed, asking for POST_NOTIFICATIONS where Android
  * still shows the prompt; then it checks that the "Alarm" category is on. Only when both pass does the change apply.
  * Otherwise nothing changes and [blocker] (NOTIFICATIONS_OFF or RING_CHANNEL_OFF) names what stopped it, for the inline
  * notice ([ArmBlockerNotice]) next to the control it came from ([ArmSource]). The notice goes away once the problem is

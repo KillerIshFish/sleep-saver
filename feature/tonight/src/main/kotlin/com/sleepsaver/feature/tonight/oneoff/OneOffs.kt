@@ -50,6 +50,21 @@ internal data class OneOffContext(
         return !resolve(date).alarmOn && week.resolve(date, without).alarmOn
     }
 
+    /**
+     * Whether "Pause alarms until [until]" brings an alarm back (it goes through the arming gate): only a pause that
+     * ends before the one in force does, when a date it no longer covers has an alarm without it. Example: paused
+     * until Oct 30, pausing until Oct 14 brings back the alarms of Oct 15–30; a first or a longer pause only takes
+     * alarms away.
+     */
+    fun pausingArms(until: LocalDate): Boolean {
+        val current = oneOffs.pause ?: return false
+        // The pause OneOffWrites.pause writes: from today.
+        val shorter = oneOffs.copy(pause = PlanPause(today, maxOf(today, until)))
+        return generateSequence(maxOf(current.from, today)) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(current.until) }
+            .any { !resolve(it).alarmOn && week.resolve(it, shorter).alarmOn }
+    }
+
     /** The date's alarm mode when it has one, else the mode a new alarm gets (`alarm.defaultMode`). */
     fun startMode(date: LocalDate, config: SleepConfig = SleepConfig.DEFAULT): AlarmMode =
         resolve(date).alarmMode.takeIf { it != AlarmMode.OFF } ?: config.alarm.defaultMode
