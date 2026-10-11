@@ -43,7 +43,8 @@ class RingingContentTest {
     fun `a restless moment, with snooze and stop`() {
         show(TonightSamples.sounding(NightVariant.RINGING_PLANNED))
 
-        compose.onNodeWithText("6:27 AM").assertExists()
+        // The big clock is a plain time.
+        compose.onNodeWithText("6:27 AM").assertExists()
         compose.onNodeWithText("Good morning").assertExists()
         compose.onNodeWithText("A restless moment · 18 min before 6:45 AM").assertExists()
         compose.onNodeWithText("Last ring").assertDoesNotExist()

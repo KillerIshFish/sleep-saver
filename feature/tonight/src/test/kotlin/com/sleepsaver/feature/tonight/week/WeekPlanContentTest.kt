@@ -102,7 +102,7 @@ class WeekPlanContentTest {
         compose.onNodeWithContentDescription("Alarm on Saturday").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Alarm on Monday").performScrollTo().performClick()
         compose.onNodeWithText("Tue · 6:45 AM · Surfacing 30 min").performClick()
-        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
 
         assertThat(calls).containsExactly(
             "switch:${DayOfWeek.SATURDAY}:true",

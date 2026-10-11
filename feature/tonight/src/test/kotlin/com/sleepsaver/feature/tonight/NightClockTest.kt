@@ -86,6 +86,14 @@ class NightClockTest {
     }
 
     @Test
+    fun `last night's anchor ends with last night`() {
+        val anchor = at(22, 55)
+        assertThat(clock(at(2, 0, date = wednesday), anchoredAt = anchor).isNight).isTrue()
+        // The window opened at 6:15; the anchor stays until the alarm is stopped but no longer means night.
+        assertThat(clock(at(6, 20, date = wednesday), anchoredAt = anchor).isNight).isFalse()
+    }
+
+    @Test
     fun `without an alarm the night ends where the wake zone starts`() {
         val dayOff = PlanSamples.oneOffs(dayOff = wednesday)
         val night = clock(at(23, 30), oneOffs = dayOff)

@@ -245,7 +245,7 @@ class TonightContentTest {
                 listOfNotNull(node.config.getOrNull(SemanticsProperties.StateDescription))
         }
 
-    private val clock = Regex("""\b\d{1,2}[:.]\d{2}\b""")
+    private val clock = Regex("""\b\d{1,2}:\d{2}\b""")
     private val countdown = Regex("""\bin \d+\s*(h|m|min|hr|hours?|minutes?)\b""")
 
     /** The only time on screen is the alarm's latest time, in the alarm line; no countdown anywhere. */

@@ -94,6 +94,7 @@ class AlarmCheckContentTest {
         show(ready(tested = true))
 
         scrollTo("Last test: rang at 6:45 AM on Oct 6")
+        scrollTo("Test ring in 1 minute")
         compose.onNodeWithText("Test ring in 1 minute").performClick()
 
         assertThat(calls).containsExactly("testRing")

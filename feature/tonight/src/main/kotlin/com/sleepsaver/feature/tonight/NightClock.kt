@@ -139,10 +139,13 @@ internal fun nightClock(
     val stepsFrom = stepsFromOf(nightOf)
     val end = if (nightOf == yesterday) lastNightEnd else NightRules.nightEnd(alarmStart(wakeDate), wakeZoneStart(wakeDate))
 
+    // Last night's anchor stays in the night state until its alarm is stopped; once that night has ended (its window
+    // opened) the anchor says nothing about the coming night.
+    val anchor = anchoredAt?.takeUnless { nightOf == today && lastNightEnd != null && it < lastNightEnd }
     // "I'm up" ends this night's no-clock time until the user drops anchor again.
-    val ended = endedAt != null && endedAt <= now && (anchoredAt == null || anchoredAt < endedAt) &&
+    val ended = endedAt != null && endedAt <= now && (anchor == null || anchor < endedAt) &&
         (bedtime == null || endedAt >= bedtime - config.week.nightBedtimeMaxLead)
-    val isNight = NightRules.isNight(now, if (ended) null else bedtime, end, anchoredAt, config)
+    val isNight = NightRules.isNight(now, if (ended) null else bedtime, end, anchor, config)
 
     val morningStart = if (nightOf == today) {
         listOfNotNull(

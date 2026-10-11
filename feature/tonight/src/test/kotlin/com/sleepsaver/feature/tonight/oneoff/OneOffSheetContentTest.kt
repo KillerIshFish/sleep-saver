@@ -61,6 +61,8 @@ class OneOffSheetContentTest {
         compose.onNodeWithText("Take Wed off").performClick()
         compose.onNodeWithText("No alarm, just the time").performScrollTo().performClick()
         compose.onNodeWithText("Set for Wed").performScrollTo().performClick()
+        // Bring the pause row on screen first: performScrollTo only scrolls the chip's own row.
+        compose.onNodeWithText("Pause until Wed, Oct 7").performScrollTo()
         compose.onNodeWithText("Thu, Oct 8").performScrollTo().performClick()
         compose.onNodeWithText("Pause until Wed, Oct 7").performScrollTo().performClick()
 

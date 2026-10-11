@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -96,7 +97,8 @@ class DayPlanContentTest {
 
         compose.onNodeWithText("8:10 AM (learned)", substring = true).assertExists()
         tap("Usual wake time")
-        tap("Set a time")
+        // The morning's (the evening's bedtime has one too).
+        compose.onAllNodesWithText("Set a time")[0].performClick()
         assertThat(calls).containsExactly("wakeUsual", "wakeSet").inOrder()
     }
 
