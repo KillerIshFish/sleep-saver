@@ -84,6 +84,27 @@ internal class AlarmSchedulerImplTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `an UNAVAILABLE attempt (locked, refused) is tried again, a finished run is not`() {
+        plan(todayAlarm)
+        reschedule()
+        now = at(today, "05:50")
+        graph.seed { it.copy(armed = it.armed?.copy(sensingOutcome = SensingOutcome.UNAVAILABLE.name)) }
+
+        reschedule()
+        assertThat(windowAt).isEqualTo(at(today, "05:50:05"))
+
+        now = at(today, "06:10")
+        graph.seed { it.copy(armed = it.armed?.copy(sensingOutcome = SensingOutcome.NO_TRIGGER.name)) }
+        reschedule()
+        assertThat(windowAt).isNull()
+        assertThat(m.armed?.outcome).isEqualTo(SensingOutcome.NO_TRIGGER)
+
+        now = at(today, "06:28")
+        reschedule()
+        assertThat(m.armed?.outcome).isEqualTo(SensingOutcome.NO_TRIGGER) // never overwritten by "too late"
+    }
+
+    @Test
     fun `a FIXED alarm has no WINDOW`() {
         plan(planned(today, "06:30", mode = AlarmMode.FIXED))
 

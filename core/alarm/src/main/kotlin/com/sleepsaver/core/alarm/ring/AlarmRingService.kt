@@ -252,7 +252,7 @@ internal class AlarmRingService : Service() {
 
     /** The ring notification was swiped away with no snooze left: post it again (it never stops silently). */
     private fun repost() {
-        val active = sounding ?: return
+        val active = sounding ?: return run { if (!foreground) stopSelf() }
         RingNotifications.post(this, AlarmActions.ID_RINGING, ringNotification(active))
     }
 

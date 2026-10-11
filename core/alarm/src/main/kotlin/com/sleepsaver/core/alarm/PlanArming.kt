@@ -106,19 +106,22 @@ internal class PlanArming(private val config: SleepConfig = SleepConfig.DEFAULT)
 
     /**
      * The WINDOW rule: SURFACING with a window → w = window start − sensingLeadIn. Before w: WINDOW at w. Inside the
-     * lead-in or window (until target − minLead) with no run going and no earlier attempt: WINDOW at now + catchUpDelay.
-     * Otherwise no WINDOW; too late for a first attempt means the ring logs SENSING_UNAVAILABLE.
+     * lead-in or window (until target − minLead) with no run going: WINDOW at now + catchUpDelay, unless tonight's run
+     * already ended with a result (an UNAVAILABLE attempt, e.g. locked or refused, is tried again). Otherwise no WINDOW;
+     * too late for any attempt means the ring logs SENSING_UNAVAILABLE.
      */
     fun window(armed: MirroredAlarm, now: Instant, runGoing: Boolean): Pair<MirroredAlarm, AlarmAction> {
         val cancel = AlarmAction.Cancel(PendingAlarm.WINDOW)
         if (!armed.isSurfacing) return armed to cancel
         val surfacing = config.surfacing
         val opens = armed.windowStart - surfacing.sensingLeadIn
+        val ran = armed.outcome != null && armed.outcome != SensingOutcome.UNAVAILABLE
         return when {
             now < opens -> armed to AlarmAction.ArmWindow(opens, armed.occurrenceId)
-            runGoing || armed.sensingOutcome != null -> armed to cancel
+            runGoing || ran -> armed to cancel
             now < armed.target - surfacing.minLead -> armed to AlarmAction.ArmWindow(now + config.alarm.catchUpDelay, armed.occurrenceId)
-            else -> armed.copy(sensingOutcome = SensingOutcome.UNAVAILABLE.name) to cancel
+            armed.outcome == null -> armed.copy(sensingOutcome = SensingOutcome.UNAVAILABLE.name) to cancel
+            else -> armed to cancel
         }
     }
 }

@@ -146,6 +146,18 @@ internal class NightServiceTest : AlarmRobolectricTest() {
     }
 
     @Test
+    fun `a run that starts after an UNAVAILABLE attempt drops that result`() {
+        armToday()
+        graph.seed { it.copy(armed = it.armed?.copy(sensingOutcome = SensingOutcome.UNAVAILABLE.name)) }
+        now = at(today, "05:50")
+
+        val night = startNight(AlarmActions.ACTION_WINDOW, id)
+
+        assertThat(night.get().windowRunId).isEqualTo(id)
+        assertThat(m.armed?.outcome).isNull()
+    }
+
+    @Test
     fun `a refused health start leaves sensing unavailable and Hush playing`() {
         armToday()
         val night = hush()

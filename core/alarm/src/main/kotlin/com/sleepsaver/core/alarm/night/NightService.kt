@@ -135,7 +135,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             stream?.let { closeStream(it, time.now()) }
             stream = null
         }
-        hush?.let { endHushPlayback(it, writeMirror = false) }
+        // Hush never restarts by itself: a service that goes takes its Hush with it.
+        hush?.let { endHushPlayback(it, writeMirror = true) }
         hush = null
         main.cancel()
         if (current === this) current = null
@@ -176,7 +177,9 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             windowRun = WindowRun(occurrenceId, night, since = now)
             coordinator.apply { m ->
                 val current = m.armed?.takeIf { it.occurrenceId == occurrenceId } ?: return@apply m.unchanged(Unit)
-                MirrorUpdate(m.copy(armed = current.copy(sensingStartEpochMs = night.sensingStart.toEpochMilli())), Unit)
+                // A run that starts after an UNAVAILABLE attempt (locked, refused) drops that result: it senses now.
+                val outcome = current.sensingOutcome.takeUnless { it == SensingOutcome.UNAVAILABLE.name }
+                MirrorUpdate(m.copy(armed = current.copy(sensingStartEpochMs = night.sensingStart.toEpochMilli(), sensingOutcome = outcome)), Unit)
             }
             if (!active.source.wakeUp) {
                 val lockFor = minOf(Duration.between(now, armed.target + config.surfacing.wakeLockMargin), config.surfacing.maxRunLength)
