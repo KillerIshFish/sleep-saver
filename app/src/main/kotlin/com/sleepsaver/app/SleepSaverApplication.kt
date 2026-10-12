@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.sleepsaver.core.alarm.AlarmBootstrap
+import com.sleepsaver.core.data.sync.AppForeground
 import com.sleepsaver.core.data.sync.SyncBootstrap
 import com.sleepsaver.core.notifications.NotificationsBootstrap
 import com.sleepsaver.feature.widget.WidgetUpdater
@@ -15,12 +16,14 @@ import javax.inject.Inject
  * credential-encrypted storage (Room, DataStore, normal SharedPreferences) can't be opened. Only the alarm machinery
  * starts then ([AlarmBootstrap.startLocked], which reads only the device-protected mirror). Everything else is a
  * dagger.Lazy that is created and started once, after unlock: at once when the user is already unlocked, else on
- * ACTION_USER_UNLOCKED ([DirectBootStartup]).
+ * ACTION_USER_UNLOCKED ([DirectBootStartup]). [AppForeground] (no storage) starts counting activities first of all,
+ * so the ringing screen shown before the unlock counts as an app open.
  */
 @HiltAndroidApp
 class SleepSaverApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var appForeground: AppForeground
     @Inject lateinit var alarmBootstrap: AlarmBootstrap
     @Inject lateinit var syncBootstrap: dagger.Lazy<SyncBootstrap>
     @Inject lateinit var notificationsBootstrap: dagger.Lazy<NotificationsBootstrap>
@@ -31,6 +34,8 @@ class SleepSaverApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Before any activity can start (ProcessLifecycleOwner isn't attached until the unlock, see AppForeground).
+        appForeground.install(this)
         DirectBootStartup(
             context = this,
             locked = { alarmBootstrap.startLocked() }, // safe before unlock

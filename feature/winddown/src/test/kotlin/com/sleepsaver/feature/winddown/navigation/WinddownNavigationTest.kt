@@ -60,7 +60,8 @@ class WinddownNavigationTest {
                         nightSteps = { nav ->
                             Column {
                                 Button(onClick = { nav.onOpenEditor(DayOfWeek.TUESDAY) }) { Text("edit tuesday") }
-                                Button(onClick = nav.onOpenLibrary) { Text("library") }
+                                Button(onClick = { nav.onOpenLibrary(null) }) { Text("library") }
+                                Button(onClick = { nav.onOpenLibrary(DayOfWeek.TUESDAY) }) { Text("tuesday library") }
                                 Button(onClick = { nav.onOpenTool(GuidedTool.SLOW_TIDE) }) { Text("slow tide") }
                                 Button(onClick = { nav.onOpenDayPlan(DayOfWeek.TUESDAY, DayPart.EVENING) }) { Text("week plan") }
                                 Button(onClick = nav.onOpenTonight) { Text("tonight") }
@@ -141,6 +142,18 @@ class WinddownNavigationTest {
         compose.onNodeWithText("back from library").performClick()
 
         currentIs { it.currentDestination?.hasRoute<RoutineEditorRoute>() == true }
+    }
+
+    @Test
+    fun `from Night steps the library adds to tonight's own list, or to every evening`() {
+        setUpNavHost()
+
+        compose.onNodeWithText("tuesday library").performClick()
+        compose.runOnIdle { assertThat(navController.currentBackStackEntry!!.toRoute<StepLibraryRoute>().day).isEqualTo(2) }
+        compose.onNodeWithText("back from library").performClick()
+
+        compose.onNodeWithText("library").performClick()
+        compose.runOnIdle { assertThat(navController.currentBackStackEntry!!.toRoute<StepLibraryRoute>().day).isEqualTo(0) }
     }
 
     @Test

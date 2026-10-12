@@ -53,7 +53,8 @@ import java.time.LocalTime
  * The one-off sheet as drawn. [date] is the day being changed; [dates] the days it can switch to (from the week plan;
  * empty when opened from the alarm card, which is about one date). [alarmOn] = that date has an alarm, so "Day off"
  * is offered. [time] and [mode] are "Just this once"'s choice; [pauseUntil] the last paused day of [pauseDates].
- * [armBlocker] is why Just this once didn't apply (notifications or the alarm channel).
+ * [armBlocker] is why Just this once didn't apply (notifications or the alarm channel), [pauseBlocker] why a shorter
+ * pause didn't.
  */
 @Immutable
 internal data class OneOffSheetState(
@@ -66,6 +67,7 @@ internal data class OneOffSheetState(
     val pauseDates: List<LocalDate>,
     val pauseUntil: LocalDate,
     val armBlocker: AlarmBlocker? = null,
+    val pauseBlocker: AlarmBlocker? = null,
 )
 
 /** Every callback of [OneOffSheetContent]; all default to doing nothing. */
@@ -84,7 +86,8 @@ internal class OneOffSheetActions(
 /**
  * "Change for one day", from the alarm card or the week plan: Day off, Just this once (another time, with or without
  * an alarm) or "Pause alarms until…". Each is a one-off row; the week plan stays as it is. Applying closes the sheet.
- * Just this once with an alarm goes through [gate].
+ * Just this once with an alarm, and a pause that ends an earlier one sooner (alarms come back after it), go through
+ * [gate].
  */
 @Composable
 internal fun OneOffSheet(
@@ -130,6 +133,7 @@ internal fun OneOffSheet(
                 pauseDates = pauseDates,
                 pauseUntil = LocalDate.parse(pauseUntil),
                 armBlocker = gate.blocker(ArmSource.ONE_OFF),
+                pauseBlocker = gate.blocker(ArmSource.PAUSE),
             ),
             actions = OneOffSheetActions(
                 onDate = { picked = it.toString() },
@@ -142,7 +146,10 @@ internal fun OneOffSheet(
                     gate.armIf(chosenMode != AlarmMode.OFF, ArmSource.ONE_OFF) { close { onJustOnce(day, chosenTime, chosenMode) } }
                 },
                 onPauseUntil = { pauseUntil = it.toString() },
-                onPause = { close { onPause(LocalDate.parse(pauseUntil)) } },
+                onPause = {
+                    val until = LocalDate.parse(pauseUntil)
+                    gate.armIf(context.pausingArms(until), ArmSource.PAUSE) { close { onPause(until) } }
+                },
                 onFixBlocker = gate::fix,
             ),
         )
@@ -228,6 +235,10 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
                     onClick = { actions.onPauseUntil(date) },
                 )
             }
+        }
+        state.pauseBlocker?.let { blocker ->
+            Spacer(Modifier.height(Spacing.m))
+            ArmBlockerNotice(blocker, actions.onFixBlocker)
         }
         Spacer(Modifier.height(Spacing.m))
         SecondaryButton(

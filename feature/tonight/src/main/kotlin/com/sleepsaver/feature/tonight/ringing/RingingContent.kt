@@ -236,7 +236,8 @@ private fun Ringing.reasonLine(): String {
                 ?: earlyBy.toMinutes()
             stringResource(R.string.tonight_ring_restless, stringResource(R.string.tonight_minutes, minutes.toInt()), wake.orEmpty())
         }
-        RingReason.DEADLINE, RingReason.PLACEMENT_FALLBACK, RingReason.SENSING_UNAVAILABLE, RingReason.FIXED_TIME ->
+        // NEVER_RANG never sounds; read it as the wake time.
+        RingReason.DEADLINE, RingReason.PLACEMENT_FALLBACK, RingReason.SENSING_UNAVAILABLE, RingReason.FIXED_TIME, RingReason.NEVER_RANG ->
             stringResource(R.string.tonight_ring_wake_time)
         RingReason.SNOOZE_END -> stringResource(R.string.tonight_ring_snooze_over)
         RingReason.CATNAP_END -> stringResource(R.string.tonight_ring_catnap)

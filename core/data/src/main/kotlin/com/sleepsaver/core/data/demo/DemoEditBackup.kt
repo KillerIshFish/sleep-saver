@@ -8,6 +8,7 @@ import com.sleepsaver.core.data.db.MorningReviewEntity
 import com.sleepsaver.core.data.db.NightMarkEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.db.NightStepLogEntity
+import com.sleepsaver.core.data.db.PromptLogEntity
 import com.sleepsaver.core.data.db.TomorrowListEntity
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -18,10 +19,10 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * The user's real edits, set aside while demo mode runs: every row of the four edit tables and (version 2) of the
- * four journal tables (marks, Morning feel, Night steps logs, Tomorrow lists), column for column, so they come back
- * exactly (ids included). Its own format (not the Room entities), versioned; a version 1 file reads with empty journal
- * lists.
+ * The user's real edits, set aside while demo mode runs: every row of the four edit tables, (version 2) of the four
+ * journal tables (marks, Morning feel, Night steps logs, Tomorrow lists) and (version 3) of the prompt log, column for
+ * column, so they come back exactly (ids included). Its own format (not the Room entities), versioned; an older file
+ * reads with empty lists for what it didn't hold yet.
  */
 @Serializable
 internal data class DemoEditBackup(
@@ -34,6 +35,7 @@ internal data class DemoEditBackup(
     val morningFeel: List<FeelRow> = emptyList(),
     val nightStepLogs: List<StepLogRow> = emptyList(),
     val tomorrowLists: List<TomorrowListRow> = emptyList(),
+    val prompts: List<PromptRow> = emptyList(),
 ) {
     @Serializable
     data class OverrideRow(
@@ -86,8 +88,13 @@ internal data class DemoEditBackup(
         fun toEntity() = TomorrowListEntity(nightOf, text, updatedAtEpochMs, offsetSec)
     }
 
+    @Serializable
+    data class PromptRow(val wakeDate: String, val kind: String, val shownAtEpochMs: Long, val offsetSec: Int) {
+        fun toEntity() = PromptLogEntity(wakeDate, kind, shownAtEpochMs, offsetSec)
+    }
+
     companion object {
-        const val VERSION = 2
+        const val VERSION = 3
 
         fun of(
             overrides: List<NightOverrideEntity>,
@@ -98,6 +105,7 @@ internal data class DemoEditBackup(
             morningFeel: List<MorningFeelEntity> = emptyList(),
             nightStepLogs: List<NightStepLogEntity> = emptyList(),
             tomorrowLists: List<TomorrowListEntity> = emptyList(),
+            prompts: List<PromptLogEntity> = emptyList(),
         ) = DemoEditBackup(
             overrides = overrides.map {
                 OverrideRow(
@@ -112,6 +120,7 @@ internal data class DemoEditBackup(
             morningFeel = morningFeel.map { FeelRow(it.wakeDate, it.level, it.atEpochMs, it.offsetSec, it.source) },
             nightStepLogs = nightStepLogs.map { StepLogRow(it.nightOf, it.activityId, it.techniqueKey, it.doneAtEpochMs, it.offsetSec) },
             tomorrowLists = tomorrowLists.map { TomorrowListRow(it.nightOf, it.text, it.updatedAtEpochMs, it.offsetSec) },
+            prompts = prompts.map { PromptRow(it.wakeDate, it.kind, it.shownAtEpochMs, it.offsetSec) },
         )
     }
 }

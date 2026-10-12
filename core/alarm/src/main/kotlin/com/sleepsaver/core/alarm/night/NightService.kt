@@ -10,6 +10,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -221,13 +222,15 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
      */
     internal fun onEpochs(closed: List<MovementEpoch>, sampleTime: Instant) {
         if (closed.isEmpty()) return
-        synchronized(lock) {
+        val ended = synchronized(lock) {
             val active = stream ?: return
             active.add(closed)
             persist(active, force = false)
-            val run = windowRun ?: return
-            evaluate(run, active, sampleTime)
+            windowRun?.let { run -> evaluate(run, active, sampleTime) }
+            wholeNight?.takeIf { sampleTime >= it.endsAt }
         }
+        // The whole-night log's night is over (a sample keeps its own time, also in a batch that arrives late).
+        if (ended != null) main.launch { endWholeNightLog(ended.anchorId, ended.endsAt) }
     }
 
     /** T4. Must hold [lock]. */
@@ -353,22 +356,33 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
                 val until = listOfNotNull(armedTarget?.plus(config.surfacing.wholeNightWakeLockMargin), night.endsAt).minOrNull() ?: night.endsAt
                 active.holdWakeLock(Duration.between(time.now(), until))
             }
-            main.launch {
-                delay(Duration.between(time.now(), night.endsAt).toMillis().coerceAtLeast(0))
-                stopWholeNightLog()
-            }
+            // No timer for the night's end: a delay counts uptime, which stands still while the CPU sleeps between
+            // sensor batches (and could then stop a later night's log). The first sample past the end stops the log
+            // (onEpochs), and so does the reconcile that clears the ended night (onNightEnded).
         }
         publishSensing()
     }
 
-    /** "I'm up", undo, or the night's end: the whole-night log stops (a window run keeps its stream). */
-    fun stopWholeNightLog() {
+    /** "I'm up" or undo: the whole-night log stops now (a window run keeps its stream). */
+    fun stopWholeNightLog() = endWholeNightLog(anchorId = null, end = time.now())
+
+    /**
+     * Reconcile cleared the night of [anchorId], which ended at [endsAt]: its log stops there, on the main thread. A
+     * later night's log keeps going.
+     */
+    fun onNightEnded(anchorId: Long, endsAt: Instant) {
+        main.launch { endWholeNightLog(anchorId, minOf(time.now(), endsAt)) }
+    }
+
+    /** Stops the whole-night log of [anchorId] (null: whichever runs) at [end]; a window run keeps its stream. */
+    private fun endWholeNightLog(anchorId: Long?, end: Instant) {
         synchronized(lock) {
-            wholeNight ?: return
+            val log = wholeNight ?: return
+            if (anchorId != null && log.anchorId != anchorId) return
             wholeNight = null
             val active = stream
             if (active != null && windowRun == null) {
-                closeStream(active, time.now())
+                closeStream(active, end)
                 stream = null
             }
         }
@@ -632,7 +646,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
 
     /**
      * 301 on the night channel: "Hush · Pink" / "Movement log on" / "Getting ready for your alarm", and "Never later
-     * than 6:30" while an alarm is armed. Ongoing, silent, no time shown; Stop Hush and +15 min while Hush plays.
+     * than 6:30" while this night's alarm is armed ([MirroredAlarm.endsNightOf]). Ongoing, silent, no time shown; Stop
+     * Hush and +15 min while Hush plays.
      */
     private fun notification(mask: Int): Notification {
         val mirror = coordinator.read()
@@ -651,7 +666,8 @@ internal class NightService : Service(), AudioManager.OnAudioFocusChangeListener
             .setShowWhen(false)
             .setContentIntent(AlarmPendingIntents.night(this))
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-        mirror.armed?.let { armed ->
+        // Only this night's alarm: before a free Saturday, Monday's 6:30 would read as a promise for the morning.
+        mirror.armed?.takeIf { it.endsNightOf(time.now(), time.zone(), config) }?.let { armed ->
             builder.setContentText(getString(R.string.alarm_night_never_later, AlarmText.clock(armed.target, time.zone(), mirror.use24h)))
         }
         if (playing != null) {
@@ -732,23 +748,37 @@ internal class MovementStream(
     var endAt: Instant? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    /** When the held wake lock times out (SystemClock.elapsedRealtime). */
+    private var wakeLockUntilMs = 0L
+
     fun add(closed: List<MovementEpoch>) {
         epochs += closed
         while (epochs.size > MAX_EPOCHS) epochs.removeAt(0)
         closed.filterTo(unsaved) { it.activity != null }
     }
 
+    /**
+     * Keeps the CPU awake for [length] from now. The stream holds one lock for all its reasons (the whole-night log's,
+     * then a window run's that shares the stream): a later reason extends it when it needs it longer and never cuts it
+     * short, so [releaseWakeLock] always releases everything the stream took.
+     */
     fun holdWakeLock(length: Duration) {
         if (length.isNegative || length.isZero) return
-        wakeLock = power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.SURFACING_WAKE_LOCK_TAG)?.apply {
-            setReferenceCounted(false)
-            acquire(length.toMillis())
-        }
+        val lock = wakeLock ?: power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.SURFACING_WAKE_LOCK_TAG)
+            ?.apply { setReferenceCounted(false) }
+            ?.also { wakeLock = it }
+            ?: return
+        val now = SystemClock.elapsedRealtime()
+        val until = now + length.toMillis()
+        if (lock.isHeld && until <= wakeLockUntilMs) return
+        lock.acquire(until - now) // not reference-counted: the new timeout replaces the old one
+        wakeLockUntilMs = until
     }
 
     fun releaseWakeLock() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
+        wakeLockUntilMs = 0L
     }
 
     private companion object {

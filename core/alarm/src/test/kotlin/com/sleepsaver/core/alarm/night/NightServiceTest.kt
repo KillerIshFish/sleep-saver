@@ -3,6 +3,7 @@ package com.sleepsaver.core.alarm.night
 import android.app.Notification
 import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
@@ -15,16 +16,20 @@ import com.sleepsaver.core.data.hooks.SensingMode
 import com.sleepsaver.core.data.hooks.SensingState
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.MovementEpoch
+import com.sleepsaver.core.domain.alarm.MovementMeter
 import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.alarm.SensingOutcome
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.AnchorSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
+import org.robolectric.shadows.ShadowPowerManager
 import java.time.Duration
+import java.time.ZoneOffset
 
 @RunWith(AndroidJUnit4::class)
 internal class NightServiceTest : AlarmRobolectricTest() {
@@ -95,6 +100,21 @@ internal class NightServiceTest : AlarmRobolectricTest() {
         assertThat(graph.hushOutputs.sounds.single().color).isEqualTo(HushColor.PINK)
         assertThat(graph.nightLog.hushPlaysStarted.single().second).isEqualTo(HushColor.PINK)
         assertThat(m.hush?.playId).isNotNull()
+    }
+
+    @Test
+    fun `the night notification promises no alarm days away`() {
+        // Friday 23:00: Saturday has no alarm, so Monday's 6:30 is the one armed.
+        val friday = today.plusDays(3)
+        now = at(friday, "23:00")
+        plan(planned(friday.plusDays(3), "06:30"))
+        reschedule()
+
+        val night = hush()
+
+        val notification = shadowOf(night.get()).lastForegroundNotification
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Hush · Pink")
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TEXT)).isNull()
     }
 
     @Test
@@ -401,6 +421,68 @@ internal class NightServiceTest : AlarmRobolectricTest() {
         assertThat(graph.nightLog.movementLogsStarted).hasSize(1)
         // sensingStart = max(stream start, window start − lead-in) (lead amendment 5)
         assertThat(m.armed?.sensingStartEpochMs).isEqualTo(at(today, "05:45").toEpochMilli())
+    }
+
+    @Test
+    fun `the whole-night log stops at the first sample past the night's end, with no timer to wait for`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+        // A wake-up accelerometer: no wake lock, so the CPU sleeps between batches and no uptime delay moves on.
+        now = ended.endsAt + Duration.ofMinutes(1)
+
+        night.get().onEpochs(listOf(MovementEpoch(ended.endsAt, 12.0)), ended.endsAt + Duration.ofSeconds(30))
+
+        assertThat(graph.motion.sources.single().stopped).isTrue()
+        assertThat(graph.nightLog.movementLogsEnded).containsExactly(ended.logId to ended.endsAt)
+        assertThat(shadowOf(night.get()).isStoppedBySelf).isTrue()
+    }
+
+    @Test
+    fun `the reconcile that clears an ended night stops the log its service still runs`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+        now = ended.endsAt + Duration.ofHours(3) // no sample since: the phone slept
+
+        reschedule()
+        idleMain()
+
+        assertThat(m.night).isNull()
+        assertThat(graph.motion.sources.single().stopped).isTrue()
+        assertThat(graph.nightLog.movementLogsEnded.toSet()).containsExactly(ended.logId to ended.endsAt)
+        assertThat(shadowOf(night.get()).isStoppedBySelf).isTrue()
+        assertThat(graph.nightController.state.value.sensing).isNull()
+    }
+
+    @Test
+    fun `the end of another night leaves the running log alone`() {
+        runBlocking { graph.nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = true) }
+        val night = startNight(AlarmActions.ACTION_LOG_START)
+        val ended = checkNotNull(m.night)
+
+        night.get().onNightEnded(ended.anchorId + 1, ended.endsAt)
+
+        assertThat(graph.motion.sources.single().stopped).isFalse()
+        assertThat(graph.nightLog.movementLogsEnded).isEmpty()
+    }
+
+    @Test
+    fun `a stream holds one wake lock for all its reasons, and closing it releases that lock`() {
+        // A phone without a wake-up accelerometer: the whole-night log keeps the CPU awake until the alarm + 10 min,
+        // then a window run that shares the stream asks for its own length.
+        val stream = MovementStream(now, ZoneOffset.UTC, MovementMeter(SleepConfig.DEFAULT), graph.motion.create(), context.getSystemService(PowerManager::class.java))
+        stream.holdWakeLock(Duration.ofMinutes(40))
+        val lock = ShadowPowerManager.getLatestWakeLock()
+
+        stream.holdWakeLock(Duration.ofMinutes(25)) // shorter: the lock keeps its 40 min
+        stream.holdWakeLock(Duration.ofMinutes(60)) // longer: the same lock is extended
+
+        assertThat(ShadowPowerManager.getLatestWakeLock()).isSameInstanceAs(lock)
+        idleMain(Duration.ofMinutes(50))
+        assertThat(lock.isHeld).isTrue()
+        stream.releaseWakeLock()
+        assertThat(lock.isHeld).isFalse()
     }
 
     @Test

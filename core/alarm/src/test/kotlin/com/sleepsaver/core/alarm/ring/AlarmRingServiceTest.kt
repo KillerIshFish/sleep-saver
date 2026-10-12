@@ -2,6 +2,7 @@ package com.sleepsaver.core.alarm.ring
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.Service
 import android.content.pm.ServiceInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
@@ -9,7 +10,9 @@ import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredCatnap
+import com.sleepsaver.core.alarm.mirror.MirroredExtra
 import com.sleepsaver.core.alarm.mirror.MirroredNight
+import com.sleepsaver.core.alarm.receiver.AlarmReceiver
 import com.sleepsaver.core.alarm.testing.AlarmRobolectricTest
 import com.sleepsaver.core.data.hooks.AlarmIntents
 import com.sleepsaver.core.domain.alarm.RingKind
@@ -20,7 +23,10 @@ import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.domain.schedule.WakeStyle
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.android.controller.ServiceController
+import org.robolectric.shadows.ShadowAlarmManager
 import java.time.Duration
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
@@ -77,6 +83,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(m.ringing?.occurrenceId).isEqualTo(id)
         assertThat(events.single().firstRingAt).isEqualTo(target)
         assertThat(ringPlanId).isEqualTo(tomorrowAlarm.occurrence.id) // the plan moved on
+    }
+
+    @Test
+    fun `the ring notification may alert, so its full-screen intent launches, and its re-posts don't alert again`() {
+        armAndReachWakeTime()
+
+        val notification = shadowOf(startRing(AlarmActions.KIND_PLAN, id).get()).lastForegroundNotification
+
+        // A silent NotificationCompat joins a "silent" group with GROUP_ALERT_SUMMARY: SystemUI then suppresses the
+        // full-screen intent and the heads-up of that child.
+        assertThat(notification.group).isNull()
+        assertThat(notification.groupAlertBehavior).isEqualTo(Notification.GROUP_ALERT_ALL)
+        assertThat(notification.flags and Notification.FLAG_ONLY_ALERT_ONCE).isNotEqualTo(0)
+        // The service stays the only sound.
+        val channel = notificationManager.getNotificationChannel(notification.channelId)
+        assertThat(channel.sound).isNull()
+        assertThat(channel.shouldVibrate()).isFalse()
     }
 
     @Test
@@ -158,6 +181,8 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(snoozed.channelId).isEqualTo(AlarmIntents.CHANNEL_QUIET)
         assertThat(snoozed.extras.getCharSequence(Notification.EXTRA_TITLE).toString()).isEqualTo("Snoozed until 6:39\u00A0AM · then the last ring")
         assertThat(snoozed.actions.single().title.toString()).isEqualTo("Stop")
+        // Tapping it opens the app: the ringing screen has nothing to show while snoozed and would close at once.
+        assertThat(shadowOf(snoozed.contentIntent).savedIntent.data.toString()).isEqualTo(AlarmIntents.DEEP_LINK_TONIGHT)
         assertThat(ringExtraAt).isEqualTo(at(today, "06:39:20"))
         assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.SNOOZE)
         assertThat(m.extra?.snoozesUsed).isEqualTo(1)
@@ -182,6 +207,34 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
     }
 
     // ---------------------------------------------------------------- T9
+
+    @Test
+    fun `without exact alarms a snooze end the platform delivers late still rings, matched by its armed time`() {
+        armAndReachWakeTime()
+        ShadowAlarmManager.setCanScheduleExactAlarms(false)
+        startRing(AlarmActions.KIND_PLAN, id).send(ringAction(AlarmActions.ACTION_SNOOZE))
+        val snooze = checkNotNull(m.extra)
+        val armed = scheduled(AlarmActions.RC_RING_EXTRA).single()
+        assertThat(armed.alarmClockInfo).isNull() // T2: setWindow(at, 1 min), which Android stretches to 10 min
+        now = snooze.at + Duration.ofMinutes(8)
+
+        // A broadcast that isn't this extra's alarm (no armed time, or another one) is still too late to ring.
+        startRing(AlarmActions.KIND_EXTRA)
+        val other = ringIntent(AlarmActions.KIND_EXTRA).putExtra(AlarmActions.EXTRA_EPOCH_MS, snooze.atEpochMs - 60_000)
+        Robolectric.buildService(AlarmRingService::class.java, other).create().startCommand(0, 1)
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra?.atEpochMs).isEqualTo(snooze.atEpochMs)
+
+        AlarmReceiver().onReceive(context, shadowOf(armed.operation).savedIntent)
+        val forwarded = startedServices.last()
+        assertThat(forwarded.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0)).isEqualTo(snooze.atEpochMs)
+        Robolectric.buildService(AlarmRingService::class.java, forwarded).create().startCommand(0, 1)
+
+        assertThat(m.ringing?.trigger).isEqualTo(ExtraTrigger.SNOOZE.name)
+        assertThat(m.ringing?.ringReason).isEqualTo(RingReason.SNOOZE_END)
+        assertThat(m.ringing?.snoozesUsed).isEqualTo(1)
+        assertThat(m.extra).isNull()
+    }
 
     @Test
     fun `stop records STOPPED, handles the occurrence, ends the night and reschedules`() {
@@ -241,6 +294,21 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
     }
 
+    @Test
+    fun `a Quiet bed test ring sounds at once and reaches the day's volume`() {
+        plan(planned(today, "06:30", mode = AlarmMode.FIXED, style = WakeStyle.QUIET_BED), tomorrowAlarm)
+        reschedule()
+        assertThat(graph.nightController.testRing()).isTrue()
+        now += Duration.ofSeconds(60)
+        startRing(AlarmActions.KIND_EXTRA)
+
+        assertThat(graph.nightController.state.value.ringing?.kind).isEqualTo(RingKind.TEST)
+        assertThat(sounds.single().started).isTrue()
+        assertThat(graph.ringOutputs.vibrations.single().on).isTrue()
+        advance(Duration.ofSeconds(40))
+        assertThat(sounds.single().gains.last()).isWithin(1e-4f).of(0.8f)
+    }
+
     // ---------------------------------------------------------------- T10
 
     @Test
@@ -270,6 +338,47 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(events.single().outcome).isEqualTo(RingOutcome.MISSED)
     }
 
+    // ---------------------------------------------------------------- T14
+
+    @Test
+    fun `a sounding ring is sticky and guarded until its timeout, and its end cancels the guard`() {
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+
+        val guard = scheduled(AlarmActions.RC_RING_GUARD).single()
+        assertThat(guard.triggerAtMs).isEqualTo((target + Duration.ofMinutes(10)).toEpochMilli())
+        assertThat(guard.isAllowWhileIdle).isTrue()
+        assertThat(guard.alarmClockInfo).isNull() // not shown as the next alarm
+        assertThat(ring.get().onStartCommand(ringAction(AlarmActions.ACTION_REPOST), 0, 7)).isEqualTo(Service.START_STICKY)
+
+        now = target + Duration.ofMinutes(1)
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(scheduled(AlarmActions.RC_RING_GUARD)).isEmpty()
+        assertThat(ring.get().onStartCommand(ringAction(AlarmActions.ACTION_REPOST), 0, 8)).isEqualTo(Service.START_NOT_STICKY)
+    }
+
+    @Test
+    fun `a ring whose process died times out at its guard, and its backup still comes`() {
+        armAndReachWakeTime()
+        startRing(AlarmActions.KIND_PLAN, id)
+        val guard = shadowOf(scheduled(AlarmActions.RC_RING_GUARD).single().operation).savedIntent
+        // The process dies a minute in: no onDestroy, no mirror change, and nothing is due until tomorrow's RING_PLAN.
+        AlarmRingService.running = false
+        AlarmRingService.current = null
+        assertThat(ringExtraAt).isNull()
+
+        now = target + Duration.ofMinutes(10)
+        AlarmReceiver().onReceive(context, guard)
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.handledIds).contains(id)
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+        assertThat(ringExtraAt).isEqualTo(target + Duration.ofMinutes(15))
+        assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
+        assertThat(scheduled(AlarmActions.RC_RING_GUARD)).isEmpty()
+    }
+
     @Test
     fun `a catnap that times out gets no backup`() {
         graph.nightController.startCatnap(Duration.ofMinutes(20))
@@ -289,6 +398,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         notifications.setNotificationsEnabled(false)
         startRing(AlarmActions.KIND_PLAN, id)
 
+        advance(Duration.ofMinutes(2))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+    }
+
+    @Test
+    fun `with notifications blocked a Quiet bed ring still gets 2 min of sound after its silent start`() {
+        plan(planned(today, "06:30", mode = AlarmMode.FIXED, style = WakeStyle.QUIET_BED), tomorrowAlarm)
+        reschedule()
+        now = target
+        notifications.setNotificationsEnabled(false)
+        startRing(AlarmActions.KIND_PLAN, id)
+
+        advance(Duration.ofMinutes(2))
+        assertThat(m.ringing).isNotNull()
+        assertThat(sounds.single().started).isTrue()
         advance(Duration.ofMinutes(2))
 
         assertThat(m.ringing).isNull()
@@ -377,6 +503,72 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(shadowOf(ring.get()).isStoppedBySelf).isFalse()
     }
 
+    /**
+     * A catnap rings from 05:25. The 05:26 alarm's RING_PLAN waits behind it, then the minute tick's reschedule turns
+     * the unanswered alarm into a CATCH_UP on the extra channel, which waits behind the nap too.
+     */
+    private fun napWithPlannedRingWaiting(): ServiceController<AlarmRingService> {
+        plan(planned(today, "05:26", mode = AlarmMode.FIXED))
+        reschedule()
+        graph.nightController.startCatnap(Duration.ofMinutes(20))
+        now = at(today, "05:25")
+        val ring = startRing(AlarmActions.KIND_CATNAP)
+        now = at(today, "05:26")
+        ring.send(ringIntent(AlarmActions.KIND_PLAN, NAP_QUEUE_ID))
+        now = at(today, "05:26:01")
+        reschedule()
+        val catchUp = checkNotNull(m.extra)
+        assertThat(catchUp.extraTrigger).isEqualTo(ExtraTrigger.CATCH_UP)
+        now = catchUp.at
+        ring.send(ringIntent(AlarmActions.KIND_EXTRA))
+        assertThat(m.ringing?.kind).isEqualTo(RingKind.NAP)
+        assertThat(m.extra).isEqualTo(catchUp)
+        return ring
+    }
+
+    @Test
+    fun `snoozing a catnap while a planned ring waits gives way to that ring instead of overwriting it`() {
+        val ring = napWithPlannedRingWaiting()
+        now = at(today, "05:26:10")
+
+        ring.send(ringAction(AlarmActions.ACTION_SNOOZE))
+
+        assertThat(m.ringing?.kind).isEqualTo(RingKind.PLANNED)
+        assertThat(m.ringing?.occurrenceId).isEqualTo(NAP_QUEUE_ID)
+        assertThat(m.ringing?.ringReason).isEqualTo(RingReason.CATCH_UP)
+        assertThat(m.extra).isNull()
+        assertThat(sounds).hasSize(2)
+        assertThat(sounds.first().stopped).isTrue()
+        assertThat(notifications.getNotification(AlarmActions.ID_SNOOZED)).isNull()
+        val nap = events.single { it.kind == RingKind.NAP }
+        assertThat(nap.outcome).isEqualTo(RingOutcome.STOPPED)
+        assertThat(nap.snoozeTimes).containsExactly(now)
+    }
+
+    @Test
+    fun `a queued planned ring that left the channel meanwhile doesn't ring what replaced it`() {
+        val ring = napWithPlannedRingWaiting()
+        val test = MirroredExtra(
+            trigger = ExtraTrigger.TEST.name,
+            atEpochMs = at(today, "05:40").toEpochMilli(),
+            ringKind = RingKind.TEST.name,
+            occurrenceId = null,
+            snoozesUsed = 0,
+            reason = RingReason.TEST.name,
+            alarm = mirrored(todayAlarm),
+            expiresAtEpochMs = at(today, "05:50").toEpochMilli(),
+        )
+        graph.seed { it.copy(extra = test) }
+        now = at(today, "05:27")
+
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(m.ringing).isNull()
+        assertThat(m.extra).isEqualTo(test) // it rings at its own time
+        assertThat(sounds).hasSize(1)
+        assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
+    }
+
     @Test
     fun `a catnap or test ring that comes while a planned alarm rings is dropped`() {
         armAndReachWakeTime()
@@ -422,5 +614,10 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         ring.send(ringAction(AlarmActions.ACTION_REPOST))
 
         assertThat(notifications.getNotification(AlarmActions.ID_RINGING)).isNotNull()
+    }
+
+    private companion object {
+        /** The planned alarm that waits behind a catnap ring. */
+        const val NAP_QUEUE_ID = "2026-10-06T05:26"
     }
 }

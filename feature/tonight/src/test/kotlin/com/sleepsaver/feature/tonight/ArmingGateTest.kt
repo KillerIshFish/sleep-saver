@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -274,6 +276,42 @@ class ArmingGateTest {
 
         assertThat(fakes.schedule.oneOffsState.value.pause).isNotNull()
         compose.onNodeWithText("Alarm notifications are turned off").assertExists()
+    }
+
+    /** Opens the one-off sheet from the week plan and pauses until [label] (a chip of the pause row). */
+    private fun pauseUntilFromSheet(shown: String, label: String) {
+        compose.onNodeWithText("Change one day").performScrollTo().performClick()
+        compose.waitForIdle()
+        // Bring the pause row on screen first; the date row above it has the same chip.
+        compose.onNodeWithText("Pause until $shown").performScrollTo()
+        compose.onAllNodesWithText(label).onLast().performScrollTo().performClick()
+        compose.onNodeWithText("Pause until $label").performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
+    @Test
+    fun `ending a pause sooner brings alarms back, so it waits for the alarm category`() {
+        val today = TonightSamples.today
+        val pause = PlanPause(today, today.plusDays(10))
+        ringChannelOff()
+        showWeekPlanWith(OneOffs(pause = pause))
+
+        pauseUntilFromSheet(shown = "Fri, Oct 16", label = "Wed, Oct 7")
+
+        assertThat(fakes.schedule.oneOffsState.value.pause).isEqualTo(pause)
+        compose.onNodeWithText("Alarm notifications are turned off").assertExists()
+    }
+
+    @Test
+    fun `a longer pause never asks`() {
+        val today = TonightSamples.today
+        ringChannelOff()
+        showWeekPlanWith(OneOffs(pause = PlanPause(today, today.plusDays(1))))
+
+        pauseUntilFromSheet(shown = "Wed, Oct 7", label = "Fri, Oct 16")
+
+        assertThat(fakes.schedule.oneOffsState.value.pause).isEqualTo(PlanPause(today, today.plusDays(10)))
+        compose.onNodeWithText("Alarm notifications are turned off").assertDoesNotExist()
     }
 
     @Test

@@ -53,8 +53,8 @@
     <string name="settings_timing_fixed">A fixed time you set</string>
     <!-- Under the Wake time and Bedtime rows: they're the usual times, which the week plan's own times override -->
     <string name="settings_usual_caption">Used on days without their own time.</string>
-    <!-- %1$s = sleep need, e.g. "8h 20m" -->
-    <string name="settings_bedtime_need_caption">Leaves room for your %1$s before tomorrow\'s wake time</string>
+    <!-- %1$s = sleep need, e.g. "8h 20m". The row shows the usual (plan-free) bedtime, so it speaks of the usual wake. -->
+    <string name="settings_bedtime_need_caption">Leaves room for your %1$s before your usual wake time</string>
     <!-- Learned parts, joined with ", " -->
     <string name="settings_learned_weekdays">weekdays %1$s</string>
     <string name="settings_learned_weekends">weekends %1$s</string>
@@ -110,7 +110,7 @@
     <string name="settings_demo_body">Explore with 60 made-up nights. Your own data is kept aside. Alarms still ring as you set them.</string>
     <string name="settings_demo_switching">Switching…</string>
     <string name="settings_demo_off_title">Turn off demo data?</string>
-    <string name="settings_demo_off_body">Edits, marks, Morning feel and Night steps check-offs made in demo mode will be removed.</string>
+    <string name="settings_demo_off_body">Edits, marks, Morning feel, Night steps check-offs and Tomorrow lists made in demo mode will be removed.</string>
     <string name="settings_demo_off_confirm">Turn off</string>
     <string name="settings_demo_off_keep">Keep demo</string>
 

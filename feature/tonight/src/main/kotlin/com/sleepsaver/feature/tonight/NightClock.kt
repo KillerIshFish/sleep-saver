@@ -19,8 +19,6 @@ import com.sleepsaver.core.domain.schedule.NightBounds
 import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -31,7 +29,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Where the Tonight tab is in the day (SPEC_V2 §5.2):
@@ -75,8 +72,9 @@ internal data class NightClock(
  * zone start; [todayEvent], today's planned alarm once stopped, ends last night and starts the morning at its stop.
  * Whether it is night is [NightRules.focus], shared with Sleep home and Energy.
  *
- * [anchoredAt] is `NightController.state.night?.anchoredAt` (§5.0). [endedAt] is when the user last tapped "I'm up":
- * a night ended that way no longer counts its bedtime, so the clock comes back until they drop anchor again.
+ * [anchoredAt] is `NightController.state.night?.anchoredAt` (§5.0). [endedAt] is `NightController.state.endedAt`, when
+ * the user last tapped "I'm up" (Sleep home and Energy read it too): a night ended that way no longer counts its
+ * bedtime, so the clock comes back until they drop anchor again.
  */
 internal fun nightClock(
     now: Instant,
@@ -163,22 +161,6 @@ internal fun nightClock(
     return NightClock(now, zone, today, nightOf, stepsFrom, bedtime, end, isNight, phase)
 }
 
-// ---------------------------------------------------------------- Shared night state
-
-/**
- * When the user last tapped "I'm up" in this process, shared by the Tonight tab and the Night screen so ending the
- * night on one ends night mode on both. Kept in memory only: after a restart the bedtime rule applies again.
- */
-@Singleton
-internal class EndedNights @Inject constructor() {
-    private val state = MutableStateFlow<Instant?>(null)
-    val endedAt: StateFlow<Instant?> = state
-
-    fun endedNow(at: Instant) {
-        state.value = at
-    }
-}
-
 /**
  * The [NightClock] for screens that only need night mode (the Week plan subtitle, the test-ring message), from the
  * same sources the Tonight tab uses.
@@ -191,7 +173,6 @@ internal class NightClockSource @Inject constructor(
     private val patterns: PatternsRepository,
     private val nightController: NightController,
     private val time: TimeProvider,
-    private val endedNights: EndedNights,
 ) {
     val clock: Flow<NightClock> = run {
         val ticks = time.minuteTicks
@@ -199,12 +180,13 @@ internal class NightClockSource @Inject constructor(
             .distinctUntilChanged()
             .flatMapLatest { nightLog.alarmEvent(it) }
         val anchoredAt = nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged()
+        val endedAt = nightController.state.map { it.endedAt }.distinctUntilChanged()
         val plan = combine(schedule.upcomingAlarms, nightSteps.tonight, patterns.debtPreviewInputs, ::Triple)
-        combine(insights.state, plan, todayEvent, anchoredAt, endedNights.endedAt) { state, (alarms, session, inputs), event, anchored, ended ->
+        combine(insights.state, plan, todayEvent, anchoredAt, endedAt) { state, (alarms, session, inputs), event, anchored, ended ->
             ClockInputs(state, alarms, session, inputs, event, anchored, ended)
-        }.combine(ticks) { inputs, now ->
+        }.combine(ticks) { inputs, tick ->
             nightClock(
-                now = now,
+                now = NightRules.clockNow(tick, inputs.endedAt),
                 zone = time.zone(),
                 schedule = (inputs.insights as? InsightsState.Ready)?.insights?.schedule,
                 session = inputs.session,

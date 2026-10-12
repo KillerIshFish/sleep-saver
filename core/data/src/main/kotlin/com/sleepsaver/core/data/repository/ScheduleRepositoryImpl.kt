@@ -1,6 +1,7 @@
 package com.sleepsaver.core.data.repository
 
 import androidx.room.withTransaction
+import com.sleepsaver.core.data.db.AlarmEventEntity
 import com.sleepsaver.core.data.db.DayPlanEntity
 import com.sleepsaver.core.data.db.DayRoutineItemEntity
 import com.sleepsaver.core.data.db.PlanOverrideEntity
@@ -9,11 +10,13 @@ import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.di.DefaultDispatcher
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.mapping.enumOrNull
 import com.sleepsaver.core.data.mapping.routineItems
 import com.sleepsaver.core.data.mapping.toDomain
 import com.sleepsaver.core.data.mapping.toDomainOrNull
 import com.sleepsaver.core.data.mapping.toEntity
 import com.sleepsaver.core.domain.alarm.AlarmPlanner
+import com.sleepsaver.core.domain.alarm.RingOutcome
 import com.sleepsaver.core.domain.alarm.SurfacingWindows
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.debt.SleepDebtCalculator
@@ -135,17 +138,17 @@ class ScheduleRepositoryImpl @Inject internal constructor(
         .flowOn(defaultDispatcher)
         .distinctUntilChanged()
 
-    /** Occurrence ids of PLANNED events since yesterday that already ended (stopped, timed out, missed). */
+    /** The PLANNED events since yesterday that already ended (stopped, timed out, missed, cancelled). */
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val handledIds: Flow<Set<String>> = today
+    private val handledEvents: Flow<Handled> = today
         .flatMapLatest { date -> eventDao.observePlannedFrom(date.minusDays(1).toString()) }
-        .map { events -> events.filter { it.outcome != null }.mapNotNullTo(HashSet()) { it.occurrenceId } }
-        .orFallback(TAG, "Alarm events query") { emptySet() }
+        .map(::handledOf)
+        .orFallback(TAG, "Alarm events query") { Handled() }
         .distinctUntilChanged()
 
     /**
      * Every alarm of the lookahead (not yet capped at upcomingLimit), recomputed only when an input changes: the plan,
-     * one-offs, settings, nights, anchors, the personal latency, handled ids, or the local date and zone.
+     * one-offs, settings, nights, anchors, the personal latency, handled events, or the local date and zone.
      */
     private val plannedAlarms: Flow<List<PlannedAlarm>> = combine(
         combine(weekPlan, oneOffs, ::Pair),
@@ -156,7 +159,7 @@ class ScheduleRepositoryImpl @Inject internal constructor(
             latencySource.latency,
             ::Pair,
         ),
-        handledIds,
+        handledEvents,
         timeProvider.deviceDays(TAG),
     ) { (week, oneOffs), (settings, nights), (anchors, personal), handled, day ->
         guarded(TAG, "Upcoming alarms") {
@@ -164,7 +167,8 @@ class ScheduleRepositoryImpl @Inject internal constructor(
                 inputs = PlanInputs(week, oneOffs, settings.sleep, nights, anchors, personal),
                 now = timeProvider.now(),
                 zone = day.zone,
-                exclude = handled,
+                exclude = handled.ids,
+                endedDates = handled.endedDates,
                 limit = config.week.alarmLookaheadDays,
             )
         }
@@ -198,7 +202,7 @@ class ScheduleRepositoryImpl @Inject internal constructor(
                     today,
                 ),
                 anchors = anchorDao.getAll().map { it.toDomain() },
-                handled = eventDao.handledIds(today.minusDays(1).toString()).toSet(),
+                handled = handledOf(eventDao.getPlannedFrom(today.minusDays(1).toString())),
             )
         }
         val settings = settingsRepository.current()
@@ -209,7 +213,8 @@ class ScheduleRepositoryImpl @Inject internal constructor(
                 inputs = PlanInputs(stored.week, stored.oneOffs, settings.sleep, nights, stored.anchors, personal),
                 now = now,
                 zone = zone,
-                exclude = exclude + stored.handled,
+                exclude = exclude + stored.handled.ids,
+                endedDates = stored.handled.endedDates,
                 limit = 1 + config.alarm.followingMirrored,
             )
             AlarmPlan(
@@ -292,19 +297,33 @@ class ScheduleRepositoryImpl @Inject internal constructor(
         val personal: PersonalLatency,
     )
 
-    private class StoredPlan(val week: WeekPlan, val oneOffs: OneOffs, val anchors: List<Anchor>, val handled: Set<String>)
+    private class StoredPlan(val week: WeekPlan, val oneOffs: OneOffs, val anchors: List<Anchor>, val handled: Handled)
+
+    /**
+     * What already happened to planned alarms: [ids] of the occurrences that ended (any outcome), never planned again,
+     * and the [endedDates] whose alarm ended the morning ([RingOutcome.endsMorning]), which get no other plan time.
+     */
+    private data class Handled(val ids: Set<String> = emptySet(), val endedDates: Set<LocalDate> = emptySet())
 
     /**
      * The planned alarms after [now], each with tonight's window. latency = the active personal median, else
      * config.sleepLatency; the planned bedtime (plan-aware B on the evening before) uses it too. The window is
      * debt-aware when the opportunity from the night's Drop anchor (else the planned bedtime) is short, or the debt
-     * displayed now is MODERATE or HIGH.
+     * displayed now is MODERATE or HIGH. A morning in [endedDates] keeps only a just-once alarm (AlarmPlanner.upcoming):
+     * Monday's 06:30 stopped at 06:22, then Monday moved to 07:15 at 06:40, rings next Monday, not again today.
      */
-    private fun plan(inputs: PlanInputs, now: Instant, zone: ZoneId, exclude: Set<String>, limit: Int): List<PlannedAlarm> {
+    private fun plan(
+        inputs: PlanInputs,
+        now: Instant,
+        zone: ZoneId,
+        exclude: Set<String>,
+        endedDates: Set<LocalDate>,
+        limit: Int,
+    ): List<PlannedAlarm> {
         val latency = inputs.personal.median?.takeIf { inputs.personal.active } ?: config.sleepLatency
         val sleep = inputs.sleep.copy(week = inputs.week, oneOffs = inputs.oneOffs, personalLatency = latency)
         val status = guarded(TAG, "Debt status") { displayedStatus(inputs.nights, sleep, now.atZone(zone).toLocalDate()) }
-        return planner.upcoming(inputs.week, inputs.oneOffs, now, zone, exclude, limit).map { occurrence ->
+        return planner.upcoming(inputs.week, inputs.oneOffs, now, zone, exclude, endedDates, limit).map { occurrence ->
             val bedtime = guarded(TAG, "Planned bedtime") {
                 times.bedtime(occurrence.date.minusDays(1), zone, inputs.nights, sleep.sleepNeed, sleep.timing).first
             }
@@ -331,6 +350,18 @@ class ScheduleRepositoryImpl @Inject internal constructor(
     }
 
     // ---------------------------------------------------------------- Helpers
+
+    /** Only events with an outcome count; a row with an unknown outcome or an unreadable date ends no morning. */
+    private fun handledOf(events: List<AlarmEventEntity>): Handled {
+        val ended = events.filter { it.outcome != null }
+        return Handled(
+            ids = ended.mapNotNullTo(HashSet()) { it.occurrenceId },
+            endedDates = ended.mapNotNullTo(HashSet()) { event ->
+                val endsMorning = enumOrNull<RingOutcome>(event.outcome)?.endsMorning == true
+                if (endsMorning) runCatching { LocalDate.parse(event.wakeDate) }.getOrNull() else null
+            },
+        )
+    }
 
     private fun weekOf(rows: List<DayPlanEntity>, items: List<DayRoutineItemEntity>): WeekPlan {
         val byDay = rows.associateBy { it.dayOfWeek }

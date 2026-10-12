@@ -174,7 +174,7 @@ private fun AlarmSection(
 @Composable
 private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, showPreview: Boolean) {
     val secondary = SleepSaverTheme.colors.textSecondary
-    val dayName = formatDayShort(state.wakeDate.dayOfWeek)
+    val dayName = formatDayShort(state.alarmCard.wakeDate.dayOfWeek)
     SleepSaverCard(Modifier.fillMaxWidth()) {
         when (val alarm = state.alarmCard) {
             is AlarmCardModel.On -> {
@@ -481,8 +481,9 @@ private fun CatnapCard(
         if (plan.coffeeHint) {
             Text(stringResource(R.string.tonight_catnap_coffee), style = MaterialTheme.typography.bodyMedium, color = secondary)
         }
+        val fallAsleep = config.catnap.fallAsleep.toMinutes().toInt()
         Text(
-            stringResource(R.string.tonight_catnap_fall_asleep, config.catnap.fallAsleep.toMinutes().toInt()),
+            pluralStringResource(R.plurals.tonight_catnap_fall_asleep, fallAsleep, fallAsleep),
             style = MaterialTheme.typography.bodySmall,
             color = secondary,
         )

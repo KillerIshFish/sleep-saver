@@ -21,12 +21,13 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Demo nights are separate rows (SourceKind.DEMO) and are simply deleted again, but the user's edits (night
- * overrides, added awake time, manual naps, morning reviews) and journal (marks, Morning feel, Night steps logs,
- * Tomorrow lists) live in tables keyed by date that demo mode uses too. So turning demo mode on moves those eight
- * tables aside into [DemoEditBackupFile], empties them and fills the journal with [DemoJournalWriter]'s synthetic
- * rows; turning it off empties them again (dropping the demo journal and whatever was edited during the demo) and puts
- * the saved rows back exactly. Configuration and device logs (week plan, routine activities, anchors, movement, alarm
- * history, tuning, Hush plays) are left alone. Health Connect is never touched.
+ * overrides, added awake time, manual naps, morning reviews), journal (marks, Morning feel, Night steps logs,
+ * Tomorrow lists) and prompt log (a prompt shows once per wake date) live in tables keyed by date that demo mode uses
+ * too. So turning demo mode on moves those nine tables aside into [DemoEditBackupFile], empties them and fills the
+ * journal with [DemoJournalWriter]'s synthetic rows; turning it off empties them again (dropping the demo journal,
+ * the prompts shown for demo nights and whatever was edited during the demo) and puts the saved rows back exactly.
+ * Configuration and device logs (week plan, routine activities, anchors, movement, alarm history, tuning, Hush plays)
+ * are left alone. Health Connect is never touched.
  *
  * Both directions are idempotent and safe to interrupt at any point (every interrupted state has the flag on):
  *  - On: the flag first, then in one transaction (so no edit can slip in between) save the backup, unless one is
@@ -132,7 +133,7 @@ class DemoModeControllerImpl internal constructor(
     }
 
     /**
-     * Saves the eight tables to the backup (unless one is already there) and empties them, as one step: if it throws,
+     * Saves the nine tables to the backup (unless one is already there) and empties them, as one step: if it throws,
      * the tables are as they were and no backup written by this call is left behind. Must not be cancelled midway
      * (callers run it NonCancellable), so an exception always means the transaction rolled back.
      */
@@ -151,6 +152,7 @@ class DemoModeControllerImpl internal constructor(
                             morningFeel = database.morningFeelDao().getAll(),
                             nightStepLogs = database.nightStepLogDao().getAll(),
                             tomorrowLists = database.tomorrowListDao().getAll(),
+                            prompts = database.promptLogDao().getAll(),
                         ),
                     )
                     wrote = true
@@ -185,6 +187,7 @@ class DemoModeControllerImpl internal constructor(
                 database.morningFeelDao().insertAll(saved.morningFeel.map { it.toEntity() })
                 database.nightStepLogDao().insertAll(saved.nightStepLogs.map { it.toEntity() })
                 database.tomorrowListDao().insertAll(saved.tomorrowLists.map { it.toEntity() })
+                database.promptLogDao().insertAll(saved.prompts.map { it.toEntity() })
             }
         }
         backup.delete()
@@ -200,6 +203,7 @@ class DemoModeControllerImpl internal constructor(
         database.morningFeelDao().deleteAll()
         database.nightStepLogDao().deleteAll()
         database.tomorrowListDao().deleteAll()
+        database.promptLogDao().deleteAll()
     }
 
     private companion object {

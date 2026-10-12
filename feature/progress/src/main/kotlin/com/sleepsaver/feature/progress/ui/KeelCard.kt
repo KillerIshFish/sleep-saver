@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -73,7 +74,7 @@ internal fun KeelCard(
                 text = if (keel.validDays >= keel.needed) {
                     stringResource(R.string.progress_keel_calibrating_pairs)
                 } else {
-                    stringResource(R.string.progress_keel_calibrating, keel.validDays, keel.needed)
+                    pluralStringResource(R.plurals.progress_keel_calibrating, keel.needed, keel.validDays, keel.needed)
                 },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -95,7 +96,7 @@ internal fun KeelCard(
             }
         }
         Text(
-            text = stringResource(R.string.progress_keel_caption, config.keel.windowDays),
+            text = pluralStringResource(R.plurals.progress_keel_caption, config.keel.windowDays, config.keel.windowDays),
             style = MaterialTheme.typography.bodySmall,
             color = colors.textTertiary,
             modifier = Modifier.padding(top = Spacing.m),

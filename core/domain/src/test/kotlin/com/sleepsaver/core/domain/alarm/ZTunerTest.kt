@@ -102,6 +102,14 @@ class ZTunerTest {
     }
 
     @Test
+    fun `alarms that never rang don't count, nor take a place among the 7 most recent`() {
+        val neverRang = (1..3).map { landing(today.minusDays(it.toLong()), RingReason.NEVER_RANG) }
+        val landings = neverRang + lateRings(5, daysBack = 4)
+
+        assertThat(tuner.next(null, landings, now, offset)?.reason).isEqualTo(TuningReason.LOWERED_AFTER_LATE_RINGS)
+    }
+
+    @Test
     fun `restless rings outside deep sleep never raise it`() {
         val light = (1..7).map { landing(today.minusDays(it.toLong()), RingReason.RESTLESS, LandingStage.LIGHT) }
 

@@ -113,4 +113,16 @@ class ArticleAssetsTest {
             }
         }
     }
+
+    @Test
+    fun `every nap length an article suggests is the 10 to 20 minutes the Nap window reminder gives`() {
+        // naps.md, the Nap window reminder and its habit card say 10 to 20 minutes (30 can leave you groggy).
+        val spans = Regex("""(\d+) (?:to|–) (\d+) minutes""")
+        listOf("naps", "afternoon-dip").forEach { slug ->
+            val text = documents.getValue(slug).blocks.plainText()
+            val found = spans.findAll(text).map { it.value }.toList()
+            assertWithMessage("$slug suggests a nap length").that(found).isNotEmpty()
+            found.forEach { span -> assertWithMessage(slug).that(span).isEqualTo("10 to 20 minutes") }
+        }
+    }
 }

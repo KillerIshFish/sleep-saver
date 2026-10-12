@@ -9,6 +9,7 @@ import com.sleepsaver.core.alarm.mirror.AlarmAction
 import com.sleepsaver.core.alarm.mirror.AlarmMirror
 import com.sleepsaver.core.alarm.mirror.MirrorState
 import com.sleepsaver.core.alarm.mirror.MirrorUpdate
+import com.sleepsaver.core.alarm.mirror.MirroredRinging
 import com.sleepsaver.core.alarm.mirror.PendingAlarm
 import com.sleepsaver.core.domain.config.SleepConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -44,7 +45,8 @@ internal class AlarmCoordinator @Inject constructor(
 
     /**
      * Re-reads every key, runs [block], commits the changed keys with generation + 1, then performs the AlarmManager
-     * calls the block returned, all under one lock, and tells the listeners (NightControllerImpl) the new state.
+     * calls the block returned (and the ring guard's, which follow `ringing`), all under one lock, and tells the
+     * listeners (NightControllerImpl) the new state.
      */
     fun <T> apply(block: (MirrorState) -> MirrorUpdate<T>): T = synchronized(lock) {
         val before = mirror.read()
@@ -52,6 +54,7 @@ internal class AlarmCoordinator @Inject constructor(
         val after = update.state.copy(generation = before.generation + 1)
         mirror.write(before, after)
         update.actions.forEach(::perform)
+        ringGuard(before.ringing, after.ringing)?.let(::perform)
         listeners.forEach { it(after) }
         update.value
     }
@@ -63,7 +66,7 @@ internal class AlarmCoordinator @Inject constructor(
         listeners.forEach { it(cleared) }
     }
 
-    /** Cancels the four alarm PendingIntents (Reset all data). */
+    /** Cancels every alarm PendingIntent (Reset all data). */
     fun cancelAllAlarms() = synchronized(lock) {
         PendingAlarm.entries.forEach { perform(AlarmAction.Cancel(it)) }
     }
@@ -105,6 +108,15 @@ internal class AlarmCoordinator @Inject constructor(
                 }
                 is AlarmAction.ArmExtra -> armRing(manager, action.at.toEpochMilli(), AlarmPendingIntents.ringExtra(context, action.at.toEpochMilli()))
                 is AlarmAction.ArmCatnap -> armRing(manager, action.at.toEpochMilli(), AlarmPendingIntents.ringCatnap(context))
+                is AlarmAction.ArmGuard -> {
+                    // Not an alarm clock: it rings nothing itself and shouldn't show as the next alarm.
+                    val operation = AlarmPendingIntents.ringGuard(context)
+                    if (canScheduleExact()) {
+                        manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, action.at.toEpochMilli(), operation)
+                    } else {
+                        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, action.at.toEpochMilli(), operation)
+                    }
+                }
                 is AlarmAction.Cancel -> manager.cancel(pendingIntent(action.alarm))
             }
         } catch (e: SecurityException) {
@@ -127,6 +139,20 @@ internal class AlarmCoordinator @Inject constructor(
         PendingAlarm.WINDOW -> AlarmPendingIntents.window(context, "")
         PendingAlarm.RING_EXTRA -> AlarmPendingIntents.ringExtra(context)
         PendingAlarm.RING_CATNAP -> AlarmPendingIntents.ringCatnap(context)
+        PendingAlarm.RING_GUARD -> AlarmPendingIntents.ringGuard(context)
+    }
+
+    /**
+     * T14's backstop. A ring's timeout and backup are the ring service's work, and reconcile's when that service died;
+     * but reconcile only runs when something starts the process, and once a ring starts nothing is due on RING_PLAN or
+     * RING_EXTRA for hours. So while `ringing` stands, RING_GUARD is armed at its since + ringTimeout: its broadcast
+     * runs the mirror re-arm, whose reconcile resumes a ring that outlived its process, or times it out (a fallback ring
+     * on notification 303 too) and arms its backup. A new ring re-arms it; the end of a ring cancels it.
+     */
+    private fun ringGuard(before: MirroredRinging?, after: MirroredRinging?): AlarmAction? = when {
+        after == null -> AlarmAction.Cancel(PendingAlarm.RING_GUARD).takeIf { before != null }
+        after.sinceEpochMs != before?.sinceEpochMs -> AlarmAction.ArmGuard(after.since + SleepConfig.DEFAULT.alarm.ringTimeout)
+        else -> null
     }
 
     private companion object {

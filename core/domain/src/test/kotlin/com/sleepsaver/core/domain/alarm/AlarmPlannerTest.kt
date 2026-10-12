@@ -70,6 +70,25 @@ class AlarmPlannerTest {
     }
 
     @Test
+    fun `a morning whose alarm already rang out gets no plan alarm at a new time, only a just-once one`() {
+        // Wednesday's 06:30 rang and was stopped; at 06:40 Wednesday moves to 07:15 (meant for next week).
+        val later = Fx.weekPlan(
+            MONDAY to sixThirty, TUESDAY to sixThirty, WEDNESDAY to LocalTime.of(7, 15), THURSDAY to sixThirty, FRIDAY to sixThirty,
+        )
+        val now = at(wednesday, "06:40")
+        val stopped = setOf("2026-10-07T06:30")
+        val ended = setOf(wednesday)
+
+        assertThat(planner.next(later, OneOffs(), now, Fx.UTC, exclude = stopped)?.id).isEqualTo("2026-10-07T07:15")
+        assertThat(planner.next(later, OneOffs(), now, Fx.UTC, exclude = stopped, endedDates = ended)?.id).isEqualTo("2026-10-08T06:30")
+        // Next Wednesday is another morning: it gets the new time.
+        assertThat(planner.upcoming(later, OneOffs(), now, Fx.UTC, endedDates = ended).map { it.id }).contains("2026-10-14T07:15")
+
+        val once = OneOffs(overrides = listOf(DateOverride(wednesday, OverrideKind.JUST_ONCE, LocalTime.of(8, 0), AlarmMode.FIXED)))
+        assertThat(planner.next(later, once, now, Fx.UTC, exclude = stopped, endedDates = ended)?.id).isEqualTo("2026-10-07T08:00")
+    }
+
+    @Test
     fun `the limit caps the list`() {
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 2)).hasSize(2)
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 0)).isEmpty()

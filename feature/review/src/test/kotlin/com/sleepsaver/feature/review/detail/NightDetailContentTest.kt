@@ -18,6 +18,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.time.Duration
 import java.time.LocalDate
 
 /** Night detail's marks, Morning feel, Drop anchor and Wake landing cards. */
@@ -101,6 +102,17 @@ class NightDetailContentTest {
         show(state().copy(anchor = PlanSamples.anchorStats(today).copy(latency = null, latencyShown = null, efficiency = null)))
 
         compose.onNodeWithText("Anchor dropped 10:55 PM").performScrollTo()
+    }
+
+    @Test
+    fun `sleep the watch saw start at or before the anchor reads right away, not about 5 min later`() {
+        // Onset 15 min before the anchor: inside minLatency, so it counts, and it shows as zero.
+        val atOnce = PlanSamples.anchorStats(today).copy(latency = Duration.ofMinutes(-15), latencyShown = Duration.ZERO)
+        show(state().copy(anchor = atOnce))
+
+        compose.onNodeWithText("Anchor dropped 10:55 PM · fell asleep right away · 91% of the time after it asleep")
+            .performScrollTo()
+        compose.onNodeWithText("about 5 min", substring = true).assertDoesNotExist()
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.sleepsaver.core.data.db.MorningReviewEntity
 import com.sleepsaver.core.data.db.NightMarkEntity
 import com.sleepsaver.core.data.db.NightOverrideEntity
 import com.sleepsaver.core.data.db.NightStepLogEntity
+import com.sleepsaver.core.data.db.PromptLogEntity
 import com.sleepsaver.core.data.db.SleepSaverDatabase
 import com.sleepsaver.core.data.db.SourceKind
 import com.sleepsaver.core.data.db.TomorrowListEntity
@@ -104,11 +105,12 @@ class DemoModeControllerTest {
         val feel: List<MorningFeelEntity> = emptyList(),
         val stepLogs: List<NightStepLogEntity> = emptyList(),
         val tomorrowLists: List<TomorrowListEntity> = emptyList(),
+        val prompts: List<PromptLogEntity> = emptyList(),
     )
 
     /**
-     * Real edits and journal rows on 2026-10-03 … 06 (the same dates the demo nights use). The journal rows are ones
-     * the demo journal never writes (Unwell, a feel from the ringing screen, activity 999, a Tomorrow list).
+     * Real edits, journal rows and a shown prompt on 2026-10-03 … 06 (the same dates the demo nights use). The journal
+     * rows are ones the demo journal never writes (Unwell, a feel from the ringing screen, activity 999, a Tomorrow list).
      */
     private suspend fun insertRealEdits(): Edits {
         db.nightOverrideDao().upsert(override("2026-10-03", earlier, awakeMinutes = 15))
@@ -121,6 +123,7 @@ class DemoModeControllerTest {
         db.morningFeelDao().upsert(MorningFeelEntity("2026-10-06", 2, earlier, -14_400, "RING"))
         db.nightStepLogDao().upsert(NightStepLogEntity("2026-10-04", 999, null, earlier, -14_400))
         db.tomorrowListDao().upsert(TomorrowListEntity("2026-10-05", "call Sam", earlier, -14_400))
+        db.promptLogDao().insert(PromptLogEntity("2026-10-05", "ODD_NIGHT", earlier, -14_400))
         return currentEdits()
     }
 
@@ -133,6 +136,7 @@ class DemoModeControllerTest {
         feel = db.morningFeelDao().getAll(),
         stepLogs = db.nightStepLogDao().getAll(),
         tomorrowLists = db.tomorrowListDao().getAll(),
+        prompts = db.promptLogDao().getAll(),
     )
 
     private suspend fun assertEdits(expected: Edits) {
@@ -144,9 +148,10 @@ class DemoModeControllerTest {
         assertThat(db.morningFeelDao().getAll()).containsExactlyElementsIn(expected.feel)
         assertThat(db.nightStepLogDao().getAll()).containsExactlyElementsIn(expected.stepLogs)
         assertThat(db.tomorrowListDao().getAll()).containsExactlyElementsIn(expected.tomorrowLists)
+        assertThat(db.promptLogDao().getAll()).containsExactlyElementsIn(expected.prompts)
     }
 
-    /** No real edit left in the tables: the four edit tables are empty, the journal holds only demo rows. */
+    /** No real edit left in the tables: the edit tables and the prompt log are empty, the journal holds only demo rows. */
     private suspend fun assertNoEdits() {
         assertThat(db.nightOverrideDao().getAll()).isEmpty()
         assertThat(db.addedAwakeDao().getAll()).isEmpty()
@@ -156,9 +161,10 @@ class DemoModeControllerTest {
         assertThat(db.morningFeelDao().getAll().map { it.source }).doesNotContain("RING")
         assertThat(db.nightStepLogDao().getAll().map { it.activityId }).doesNotContain(999L)
         assertThat(db.tomorrowListDao().getAll()).isEmpty()
+        assertThat(db.promptLogDao().getAll()).isEmpty()
     }
 
-    /** What a user does while trying the demo: edits on the same dates as the real edits. */
+    /** What a user does while trying the demo: edits on the same dates as the real edits, and an odd demo night's prompt. */
     private suspend fun editDuringDemo() {
         time.now = time.now.plus(Duration.ofHours(1))
         val during = time.now.toEpochMilli()
@@ -170,6 +176,7 @@ class DemoModeControllerTest {
         db.nightMarkDao().insert(NightMarkEntity("2026-10-05", "STRESS", during, -14_400))
         db.morningFeelDao().upsert(MorningFeelEntity("2026-10-05", 5, during, -14_400, "RING"))
         db.tomorrowListDao().upsert(TomorrowListEntity("2026-10-06", "demo list", during, -14_400))
+        db.promptLogDao().insert(PromptLogEntity("2026-10-06", "ODD_NIGHT", during, -14_400))
     }
 
     // ------------------------------------------------------------ on / off
@@ -207,11 +214,12 @@ class DemoModeControllerTest {
         assertThat(saved.addedAwake.map { it.toEntity() }).containsExactlyElementsIn(real.awake)
         assertThat(saved.manualNaps.map { it.toEntity() }).containsExactlyElementsIn(real.naps)
         assertThat(saved.reviews.map { it.toEntity() }).containsExactlyElementsIn(real.reviews)
-        assertThat(saved.version).isEqualTo(2)
+        assertThat(saved.version).isEqualTo(3)
         assertThat(saved.nightMarks.map { it.toEntity() }).containsExactlyElementsIn(real.marks)
         assertThat(saved.morningFeel.map { it.toEntity() }).containsExactlyElementsIn(real.feel)
         assertThat(saved.nightStepLogs.map { it.toEntity() }).containsExactlyElementsIn(real.stepLogs)
         assertThat(saved.tomorrowLists.map { it.toEntity() }).containsExactlyElementsIn(real.tomorrowLists)
+        assertThat(saved.prompts.map { it.toEntity() }).containsExactlyElementsIn(real.prompts)
     }
 
     @Test
@@ -311,7 +319,7 @@ class DemoModeControllerTest {
         // A switch that saved the real edits and emptied the tables, then died before setting the flag.
         val real = insertRealEdits()
         backup.write(
-            DemoEditBackup.of(real.overrides, real.awake, real.naps, real.reviews, real.marks, real.feel, real.stepLogs, real.tomorrowLists),
+            DemoEditBackup.of(real.overrides, real.awake, real.naps, real.reviews, real.marks, real.feel, real.stepLogs, real.tomorrowLists, real.prompts),
         )
         db.nightOverrideDao().deleteAll()
         db.addedAwakeDao().deleteAll()
@@ -321,6 +329,7 @@ class DemoModeControllerTest {
         db.morningFeelDao().deleteAll()
         db.nightStepLogDao().deleteAll()
         db.tomorrowListDao().deleteAll()
+        db.promptLogDao().deleteAll()
         val savedBytes = backupFile.readBytes()
 
         controller.setDemoMode(true)
@@ -442,6 +451,20 @@ class DemoModeControllerTest {
         assertThat(backupFile.isFile).isTrue()
         controller.setDemoMode(false)
         assertEdits(real)
+    }
+
+    @Test
+    fun disable_withAVersion2Backup_restoresItsRowsAndDropsTheDemoPrompts() = runTest {
+        val real = insertRealEdits()
+        controller.setDemoMode(true)
+        editDuringDemo()
+        // Saved by a version without the prompt log: no "prompts" key.
+        backupFile.writeText(backupFile.readText().replace(""""version":3""", """"version":2""").replace(Regex(""","prompts":\[.*?]"""), ""))
+        assertThat(backupFile.readText()).doesNotContain("prompts")
+
+        controller.setDemoMode(false)
+
+        assertEdits(Edits(real.overrides, real.awake, real.naps, real.reviews, real.marks, real.feel, real.stepLogs, real.tomorrowLists))
     }
 
     @Test

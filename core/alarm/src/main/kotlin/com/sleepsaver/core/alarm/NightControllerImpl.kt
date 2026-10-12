@@ -22,7 +22,9 @@ import com.sleepsaver.core.alarm.ring.RingNotifications
 import com.sleepsaver.core.alarm.ring.RingOutputs
 import com.sleepsaver.core.alarm.ring.RingSound
 import com.sleepsaver.core.alarm.ring.RingTransitions
+import com.sleepsaver.core.alarm.ring.SnoozeResult
 import com.sleepsaver.core.alarm.ring.StopResult
+import com.sleepsaver.core.alarm.ring.published
 import com.sleepsaver.core.data.di.ApplicationScope
 import com.sleepsaver.core.data.hooks.ActiveCatnap
 import com.sleepsaver.core.data.hooks.ActiveNight
@@ -59,14 +61,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * What the phone is doing tonight, and the UI's handle on it (SPEC_V2 §3.6, §4.10). [state] is derived from the
- * reconciled mirror (night, Hush, catnap, snooze, test) plus what the running services publish (the sounding ring,
- * movement sensing). Every call returns at once; the work happens in the services and on the app scope.
+ * reconciled mirror (night, Hush, catnap, snooze, test, a fallback ring) plus what the running services publish (the
+ * sounding ring, movement sensing). Every call returns at once; the work happens in the services and on the app scope.
  *
  * Direct-boot safe: context, the coordinator, time, the app scope and Lazy repositories (resolved only when unlocked);
  * the ring outputs only take a context.
@@ -88,8 +91,17 @@ internal class NightControllerImpl @Inject constructor(
     private val transitions = RingTransitions(config)
     private val lock = Any()
     private var mirror = MirrorState()
+
+    /** The ring AlarmRingService sounds (it publishes it). */
     private var ringing: Ringing? = null
+
+    /** [state] shows a fallback ring (no service could start it; see [fallbackRinging]). */
+    private var showsFallback = false
+    private var fallbackTicker: Job? = null
     private var sensing: SensingState? = null
+
+    /** The last "I'm up" in this process ([NightState.endedAt]). */
+    private var endedAt: Instant? = null
     private val mutableState = MutableStateFlow(NightState())
     private var preview: RingSound? = null
     private var previewJob: Job? = null
@@ -170,6 +182,11 @@ internal class NightControllerImpl @Inject constructor(
     }
 
     override fun endNight() {
+        // First, so no screen sees the anchor gone without the "I'm up" (past bedtime that would still read as night).
+        synchronized(lock) {
+            endedAt = time.now()
+            recompute()
+        }
         val ended = coordinator.apply { m -> MirrorUpdate(m.copy(night = null), m.night) }
         val service = NightService.current
         if (service != null) {
@@ -188,16 +205,22 @@ internal class NightControllerImpl @Inject constructor(
 
     override fun startHush(color: HushColor, timer: Duration?, volume: Float) {
         val now = time.now()
+        val zone = time.zone()
         val hush = config.hush
         coordinator.apply { m ->
-            // "Until my window" fades out before sensing starts (the window start − lead-in; the wake time for FIXED).
-            val untilWindow = m.armed?.let { it.windowStart - config.surfacing.sensingLeadIn }?.takeIf { it > now }
-            val endsAt = timer?.let { now + it } ?: untilWindow ?: (now + hush.defaultTimer)
+            // "Until my window" fades out before sensing starts (the window start − lead-in; the wake time for FIXED),
+            // and only before this night's own alarm. Without one (a free Saturday, Monday's alarm armed) it plays the
+            // default timer, so the noise never runs on through the weekend.
+            val untilWindow = m.armed?.takeIf { it.endsNightOf(now, zone, config) }
+                ?.let { it.windowStart - config.surfacing.sensingLeadIn }
+                ?.takeIf { it > now }
+            val played = if (timer == null && untilWindow == null) hush.defaultTimer else timer
+            val endsAt = played?.let { now + it } ?: untilWindow
             val mirrored = MirroredHush(
                 color = color.name,
                 volume = volume.coerceIn(hush.minVolume, 1f),
-                timerMin = timer?.toMinutes(),
-                endsAtEpochMs = endsAt.toEpochMilli(),
+                timerMin = played?.toMinutes(),
+                endsAtEpochMs = endsAt?.toEpochMilli(),
                 playId = m.hush?.takeIf { it.color == color.name }?.playId,
             )
             MirrorUpdate(m.copy(hush = mirrored), Unit)
@@ -299,13 +322,17 @@ internal class NightControllerImpl @Inject constructor(
         if (service != null && service.isSounding) service.stop() else stopFromMirror()
     }
 
-    /** Snooze when no service sounds (the FGS was refused and notification 303 stands in for it). */
+    /**
+     * Snooze when no service sounds (the FGS was refused and notification 303 stands in for it). A ring that gives way
+     * to a waiting planned ring (T8) just goes; that ring comes on RING_EXTRA.
+     */
     fun snoozeFromMirror() {
         val now = time.now()
-        val offer = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
-        val until = offer.until ?: return
+        val result = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
         RingNotifications.cancel(context, AlarmActions.ID_RING_FALLBACK)
-        RingNotifications.post(context, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(context, until, offer.lastOne, time.zone(), mirror.use24h))
+        if (result is SnoozeResult.Snoozed) {
+            RingNotifications.post(context, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(context, result.until, result.lastOne, time.zone(), mirror.use24h))
+        }
         scheduler.get().flushEventsAsync()
     }
 
@@ -380,6 +407,7 @@ internal class NightControllerImpl @Inject constructor(
         synchronized(lock) {
             ringing = null
             sensing = null
+            endedAt = null
             mirror = MirrorState()
             recompute()
         }
@@ -453,15 +481,42 @@ internal class NightControllerImpl @Inject constructor(
         val liveSensing = sensing ?: night?.takeIf { it.wholeNightLog && !NightService.running }?.let {
             SensingState(SensingMode.WHOLE_NIGHT, it.anchoredAt, running = false)
         }
+        val fallback = if (ringing == null) fallbackRinging(m) else null
+        showsFallback = fallback != null
+        if (showsFallback) tickFallback()
         mutableState.value = NightState(
             night = night?.let { ActiveNight(it.anchorId, it.anchoredAt, it.offset, it.wholeNightLog) },
             sensing = liveSensing,
             hush = m.hush?.let { HushState(it.hushColor, it.volume, it.timer, it.endsAt) },
             catnap = m.catnap?.let { ActiveCatnap(it.startedAt, it.ringAt, it.length) },
-            ringing = ringing,
+            ringing = ringing ?: fallback,
             snoozedUntil = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.SNOOZE }?.at,
             testPendingAt = m.extra?.takeIf { it.extraTrigger == ExtraTrigger.TEST }?.at,
+            endedAt = endedAt,
         )
+    }
+
+    /**
+     * Must hold [lock]. A ring no service could start (T5's fallback: notification 303 rings for it), until its
+     * ringTimeout is up. It shows as ringing so its full-screen intent and the MainActivity redirect open a ringing
+     * screen whose Stop and Snooze answer it from the mirror, instead of one that closes at once. null otherwise.
+     */
+    private fun fallbackRinging(m: MirrorState): Ringing? {
+        val r = m.ringing?.takeIf { it.fallback } ?: return null
+        val now = time.now()
+        if (now >= r.since + config.alarm.ringTimeout) return null
+        return r.published(transitions.offer(r, now), m.use24h, time.zone())
+    }
+
+    /** Must hold [lock]. While a fallback ring shows, its snooze label follows the clock and it goes at its timeout. */
+    private fun tickFallback() {
+        if (fallbackTicker?.isActive == true) return
+        fallbackTicker = scope.launch {
+            do {
+                delay(AlarmPlatform.FALLBACK_REFRESH_MS)
+                refresh()
+            } while (synchronized(lock) { showsFallback })
+        }
     }
 
     private companion object {

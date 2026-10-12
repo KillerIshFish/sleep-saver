@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.ClockFormat
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.SourceSelection
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
@@ -154,6 +155,9 @@ class SettingsContentTest {
         compose.onNodeWithText("Use demo data").performClick()
 
         compose.onNodeWithText("Turn off demo data?").assertIsDisplayed()
+        // Everything the demo swap drops is named, Tomorrow lists included.
+        compose.onNodeWithText("Edits, marks, Morning feel, Night steps check-offs and Tomorrow lists made in demo mode will be removed.")
+            .assertIsDisplayed()
         assertThat(actions.calls).isEmpty()
         compose.onNodeWithText("Keep demo").performClick()
         assertThat(actions.calls).isEmpty()
@@ -293,6 +297,14 @@ class SettingsContentTest {
         show()
         scrollTo("Used on days without their own time.")
         compose.onNodeWithText("10:55", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `a sleep-need bedtime speaks of the usual wake time it comes from, not tomorrow's`() {
+        // The row shows the plan-free usual bedtime: tomorrow may have its own, earlier time in the week plan.
+        show(SettingsSamples.ready.copy(bedtimeMode = BedtimeMode.SLEEP_NEED))
+        scrollTo("Used on days without their own time.")
+        compose.onNodeWithText("Leaves room for your 8h before your usual wake time").assertIsDisplayed()
     }
 
     @Test

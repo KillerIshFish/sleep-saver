@@ -135,7 +135,7 @@ internal fun StepsCard(
 /** "2 of 4" big, with "done tonight" on its baseline (under it at large font sizes). */
 @Composable
 private fun ProgressLine(done: Int, total: Int) {
-    val description = stringResource(R.string.winddown_progress_description, done, total)
+    val description = pluralStringResource(R.plurals.winddown_progress_description, total, done, total)
     val number = stringResource(R.string.winddown_progress, done, total)
     val label = stringResource(R.string.winddown_progress_label)
     val numberStyle = MaterialTheme.typography.displayMedium
@@ -401,8 +401,9 @@ internal fun TrackingCard(adherence: StepAdherence, streakShowFrom: Int, modifie
 /** One dot per evening, oldest first: done filled tide, missed hollow grey, not counted a tiny dot, tonight a tide ring. */
 @Composable
 private fun DotStrip(evenings: List<EveningResult>) {
-    val description = stringResource(
-        R.string.winddown_strip_description,
+    val description = pluralStringResource(
+        R.plurals.winddown_strip_description,
+        evenings.size,
         evenings.size,
         evenings.count { it.state == EveningState.DONE },
     )
@@ -489,20 +490,23 @@ private fun effectSentence(effect: MarkEffect): String {
     val more = difference >= 0
     val minutes = formatAboutMinutes(Duration.ofMinutes(abs(difference).roundToLong()))
     return when (effect.metric) {
-        EffectMetric.TOTAL_SLEEP -> stringResource(
-            if (more) R.string.winddown_compare_sleep_more else R.string.winddown_compare_sleep_less,
+        EffectMetric.TOTAL_SLEEP -> pluralStringResource(
+            if (more) R.plurals.winddown_compare_sleep_more else R.plurals.winddown_compare_sleep_less,
+            effect.withoutNights,
             minutes,
             effect.withNights,
             effect.withoutNights,
         )
-        EffectMetric.AWAKE -> stringResource(
-            if (more) R.string.winddown_compare_awake_more else R.string.winddown_compare_awake_less,
+        EffectMetric.AWAKE -> pluralStringResource(
+            if (more) R.plurals.winddown_compare_awake_more else R.plurals.winddown_compare_awake_less,
+            effect.withoutNights,
             minutes,
             effect.withNights,
             effect.withoutNights,
         )
-        EffectMetric.MORNING_FEEL -> stringResource(
-            if (more) R.string.winddown_compare_feel_brighter else R.string.winddown_compare_feel_foggier,
+        EffectMetric.MORNING_FEEL -> pluralStringResource(
+            if (more) R.plurals.winddown_compare_feel_brighter else R.plurals.winddown_compare_feel_foggier,
+            effect.withoutNights,
             formatHours1(abs(difference)),
             effect.withNights,
             effect.withoutNights,

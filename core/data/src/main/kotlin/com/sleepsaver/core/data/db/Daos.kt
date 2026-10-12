@@ -571,6 +571,9 @@ interface AlarmEventDao {
     @Query("SELECT * FROM alarm_events WHERE kind = 'PLANNED' AND wakeDate >= :wakeDate ORDER BY wakeDate, firstRingEpochMs")
     fun observePlannedFrom(wakeDate: String): Flow<List<AlarmEventEntity>>
 
+    @Query("SELECT * FROM alarm_events WHERE kind = 'PLANNED' AND wakeDate >= :wakeDate ORDER BY wakeDate, firstRingEpochMs")
+    suspend fun getPlannedFrom(wakeDate: String): List<AlarmEventEntity>
+
     @Query("SELECT * FROM alarm_events ORDER BY firstRingEpochMs, id")
     suspend fun getAll(): List<AlarmEventEntity>
 

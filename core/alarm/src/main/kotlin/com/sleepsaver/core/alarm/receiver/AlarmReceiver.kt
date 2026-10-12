@@ -24,8 +24,9 @@ import com.sleepsaver.core.domain.alarm.SensingOutcome
 import com.sleepsaver.core.domain.config.SleepConfig
 
 /**
- * The alarm broadcasts (SPEC_V2 §4.4): RING (T5), WINDOW (T3), and the notification actions Stop-while-snoozed,
- * Cancel catnap, Stop Hush and Hush +15 min. Only our own explicit PendingIntents reach it (exported=false).
+ * The alarm broadcasts (SPEC_V2 §4.4): RING (T5), WINDOW (T3), the ring guard (T14), and the notification actions
+ * Stop-while-snoozed, Cancel catnap, Stop Hush and Hush +15 min. Only our own explicit PendingIntents reach it
+ * (exported=false).
  * Direct-boot aware. RING and WINDOW start their service synchronously in onReceive, while the exact alarm's
  * foreground-service start exemption holds.
  */
@@ -41,32 +42,49 @@ internal class AlarmReceiver : BroadcastReceiver() {
             AlarmActions.ACTION_CANCEL_CATNAP -> entry.nightController().cancelCatnap()
             AlarmActions.ACTION_HUSH_STOP -> entry.nightController().stopHush()
             AlarmActions.ACTION_HUSH_EXTEND -> entry.nightController().extendHush(SleepConfig.DEFAULT.hush.extendStep)
+            AlarmActions.ACTION_RING_GUARD -> onRingGuard(context, entry)
         }
     }
 
     /**
+     * T14: a ring's timeout passed while `ringing` still stood (the coordinator's RING_GUARD). Its process died, or it
+     * only ever stood as notification 303. The mirror re-arm's reconcile resumes it or times it out and arms its
+     * backup; a 303 whose ring is over goes. A ring service that is still sounding answers it itself (no change).
+     */
+    private fun onRingGuard(context: Context, entry: AlarmEntryPoint) {
+        entry.scheduler().get().rearmFromMirror()
+        if (entry.coordinator().read().ringing == null) RingNotifications.cancel(context, AlarmActions.ID_RING_FALLBACK)
+    }
+
+    /**
      * T5: a 60-s wake lock (the ring service releases it) and startForegroundService(AlarmRingService, RING). When the
-     * start is refused, the ring is recorded in the mirror (so Stop/Snooze and the next reconcile work) and
-     * notification 303 shows it with the full-screen intent and Stop/Snooze; no sound is possible.
+     * start is refused (e.g. Android 12 without "Alarms & reminders": the inexact ring alarm carries no foreground-service
+     * start exemption), the ring is recorded in the mirror (so Stop/Snooze, the ringing screen and the next reconcile
+     * work) and notification 303 shows it with the full-screen intent and Stop/Snooze, ringing with the phone's alarm
+     * sound on its own channel, since no tone of ours can play.
      */
     private fun onRing(context: Context, intent: Intent, entry: AlarmEntryPoint) {
         RingWakeLock.acquire(context)
         val kind = intent.getStringExtra(AlarmActions.EXTRA_KIND) ?: AlarmActions.KIND_PLAN
         val occurrenceId = intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID)
+        // A RING_EXTRA's armed time: the ring is matched to the pending extra by it, however late an inexact (T2)
+        // window delivered the broadcast.
+        val atEpochMs = if (intent.hasExtra(AlarmActions.EXTRA_EPOCH_MS)) intent.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0L) else null
         val service = Intent(context, AlarmRingService::class.java)
             .setAction(AlarmActions.ACTION_RING)
             .putExtra(AlarmActions.EXTRA_KIND, kind)
             .putExtra(AlarmActions.EXTRA_OCCURRENCE_ID, occurrenceId)
+        if (atEpochMs != null) service.putExtra(AlarmActions.EXTRA_EPOCH_MS, atEpochMs)
         try {
             ContextCompat.startForegroundService(context, service)
         } catch (e: IllegalStateException) { // ForegroundServiceStartNotAllowedException is one
-            ringFallback(context, entry, kind, occurrenceId, e)
+            ringFallback(context, entry, kind, occurrenceId, atEpochMs, e)
         } catch (e: SecurityException) {
-            ringFallback(context, entry, kind, occurrenceId, e)
+            ringFallback(context, entry, kind, occurrenceId, atEpochMs, e)
         }
     }
 
-    private fun ringFallback(context: Context, entry: AlarmEntryPoint, kind: String, occurrenceId: String?, error: Exception) {
+    private fun ringFallback(context: Context, entry: AlarmEntryPoint, kind: String, occurrenceId: String?, atEpochMs: Long?, error: Exception) {
         Log.w(TAG, "Ring service not started ($kind $occurrenceId); showing the fallback notification", error)
         RingWakeLock.release()
         val source = when (kind) {
@@ -78,7 +96,8 @@ internal class AlarmReceiver : BroadcastReceiver() {
         val time = entry.time()
         val now = time.now()
         val decision = entry.coordinator().apply { m ->
-            val update = transitions.onRing(m, RingRequest(source, occurrenceId), now, sounding = null, offset = time.zone().rules.getOffset(now))
+            val request = RingRequest(source, occurrenceId, atEpochMs = atEpochMs)
+            val update = transitions.onRing(m, request, now, sounding = null, offset = time.zone().rules.getOffset(now))
             val started = update.value as? RingDecision.Start ?: return@apply update
             val marked = transitions.markFallback(update.state, started.ringing.since).state
             update.copy(state = marked, value = started.copy(ringing = marked.ringing ?: started.ringing))
@@ -89,7 +108,7 @@ internal class AlarmReceiver : BroadcastReceiver() {
         if (decision.catnapConsumed) RingNotifications.cancel(context, AlarmActions.ID_CATNAP)
         val use24h = entry.coordinator().read().use24h
         val offer = transitions.offer(decision.ringing, now)
-        RingNotifications.post(context, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(context, decision.ringing, offer, time.zone(), use24h))
+        RingNotifications.post(context, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(context, decision.ringing, offer, now, time.zone(), use24h))
         val scheduler = entry.scheduler().get()
         if (decision.ringing.isPlanned) scheduler.replanAfterRing()
         scheduler.flushEventsAsync()

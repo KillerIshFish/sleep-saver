@@ -6,8 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.TimeProvider
-import com.sleepsaver.core.data.repository.InsightsRepository
-import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PatternsRepository
@@ -16,13 +14,13 @@ import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.journal.Mark
-import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.nightsteps.StepAdherence
 import com.sleepsaver.core.domain.nightsteps.StepSuggestion
 import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.patterns.MarkEffect
 import com.sleepsaver.core.domain.patterns.PatternLabel
+import com.sleepsaver.core.domain.schedule.FocusNight
 import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.ui.components.HushControlsActions
@@ -30,8 +28,12 @@ import com.sleepsaver.core.ui.components.HushControlsState
 import com.sleepsaver.feature.winddown.HushChoice
 import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
+import com.sleepsaver.feature.winddown.WinddownNight
+import com.sleepsaver.feature.winddown.WinddownNightSource
 import com.sleepsaver.feature.winddown.WinddownWriter
 import com.sleepsaver.feature.winddown.hushControlsState
+import com.sleepsaver.feature.winddown.library.addToSteps
+import com.sleepsaver.feature.winddown.untilWindowAvailable
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -40,14 +42,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.combineTransform
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -71,11 +70,12 @@ internal sealed interface NightStepsUiState {
     data object Unavailable : NightStepsUiState
 
     data class Ready(
+        /** The evening in focus ([com.sleepsaver.feature.winddown.winddownFocus]): last night's until it ends. */
         val session: NightStepsSession,
         val zone: ZoneId,
         /** No-clock night (§5.0): no time of day anywhere on the screen. */
         val night: Boolean,
-        /** The anchor is dropped for tonight. */
+        /** The anchor is dropped for this night (its wake date is [wakeDate]). */
         val anchored: Boolean,
         val adherence: StepAdherence,
         /** At most `steps.suggestionMax`. */
@@ -100,29 +100,29 @@ internal sealed interface NightStepsUiState {
 internal enum class NightStepsEvent { ANCHOR_DROPPED, ANCHOR_FAILED }
 
 /**
- * Builds the Night steps screen. Night mode follows §5.0: `NightRules.isNight(now, B, nightEnd(next alarm's window
- * start, tomorrow's wake zone start), anchoredAt)`, with the anchor from [nightState] (so "I'm up" ends it at once).
- * The wake zone only counts when [schedule] is tonight's (its date is the session's evening).
+ * Builds the Night steps screen for the [session] of the night in [focus] ([com.sleepsaver.feature.winddown.winddownFocus]).
+ * Night mode (§5.0) is that night's no-clock time, the rule Tonight, Sleep home and Energy use. [nightState]'s anchor
+ * shows as dropped only when it was dropped for that night, so last night's anchor never darkens the day. Hush can run
+ * "Until my window" only when [nextAlarm] (the one armed) is that night's.
  */
 internal fun nightStepsUiState(
     session: NightStepsSession?,
+    focus: FocusNight,
     adherence: StepAdherence,
     suggestions: List<StepSuggestion>,
     effects: List<MarkEffect>,
     marks: Set<Mark>,
     week: WeekPlan,
     nextAlarm: PlannedAlarm?,
-    schedule: EnergySchedule?,
     nightState: NightState,
     hush: HushChoice,
-    now: Instant,
     zone: ZoneId,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): NightStepsUiState {
     if (session == null) return NightStepsUiState.Unavailable
-    val wakeZoneStart = schedule?.takeIf { it.date == session.nightOf }?.tomorrowWakeZone?.start
-    val anchoredAt = nightState.night?.anchoredAt
-    val night = NightRules.isNight(now, session.bedtime, NightRules.nightEnd(nextAlarm?.window?.start, wakeZoneStart), anchoredAt, config)
+    val night = focus.isNight
+    val wakeDate = session.nightOf.plusDays(1)
+    val anchored = nightState.night?.let { NightRules.wakeDateOf(it.anchoredAt, it.offset, config) == wakeDate } == true
     val stepsEffects = effects.filter { it.mark == Mark.NIGHT_STEPS_DONE }
     val shown = stepsEffects.filter { it.label == PatternLabel.CLEAR || it.label == PatternLabel.POSSIBLE }
     val status = when {
@@ -134,30 +134,31 @@ internal fun nightStepsUiState(
         session = session,
         zone = zone,
         night = night,
-        anchored = nightState.night != null,
+        anchored = anchored,
         adherence = adherence,
         suggestions = suggestions.take(config.steps.suggestionMax),
         marks = marks,
         compare = shown,
         compareStatus = status,
         ownList = week.day(session.nightOf.dayOfWeek).evening.routine != null,
-        hush = hushControlsState(hush, nightState.hush, untilWindowAvailable = nextAlarm != null, night = night, config = config),
+        hush = hushControlsState(hush, nightState.hush, untilWindowAvailable(nextAlarm, wakeDate), night = night, config = config),
         streakShowFrom = config.steps.streakShowFrom,
     )
 }
 
 /**
- * Night steps: tonight's checklist with tracking, suggestions, marks, the Night steps patterns and Drop anchor.
- * Optional inputs (tracking, suggestions, patterns, marks, the week plan, the alarm) fall back to empty when they
- * fail, so only tonight's steps themselves can make the screen Unavailable.
+ * Night steps: the checklist of the evening in focus ([WinddownNightSource]: tonight's, or last night's until it ends)
+ * with tracking, suggestions, marks, the Night steps patterns and Drop anchor. Optional inputs (tracking, suggestions,
+ * patterns, marks, the week plan, the alarm) fall back to empty when they fail, so only the steps themselves can make
+ * the screen Unavailable.
  */
 @HiltViewModel
 internal class NightStepsViewModel @Inject constructor(
     private val nightSteps: NightStepsRepository,
     private val journal: JournalRepository,
     patterns: PatternsRepository,
-    schedule: ScheduleRepository,
-    insights: InsightsRepository,
+    private val schedule: ScheduleRepository,
+    nightSource: WinddownNightSource,
     private val nightController: NightController,
     private val time: TimeProvider,
     private val writer: WinddownWriter,
@@ -180,52 +181,45 @@ internal class NightStepsViewModel @Inject constructor(
     /** One-off outcomes: anchor dropped (→ Tonight) or not saved (→ a snackbar). */
     val eventFlow: Flow<NightStepsEvent> = events.receiveAsFlow()
 
-    private val tonight = nightSteps.tonight
-
-    private val marks: Flow<Set<Mark>> = tonight.flatMapLatest { session ->
-        if (session == null) flowOf(emptySet()) else journal.marks(session.nightOf.plusDays(1)).orElse(emptySet(), "Tonight's marks")
-    }
-
     private val local = combine(
         nightSteps.adherence.orElse(NoAdherence, "Adherence"),
         nightSteps.suggestions.orElse(emptyList(), "Suggestions"),
         patterns.markEffects.orElse(emptyList(), "Mark effects"),
-        marks,
+        journal.marksByDate.orElse(emptyMap(), "Marks"),
     ) { adherence, suggestions, effects, marks -> Local(adherence, suggestions, effects, marks) }
 
     private val plan = combine(
         schedule.weekPlan.orElse(WeekPlan.DEFAULT, "Week plan"),
         schedule.nextAlarm.orElse(null, "Next alarm"),
-        insights.state,
-    ) { week, nextAlarm, insights -> Plan(week, nextAlarm, (insights as? InsightsState.Ready)?.insights?.schedule) }
+    ) { week, nextAlarm -> Plan(week, nextAlarm) }
 
-    private val moment = combine(nightController.state, time.minuteTicks, hushPicker.choice) { night, now, hush -> Moment(night, now, hush) }
+    private val moment = combine(nightController.state, hushPicker.choice) { night, hush -> Moment(night, hush) }
 
     // Tracking and suggestions are built from tonight's evening, so without one they may never arrive: a missing
     // session shows Unavailable at once instead of waiting for them. Until they arrive with a session, the screen keeps
     // what it shows (Loading, or the last state when it comes back to this screen).
-    val uiState: StateFlow<NightStepsUiState> = combineTransform<NightStepsSession?, Local?, Plan, Moment, NightStepsUiState>(
-        tonight,
+    val uiState: StateFlow<NightStepsUiState> = combineTransform<WinddownNight, Local?, Plan, Moment, NightStepsUiState>(
+        nightSource.night,
         local.onStart<Local?> { emit(null) },
         plan,
         moment,
-    ) { session, local, plan, moment ->
+    ) { night, local, plan, moment ->
+        val session = night.session
         if (session == null) {
             emit(NightStepsUiState.Unavailable)
         } else if (local != null) {
             emit(
                 nightStepsUiState(
                     session = session,
+                    focus = night.focus,
                     adherence = local.adherence,
                     suggestions = local.suggestions,
                     effects = local.effects,
-                    marks = local.marks,
+                    marks = local.marks[session.nightOf.plusDays(1)].orEmpty(),
                     week = plan.week,
                     nextAlarm = plan.nextAlarm,
-                    schedule = plan.schedule,
                     nightState = moment.night,
                     hush = moment.hush,
-                    now = moment.now,
                     zone = time.zone(),
                     config = config,
                 ),
@@ -245,9 +239,13 @@ internal class NightStepsViewModel @Inject constructor(
         viewModelScope.launch { writer.save("Checking step $activityId") { nightSteps.setDone(nightOf, activityId, done) } }
     }
 
-    /** [label] is the technique's title, resolved in composition (never inside the click lambda). */
+    /**
+     * "Worth a try" Add. [label] is the technique's title, resolved in composition (never inside the click lambda). On
+     * an evening with its own list the step goes on that list, the one tonight's checklist is built from ([addToSteps]).
+     */
     fun addTechnique(technique: Technique, label: String) {
-        viewModelScope.launch { writer.save("Adding $technique") { nightSteps.addTechnique(technique, label) } }
+        val day = ready?.day
+        viewModelScope.launch { writer.save("Adding $technique") { addToSteps(technique, label, day, nightSteps, schedule) } }
     }
 
     fun toggleMark(mark: Mark) {
@@ -282,12 +280,13 @@ internal class NightStepsViewModel @Inject constructor(
         val adherence: StepAdherence,
         val suggestions: List<StepSuggestion>,
         val effects: List<MarkEffect>,
-        val marks: Set<Mark>,
+        /** Stored marks by wake date. */
+        val marks: Map<LocalDate, Set<Mark>>,
     )
 
-    private data class Plan(val week: WeekPlan, val nextAlarm: PlannedAlarm?, val schedule: EnergySchedule?)
+    private data class Plan(val week: WeekPlan, val nextAlarm: PlannedAlarm?)
 
-    private data class Moment(val night: NightState, val now: Instant, val hush: HushChoice)
+    private data class Moment(val night: NightState, val hush: HushChoice)
 
     private companion object {
         /** Tracking that couldn't be read: no evenings, so the tracking card stays hidden. */

@@ -1,6 +1,7 @@
 package com.sleepsaver.core.alarm.ring
 
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.schedule.WakeStyle
 import org.junit.Test
@@ -56,6 +57,22 @@ class CueTimelineTest {
         assertThat(t.at(s(20)).gain).isWithin(1e-4f).of(0.8f)
         assertThat(t.at(s(179)).escalated).isFalse()
         assertThat(t.at(s(180)).escalated).isTrue()
+    }
+
+    @Test
+    fun `every style's test ring sounds at once, then plays at the day's full volume and vibrates before it ends`() {
+        WakeStyle.entries.forEach { style ->
+            val t = CueTimeline(alarm.ringCue(RingKind.TEST, style), 0.8f, chime, alarm)
+
+            assertThat(t.at(Duration.ZERO).speaker).isTrue()
+            assertThat(t.at(Duration.ZERO).gain).isGreaterThan(0f)
+            listOf(alarm.testRingSwell, alarm.testRingLength - Duration.ofMillis(250)).forEach { elapsed ->
+                val cue = t.at(elapsed)
+                assertThat(cue.speaker).isTrue()
+                assertThat(cue.gain).isWithin(1e-4f).of(0.8f)
+                assertThat(cue.vibrate).isTrue()
+            }
+        }
     }
 
     @Test

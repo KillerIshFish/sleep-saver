@@ -65,10 +65,19 @@ data class NightState(
     val sensing: SensingState? = null,
     val hush: HushState? = null,
     val catnap: ActiveCatnap? = null,
-    /** Only while a ring is sounding (null while snoozed). */
+    /**
+     * Only while a ring is sounding, or stands as its fallback notification because no ring service could start
+     * (null while snoozed).
+     */
     val ringing: Ringing? = null,
     val snoozedUntil: Instant? = null,
     val testPendingAt: Instant? = null,
+    /**
+     * When "I'm up" ([NightController.endNight]) was last tapped in this process: NightRules.focus's `endedAt`, so it
+     * ends night mode on Tonight, Sleep home, Energy and Night steps at once (NightRules.clockNow). Kept in memory only:
+     * after a restart the bedtime rule applies again.
+     */
+    val endedAt: Instant? = null,
 )
 
 /** The night state after Drop anchor. */
@@ -124,11 +133,16 @@ interface NightController {
     /** Within AnchorConfig.undoWindow: deletes the anchor and leaves the night state. */
     suspend fun undoAnchor(anchorId: Long)
 
-    /** "I'm up": ends the night state and the movement log (the alarm stays armed). */
+    /** "I'm up": ends the night state and the movement log (the alarm stays armed), and sets [NightState.endedAt]. */
     fun endNight()
 
     /** After the movement log stopped unexpectedly (UI tap only). */
     fun resumeMovementLog()
+
+    /**
+     * [timer] null = "Until my window": until shortly before this night's alarm window (the alarm of the wake date
+     * NightRules.wakeDateOf now), else for hush.defaultTimer when this night has no alarm.
+     */
     fun startHush(color: HushColor, timer: Duration?, volume: Float)
     fun extendHush(by: Duration)
     fun setHushVolume(volume: Float)

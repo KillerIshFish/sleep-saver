@@ -147,8 +147,8 @@ private fun RingReason.reasonRes(): Int? = when (this) {
     RingReason.SENSING_UNAVAILABLE -> R.string.review_landing_reason_sensing
     RingReason.FIXED_TIME -> R.string.review_landing_reason_fixed
     RingReason.CATCH_UP -> R.string.review_landing_reason_catch_up
-    // Not the first ring of a planned alarm: nothing to explain.
-    RingReason.SNOOZE_END, RingReason.CATNAP_END, RingReason.TEST, RingReason.BACKUP -> null
+    // Not the first ring of a planned alarm: nothing to explain. NEVER_RANG has no landing (WakeLandingCalculator).
+    RingReason.SNOOZE_END, RingReason.CATNAP_END, RingReason.TEST, RingReason.BACKUP, RingReason.NEVER_RANG -> null
 }
 
 @StringRes
@@ -160,11 +160,16 @@ private fun LandingStage.stageRes(): Int = when (this) {
     LandingStage.UNSCORED -> R.string.review_landing_stage_unscored
 }
 
+/** Why the alarm retuned itself this week, counting the rings that set it off ("after 3 rings"); null after a reset. */
 @Composable
 @ReadOnlyComposable
-private fun tuningText(tuning: AlarmTuning, config: SleepConfig = SleepConfig.DEFAULT): String? = when (tuning.reason) {
-    TuningReason.RAISED_AFTER_DEEP_RINGS -> stringResource(R.string.review_landing_tuned_raised, config.surfacing.tuneRaiseDeepRings)
-    TuningReason.LOWERED_AFTER_LATE_RINGS -> stringResource(R.string.review_landing_tuned_lowered, config.surfacing.tuneLowerDeadlineRings)
+internal fun tuningText(tuning: AlarmTuning, config: SleepConfig = SleepConfig.DEFAULT): String? = when (tuning.reason) {
+    TuningReason.RAISED_AFTER_DEEP_RINGS -> config.surfacing.tuneRaiseDeepRings.let { rings ->
+        pluralStringResource(R.plurals.review_landing_tuned_raised, rings, rings)
+    }
+    TuningReason.LOWERED_AFTER_LATE_RINGS -> config.surfacing.tuneLowerDeadlineRings.let { rings ->
+        pluralStringResource(R.plurals.review_landing_tuned_lowered, rings, rings)
+    }
     TuningReason.RESET -> null
 }
 

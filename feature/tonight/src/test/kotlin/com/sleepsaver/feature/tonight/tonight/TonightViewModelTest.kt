@@ -57,7 +57,6 @@ class TonightViewModelTest {
             settings = fakes.settings,
             time = fakes.time,
             writer = writer(),
-            endedNights = fakes.endedNights,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
@@ -146,11 +145,26 @@ class TonightViewModelTest {
 
         assertThat(fakes.nightController.nightControllerCalls).contains("endNight")
         assertThat(viewModel.ready().phase).isNotEqualTo(TonightPhase.NIGHT)
-        assertThat(fakes.endedNights.endedAt.value).isEqualTo(at(23, 30))
+        assertThat(fakes.nightController.state.value.endedAt).isEqualTo(at(23, 30))
 
         fakes.time.advance(Duration.ofMinutes(10))
         viewModel.onDropAnchor(wholeNightLog = false)
         assertThat(viewModel.ready().phase).isEqualTo(TonightPhase.NIGHT)
+    }
+
+    @Test
+    fun `I'm up mid-minute ends night mode at once, not at the next tick`() = runTest {
+        val fakes = TonightFakes(now = at(23, 30))
+        val viewModel = viewModel(fakes)
+        // The last tick came at 23:30:00; the tap is 45 s later, before the 23:31 tick.
+        val tap = at(23, 30).plusSeconds(45)
+        fakes.time.now = tap
+
+        viewModel.onEndNight()
+
+        assertThat(fakes.nightController.state.value.endedAt).isEqualTo(tap)
+        assertThat(viewModel.ready().phase).isNotEqualTo(TonightPhase.NIGHT)
+        assertThat(viewModel.ready().night).isNull()
     }
 
     @Test

@@ -44,6 +44,9 @@ internal object AlarmPendingIntents {
     /** 24: the catnap's own alarm. */
     fun ringCatnap(context: Context): PendingIntent = broadcast(context, AlarmActions.RC_RING_CATNAP, ringIntent(context, AlarmActions.KIND_CATNAP))
 
+    /** 34: a ring's timeout, armed while `ringing` stands: reconcile resolves a ring that outlived its process. */
+    fun ringGuard(context: Context): PendingIntent = receiverAction(context, AlarmActions.RC_RING_GUARD, AlarmActions.ACTION_RING_GUARD)
+
     /** 25: the ringing screen, as full-screen intent and content intent of the ring notification. */
     fun fullScreen(context: Context): PendingIntent = PendingIntent.getActivity(
         context,

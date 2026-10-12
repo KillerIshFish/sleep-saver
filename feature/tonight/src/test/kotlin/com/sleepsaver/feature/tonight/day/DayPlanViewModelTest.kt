@@ -201,6 +201,42 @@ class DayPlanViewModelTest {
     }
 
     @Test
+    fun `usual wake time right after a scrub wins over the scrubbed time`() = runTest {
+        val fakes = TonightFakes()
+        val viewModel = viewModel(fakes)
+        viewModel.onSelectDay(DayOfWeek.SATURDAY)
+        viewModel.onWakeSet()
+
+        viewModel.onWakeTime(LocalTime.of(7, 10))
+        viewModel.onWakeUsual()
+
+        assertThat(viewModel.ready().plan.morning.wakeTime).isNull()
+        advanceTimeBy(DayPlanViewModel.SCRUB_SETTLE + 1)
+        runCurrent()
+        assertThat(fakes.schedule.weekState.value.day(DayOfWeek.SATURDAY).morning.wakeTime).isNull()
+
+        // Nor does leaving bring the scrubbed time back.
+        viewModel.onSelectDay(DayOfWeek.SUNDAY)
+        assertThat(fakes.schedule.weekState.value.day(DayOfWeek.SATURDAY).morning.wakeTime).isNull()
+    }
+
+    @Test
+    fun `the Settings rule right after a scrub wins over the scrubbed bedtime`() = runTest {
+        val fakes = TonightFakes()
+        val viewModel = viewModel(fakes, part = DayPart.EVENING)
+        viewModel.onBedtimeSet()
+
+        viewModel.onBedtime(LocalTime.of(22, 40))
+        viewModel.onBedtimeRule()
+
+        assertThat(viewModel.ready().plan.evening.bedtime).isNull()
+        viewModel.onSelectDay(DayOfWeek.WEDNESDAY)
+        advanceTimeBy(DayPlanViewModel.SCRUB_SETTLE + 1)
+        runCurrent()
+        assertThat(fakes.schedule.weekState.value.day(DayOfWeek.TUESDAY).evening.bedtime).isNull()
+    }
+
+    @Test
     fun `the volume shows while dragging and saves when let go`() = runTest {
         val fakes = TonightFakes()
         val viewModel = viewModel(fakes)

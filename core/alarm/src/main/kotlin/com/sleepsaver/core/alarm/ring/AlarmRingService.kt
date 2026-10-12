@@ -16,13 +16,11 @@ import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.AlarmCoordinator
 import com.sleepsaver.core.alarm.AlarmPlatform
 import com.sleepsaver.core.alarm.AlarmSchedulerImpl
-import com.sleepsaver.core.alarm.AlarmText
 import com.sleepsaver.core.alarm.NightControllerImpl
 import com.sleepsaver.core.alarm.mirror.MirroredRinging
 import com.sleepsaver.core.alarm.night.NightService
 import com.sleepsaver.core.alarm.receiver.RingWakeLock
 import com.sleepsaver.core.alarm.synth.ToneSynth
-import com.sleepsaver.core.data.hooks.Ringing
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.alarm.SnoozeOffer
@@ -83,6 +81,11 @@ internal class AlarmRingService : Service() {
         AlarmChannels.ensure(this)
     }
 
+    /**
+     * Sticky while a ring sounds (T14): if the process dies mid-ring, the system restarts the service, and that start's
+     * reconcile (Application.onCreate) resumes the ring right away instead of only at the ring guard's timeout. The
+     * restart's null intent then finds nothing sounding and goes.
+     */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             AlarmActions.ACTION_RING -> onRing(requestOf(intent))
@@ -92,7 +95,7 @@ internal class AlarmRingService : Service() {
             else -> if (sounding == null) finishIdle()
         }
         RingWakeLock.release()
-        return START_NOT_STICKY
+        return if (sounding != null) START_STICKY else START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -131,13 +134,14 @@ internal class AlarmRingService : Service() {
         try {
             startForegroundCompat(RingNotifications.ring(this, ringing, offer, time.zone(), use24h))
         } catch (e: Exception) {
-            // No foreground service, no sound: the alarm still shows with Stop/Snooze (notification 303), and the
-            // mirror keeps the ring (marked fallback) so those actions work and reconcile lets it time out.
+            // No foreground service, so no tone of ours: notification 303 rings with the phone's alarm sound and shows
+            // Stop/Snooze, and the mirror keeps the ring (marked fallback) so those actions and the ringing screen
+            // work, and reconcile lets it time out.
             Log.w(TAG, "Ring service refused; showing the fallback notification", e)
             coordinator.apply { m -> transitions.markFallback(m, ringing.since) }
             RingNotifications.cancel(this, AlarmActions.ID_SNOOZED)
             if (catnapConsumed) RingNotifications.cancel(this, AlarmActions.ID_CATNAP)
-            RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, time.zone(), use24h))
+            RingNotifications.post(this, AlarmActions.ID_RING_FALLBACK, RingNotifications.fallback(this, ringing, offer, now, time.zone(), use24h))
             val scheduler = scheduler.get()
             if (ringing.isPlanned) scheduler.replanAfterRing()
             scheduler.flushEventsAsync()
@@ -155,17 +159,15 @@ internal class AlarmRingService : Service() {
         val vibration = outputs.vibration()
         val active = Sounding(ringing, sound, vibration, offer)
         sounding = active
-        val cap = when {
-            ringing.kind == RingKind.TEST -> config.alarm.testRingLength
-            AlarmChannels.ringUiBlocked(this) -> config.alarm.notificationsBlockedRingCap
-            else -> config.alarm.ringTimeout
-        }
+        // Blocked ring UI (no Stop button): capped, but only counted once the speaker is on (AlarmConfig.ringCap).
+        val cap = config.alarm.ringCap(ringing.kind, alarm.wakeStyle, uiBlocked = AlarmChannels.ringUiBlocked(this))
         // The timeline must keep running with the screen off, also in Quiet bed's silent first minutes.
         active.wakeLock = getSystemService<PowerManager>()?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, AlarmPlatform.RING_WAKE_LOCK_TAG)?.apply {
             setReferenceCounted(false)
             acquire(cap.toMillis() + AlarmPlatform.RING_WAKE_LOCK_MS)
         }
-        val timeline = CueTimeline(config.alarm.cue(alarm.wakeStyle), alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
+        val cue = config.alarm.ringCue(ringing.kind, alarm.wakeStyle)
+        val timeline = CueTimeline(cue, alarm.volume, ToneSynth.cycleOf(alarm.alarmTone), config.alarm)
         active.job = main.launch { runTimeline(active, timeline, cap) }
         publish()
         if (ringing.isPlanned) scheduler.replanAfterRing()
@@ -201,18 +203,24 @@ internal class AlarmRingService : Service() {
 
     // ---------------------------------------------------------------- T8, T9, T10
 
-    /** T8: snooze, when one is left. The service stops; the re-ring is a fresh RING with a fresh notification. */
+    /**
+     * T8: snooze, when one is left. The service stops; the re-ring is a fresh RING with a fresh notification. When a
+     * planned ring of another occurrence waits on the extra channel, this ring gives way to it instead (no "Snoozed
+     * until"), and a queued one rings right away.
+     */
     fun snooze() {
         val active = sounding ?: return run {
             nightController.snoozeFromMirror()
             if (!foreground) stopSelf()
         }
         val now = time.now()
-        val offer = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
-        val until = offer.until ?: return
+        val result = coordinator.apply { m -> transitions.snooze(m, now) } ?: return
         silence(active)
         sounding = null
-        RingNotifications.post(this, AlarmActions.ID_SNOOZED, RingNotifications.snoozed(this, until, offer.lastOne, time.zone(), coordinator.read().use24h))
+        if (result is SnoozeResult.Snoozed) {
+            val notification = RingNotifications.snoozed(this, result.until, result.lastOne, time.zone(), coordinator.read().use24h)
+            RingNotifications.post(this, AlarmActions.ID_SNOOZED, notification)
+        }
         publish()
         scheduler.get().flushEventsAsync()
         next()
@@ -321,29 +329,13 @@ internal class AlarmRingService : Service() {
         foreground = true
     }
 
-    /** NightController.state.ringing: published only by this running service. */
+    /**
+     * NightController.state.ringing: published by this running service (NightController itself shows only a fallback
+     * ring, one no service could start).
+     */
     private fun publish() {
         val active = sounding
-        val r = active?.ringing
-        val alarm = r?.alarm
-        nightController.publishRinging(
-            if (r == null || alarm == null) {
-                null
-            } else {
-                Ringing(
-                    kind = r.kind,
-                    reason = r.ringReason,
-                    since = r.since,
-                    target = alarm.target.takeIf { r.kind != RingKind.TEST },
-                    wakeDate = alarm.wakeDate.takeIf { r.kind == RingKind.PLANNED },
-                    earlyBy = Duration.ofMinutes(AlarmText.minutesEarly(r.since, alarm.target)).takeIf { r.kind == RingKind.PLANNED } ?: Duration.ZERO,
-                    snooze = active.offer,
-                    style = alarm.wakeStyle,
-                    use24h = coordinator.read().use24h,
-                    zone = time.zone(),
-                )
-            },
-        )
+        nightController.publishRinging(active?.ringing?.published(active.offer, coordinator.read().use24h, time.zone()))
     }
 
     private fun requestOf(intent: Intent): RingRequest {
@@ -352,7 +344,8 @@ internal class AlarmRingService : Service() {
             AlarmActions.KIND_CATNAP -> RingSource.CATNAP
             else -> RingSource.PLAN
         }
-        return RingRequest(source, intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID))
+        val atEpochMs = if (intent.hasExtra(AlarmActions.EXTRA_EPOCH_MS)) intent.getLongExtra(AlarmActions.EXTRA_EPOCH_MS, 0L) else null
+        return RingRequest(source, intent.getStringExtra(AlarmActions.EXTRA_OCCURRENCE_ID), atEpochMs = atEpochMs)
     }
 
     internal companion object {

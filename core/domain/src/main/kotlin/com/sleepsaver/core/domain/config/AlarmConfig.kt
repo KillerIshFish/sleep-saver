@@ -1,6 +1,7 @@
 package com.sleepsaver.core.domain.config
 
 import com.sleepsaver.core.domain.alarm.CueProfile
+import com.sleepsaver.core.domain.alarm.RingKind
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.AlarmTone
 import com.sleepsaver.core.domain.schedule.WakeStyle
@@ -51,7 +52,10 @@ data class AlarmConfig(
     val missedGrace: Duration = Duration.ofMinutes(15),
     /** Catch-up and resume rings are armed this far ahead (AlarmManager clamps to ≥ 5 s anyway). */
     val catchUpDelay: Duration = Duration.ofSeconds(5),
-    /** With notifications or the alarm channel blocked a ring has no Stop button, so it stops itself after this. */
+    /**
+     * With notifications or the alarm channel blocked a ring has no Stop button, so it stops itself after sounding this
+     * long: counted from the speaker start ([ringCap]), so Quiet bed's vibration-only minutes don't use it up.
+     */
     val notificationsBlockedRingCap: Duration = Duration.ofMinutes(2),
     /**
      * Without exact-alarm access the wake-time ring uses setWindow(target − this, this): early rather than late.
@@ -70,9 +74,11 @@ data class AlarmConfig(
     val handledIdsKept: Int = 8,
     /** NightLogRepository.recentAlarmEvents returns at most this many events. */
     val recentEventsLimit: Int = 30,
-    /** "Test ring in 1 minute": rings this long after the tap, for this long. */
+    /** "Test ring in 1 minute": rings this long after the tap, for this long ([testCue]). */
     val testRingDelay: Duration = Duration.ofSeconds(60),
     val testRingLength: Duration = Duration.ofSeconds(60),
+    /** A test ring swells over at most this, so the rest of testRingLength plays at the day's full volume. */
+    val testRingSwell: Duration = Duration.ofSeconds(30),
     /** A tone preview in the editor plays this long. */
     val previewLength: Duration = Duration.ofSeconds(5),
     /** Swell starts at this fraction of the day's volume. */
@@ -115,5 +121,38 @@ data class AlarmConfig(
         WakeStyle.STANDARD -> standard
         WakeStyle.FIRM -> firm
         WakeStyle.QUIET_BED -> quietBed
+    }
+
+    /** The timeline a ring of [kind] plays: a test ring plays [testCue], every other ring its style's own [cue]. */
+    fun ringCue(kind: RingKind, style: WakeStyle): CueProfile = if (kind == RingKind.TEST) testCue(style) else cue(style)
+
+    /**
+     * A test ring's timeline: [style]'s own from its speaker start, without Calm's first chime, the swell at most
+     * testRingSwell and vibration on by its end. So in testRingLength every style's test plays its tone at the day's
+     * full volume and vibrates, as the real ring does once it is under way.
+     * Example: Quiet bed's test sounds at once (no 2 min of vibration only) and is at full volume from 30 s; Calm's
+     * swells at once over 30 s instead of after a chime over 90 s; Firm's is Firm's own timeline.
+     */
+    fun testCue(style: WakeStyle): CueProfile {
+        val cue = cue(style)
+        val swell = minOf(cue.swell, testRingSwell)
+        return cue.copy(
+            firstChime = false,
+            swell = swell,
+            vibrationAfter = minOf((cue.vibrationAfter - cue.speakerAfter).coerceAtLeast(Duration.ZERO), swell),
+            speakerAfter = Duration.ZERO,
+        )
+    }
+
+    /**
+     * How long a ring of [kind] in [style] sounds before it stops itself (T10): testRingLength for a test ring, else
+     * ringTimeout, or with the ring UI blocked ([uiBlocked], no Stop button) notificationsBlockedRingCap after the
+     * style's speaker start, so the ring always gets to make a sound. Never more than ringTimeout.
+     * Example: blocked, a Standard ring stops at 2 min and a Quiet bed ring (speaker from 2 min) at 4 min.
+     */
+    fun ringCap(kind: RingKind, style: WakeStyle, uiBlocked: Boolean): Duration = when {
+        kind == RingKind.TEST -> testRingLength
+        uiBlocked -> minOf(cue(style).speakerAfter + notificationsBlockedRingCap, ringTimeout)
+        else -> ringTimeout
     }
 }

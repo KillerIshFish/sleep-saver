@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,8 @@ internal fun DebtPreviewChip(
             formatSignedHours1(preview.change),
         ).keepTimesTogether()
     } else {
-        stringResource(R.string.tonight_debt_needs_nights, config.anchor.debtPreviewMinNights, preview.presentNights)
+        val needed = config.anchor.debtPreviewMinNights
+        pluralStringResource(R.plurals.tonight_debt_needs_nights, needed, needed, preview.presentNights)
     }
     Row(
         modifier = modifier

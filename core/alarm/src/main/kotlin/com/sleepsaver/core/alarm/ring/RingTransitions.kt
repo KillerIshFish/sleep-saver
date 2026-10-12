@@ -31,8 +31,12 @@ import java.time.ZoneOffset
 /** Which PendingIntent fired: RING_PLAN, RING_EXTRA or RING_CATNAP (the `kind` extra of ACTION_RING). */
 internal enum class RingSource { PLAN, EXTRA, CATNAP }
 
-/** A ring broadcast as AlarmRingService receives it. [queued] = rung after the ring that was sounding stopped. */
-internal data class RingRequest(val source: RingSource, val occurrenceId: String?, val queued: Boolean = false)
+/**
+ * A ring broadcast as AlarmRingService receives it. [queued] = rung after the ring that was sounding stopped; a queued
+ * EXTRA carries the [occurrenceId] of the planned extra it waited for. [atEpochMs] = the time a RING_EXTRA was armed
+ * for (its PendingIntent's epochMs).
+ */
+internal data class RingRequest(val source: RingSource, val occurrenceId: String?, val queued: Boolean = false, val atEpochMs: Long? = null)
 
 /** What T6 does with a ring broadcast. */
 internal sealed interface RingDecision {
@@ -44,6 +48,15 @@ internal sealed interface RingDecision {
 
     /** [ringing] is now in the mirror; the service makes it sound. [catnapConsumed]: cancel notification 304. */
     data class Start(val ringing: MirroredRinging, val catnapConsumed: Boolean) : RingDecision
+}
+
+/** What a Snooze (T8) did. */
+internal sealed interface SnoozeResult {
+    /** Snoozed: the extra channel holds the snooze end at [until] ([lastOne]: no snooze after it). */
+    data class Snoozed(val until: Instant, val lastOne: Boolean) : SnoozeResult
+
+    /** A planned ring of another occurrence was waiting on the extra channel: this ring ended and gave way to it. */
+    data object GaveWay : SnoozeResult
 }
 
 /** What a Stop (T9) ended. [endedNight]: the night state a planned stop closed (its movement log ends too). */
@@ -64,7 +77,8 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
      *  - PLAN rings when its occurrence isn't handled. A duplicate (the sounding occurrence, or one with a pending
      *    planned extra) is ignored; a pending CATCH_UP that never rang is only a stand-in for this very ring, so the
      *    real ring replaces it.
-     *  - EXTRA rings `mirror.extra` when its time is within extraMatchTolerance of now.
+     *  - EXTRA rings `mirror.extra` when it is the alarm armed for it (up to missedGrace late), or its time is within
+     *    extraMatchTolerance of now.
      *  - CATNAP rings `mirror.catnap`.
      *  - While a ring sounds: a planned ring for another occurrence is queued; a catnap or test ring is dropped; a
      *    duplicate planned extra is cleared (the sounding ring answers it).
@@ -101,7 +115,10 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
 
     private fun onExtra(m: MirrorState, request: RingRequest, now: Instant, sounding: MirroredRinging?): MirrorUpdate<RingDecision> {
         val extra = m.extra ?: return m.unchanged(RingDecision.Ignore("no pending extra"))
-        if (!request.queued && Duration.between(extra.at, now).abs() > cfg.extraMatchTolerance) {
+        if (request.queued) {
+            // Only the very ring that waited: the channel may hold another one by now, which rings at its own time.
+            if (!extra.isPlanned || extra.occurrenceId != request.occurrenceId) return m.unchanged(RingDecision.Ignore("the queued ring is gone"))
+        } else if (!answers(request, extra, now)) {
             return m.unchanged(RingDecision.Ignore("stale extra"))
         }
         val cleared = m.copy(extra = null)
@@ -110,7 +127,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
             return when {
                 extra.isPlanned && sounding.isPlanned && sounding.occurrenceId == extra.occurrenceId ->
                     MirrorUpdate(cleared, RingDecision.Ignore("the sounding ring answers it"), cancel)
-                extra.isPlanned -> m.unchanged(RingDecision.Queue(request.copy(queued = true)))
+                extra.isPlanned -> m.unchanged(RingDecision.Queue(request.copy(occurrenceId = extra.occurrenceId, queued = true)))
                 else -> MirrorUpdate(cleared, RingDecision.Ignore("dropped while another ring sounds"), cancel)
             }
         }
@@ -127,6 +144,16 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
             isBackup = extra.isBackup || extra.extraTrigger == ExtraTrigger.BACKUP,
         )
         return start(cleared, ringing, cancel, catnapConsumed = false)
+    }
+
+    /**
+     * Whether a RING_EXTRA broadcast is [extra]'s ring. The very alarm armed for it (its epochMs) is, however late it
+     * came, up to missedGrace (reconcile's catch-up bound): without exact-alarm access (T2) the platform stretches its
+     * 1-min window to 10 min, and Doze defers it further. Otherwise its time must be within extraMatchTolerance.
+     */
+    private fun answers(request: RingRequest, extra: MirroredExtra, now: Instant): Boolean {
+        val late = Duration.between(extra.at, now)
+        return if (request.atEpochMs == extra.atEpochMs) late <= cfg.missedGrace else late.abs() <= cfg.extraMatchTolerance
     }
 
     private fun onCatnap(m: MirrorState, now: Instant, sounding: MirroredRinging?, offset: ZoneOffset): MirrorUpdate<RingDecision> {
@@ -150,13 +177,25 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
     /**
      * T8: snooze the sounding ring. The offer comes from SnoozeMath (capped by the wake time + overrun; after an early
      * ring never past the wake time). null when no snooze is left; then nothing changes.
+     *
+     * The extra channel holds one pending ring. When a planned ring of another occurrence already holds it (queued
+     * behind this ring, or a catch-up due in seconds), the snooze end must not overwrite it, or that morning alarm is
+     * lost for good: this ring gives way instead. It ends as stopped, with the snooze tap in its history (a planned
+     * one is handled; the night stays, for the waiting ring to end), and the waiting ring rings: at once when queued,
+     * else at its time.
      */
-    fun snooze(m: MirrorState, now: Instant): MirrorUpdate<SnoozeOffer?> {
+    fun snooze(m: MirrorState, now: Instant): MirrorUpdate<SnoozeResult?> {
         val r = m.ringing ?: return m.unchanged(null)
         val ringAlarm = r.alarm ?: return m.unchanged(null)
         val offer = SnoozeMath(config).offer(ringAlarm.snooze, r.snoozesUsed, now, ringAlarm.target)
         val until = offer.until ?: return m.unchanged(null)
         val event = (r.event ?: MirroredEvent.firstRing(r.kind, r.occurrenceId, ringAlarm, r.since, r.ringReason)).snoozed(now)
+        val waiting = m.extra?.takeIf { it.isPlanned && !(r.isPlanned && it.occurrenceId == r.occurrenceId) }
+        if (waiting != null) {
+            var state = m.copy(ringing = null).queueEvent(event.ended(RingOutcome.STOPPED, now))
+            if (r.isPlanned) state = state.handle(r.occurrenceId, cfg.handledIdsKept)
+            return MirrorUpdate(state, SnoozeResult.GaveWay)
+        }
         val extra = MirroredExtra(
             trigger = ExtraTrigger.SNOOZE.name,
             atEpochMs = until.toEpochMilli(),
@@ -171,7 +210,7 @@ internal class RingTransitions(private val config: SleepConfig = SleepConfig.DEF
             isBackup = r.isBackup,
         )
         val state = m.copy(ringing = null, extra = extra).queueEvent(event)
-        return MirrorUpdate(state, offer, listOf(AlarmAction.ArmExtra(until)))
+        return MirrorUpdate(state, SnoozeResult.Snoozed(until, offer.lastOne), listOf(AlarmAction.ArmExtra(until)))
     }
 
     /** The snooze the sounding ring would offer now (for the notification and the ringing screen). */

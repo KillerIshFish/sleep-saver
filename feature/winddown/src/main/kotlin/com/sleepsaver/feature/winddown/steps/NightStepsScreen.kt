@@ -83,7 +83,8 @@ internal fun NightStepsScreen(
     onBack: () -> Unit,
     /** null = the every-evening list. */
     onOpenEditor: (DayOfWeek?) -> Unit,
-    onOpenLibrary: () -> Unit,
+    /** The library for this day's own list; null = the every-evening list. */
+    onOpenLibrary: (DayOfWeek?) -> Unit,
     onOpenTool: (GuidedTool) -> Unit,
     onOpenDayPlan: (DayOfWeek, DayPart) -> Unit,
     onOpenTonight: () -> Unit,
@@ -112,7 +113,7 @@ internal fun NightStepsScreen(
             onChangeSteps = { ready?.let { onOpenEditor(it.day) } },
             onPickSteps = { ready?.let { onOpenEditor(if (it.ownList) it.day else null) } },
             onAddSuggestion = viewModel::addTechnique,
-            onOpenLibrary = onOpenLibrary,
+            onOpenLibrary = { onOpenLibrary(ready?.takeIf { it.ownList }?.day) },
             onToggleMark = viewModel::toggleMark,
             onDropAnchor = viewModel::dropAnchor,
             onOpenWeekPlan = { ready?.let { onOpenDayPlan(it.day, DayPart.EVENING) } },

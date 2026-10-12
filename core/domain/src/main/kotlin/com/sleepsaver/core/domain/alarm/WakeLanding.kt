@@ -39,9 +39,12 @@ data class WakeLanding(
  * hasStages = the night has at least one LIGHT/DEEP/REM stage.
  */
 class WakeLandingCalculator(private val config: SleepConfig = SleepConfig.DEFAULT) {
-    /** null unless event.kind == PLANNED and [night] is present. */
+    /**
+     * null unless event.kind == PLANNED, it rang, and [night] is present. An occurrence that never rang (the phone was
+     * off at the wake time) has no landing: no "Rang 6:30", no stage claim, and nothing for ZTuner to count.
+     */
     fun land(event: AlarmEvent, night: Night?): WakeLanding? {
-        if (event.kind != RingKind.PLANNED || night == null || !night.isPresent) return null
+        if (event.kind != RingKind.PLANNED || !event.rang || night == null || !night.isPresent) return null
         val hypnogram = LandingHypnogram(night)
         val ring = event.firstRingAt
         val before = hypnogram.durations(ring - config.surfacing.landingLookback, ring)
