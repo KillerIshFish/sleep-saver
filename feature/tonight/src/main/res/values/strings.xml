@@ -110,6 +110,8 @@
     <string name="tonight_drop_anchor_body">Settling in? Drop anchor and Sleep Saver keeps quiet until morning.</string>
     <string name="tonight_anchor_sheet_title">Settling in</string>
     <string name="tonight_anchor_sheet_body">Your alarm stays as it is. Reminders stop for the night.</string>
+    <!-- The same sheet when the morning has no alarm (none set, a day off or paused), like the Night screen's line. -->
+    <string name="tonight_anchor_sheet_body_no_alarm">There\'s no alarm set for the morning. Reminders stop for the night.</string>
     <string name="tonight_anchor_log">Log movement all night</string>
     <string name="tonight_anchor_battery">Uses more battery.</string>
     <string name="tonight_anchor_dropped">Anchor dropped</string>
