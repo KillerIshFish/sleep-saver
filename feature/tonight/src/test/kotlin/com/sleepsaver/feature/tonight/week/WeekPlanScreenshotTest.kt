@@ -16,6 +16,7 @@ import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetContent
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetActions
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetState
+import com.sleepsaver.feature.tonight.oneoff.oneOffDates
 import org.junit.Test
 import java.time.LocalTime
 
@@ -73,7 +74,8 @@ class WeekPlanScreenshotTest : ScreenshotTest() {
             OneOffSheetContent(
                 state = OneOffSheetState(
                     date = s.today.plusDays(1),
-                    dates = (0L until 8L).map { s.today.plusDays(it) },
+                    // At 2 PM: from tomorrow, the next morning a one-off can change.
+                    dates = oneOffDates(s.today.plusDays(1)),
                     today = s.today,
                     alarmOn = true,
                     time = LocalTime.of(6, 45),

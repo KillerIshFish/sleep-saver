@@ -150,7 +150,8 @@ internal fun WeekPlanScreen(
     if (sheetOpen && context != null) {
         OneOffSheet(
             context = context,
-            date = context.today.plusDays(1),
+            // The next morning a one-off can still change, never one whose wake time has passed.
+            date = (state as? WeekPlanUiState.Ready)?.firstWakeDate ?: context.today.plusDays(1),
             chooseDate = true,
             gate = gate,
             onDayOff = viewModel::onDayOff,

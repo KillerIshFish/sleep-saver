@@ -246,7 +246,9 @@ weigh less each day). Shown as "8h need − 6h 53m slept = +1.1 h", "older night
 - Settings rows show the **usual** values (plan ignored) with "Used on days without their own time."
 - Copy-to: MORNING and/or EVENING to picked days. Presets "Work week + free weekend", "Same every day".
 - One-off rows from today − 3 days still feed the schedule (night owls, Process S); rows older than 7 days are pruned.
-  Pause at most 60 days ahead.
+  Pause at most 60 days ahead. From the Week plan the one-off sheet offers 8 dates (`week.alarmLookaheadDays`) from
+  the next morning a one-off can still change, the date Tonight's alarm card is on: today until this morning's alarm
+  has rung (without one, until last night ends), then tomorrow. A morning whose wake time has passed is never offered.
 - **Planned keel / plan check** (§3.15) and **Debt preview** (§3.16) are shown in the editor.
 
 ### 3.12 Surfacing alarm (v2)

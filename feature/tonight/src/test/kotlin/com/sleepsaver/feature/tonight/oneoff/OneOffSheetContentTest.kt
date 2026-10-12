@@ -1,6 +1,7 @@
 package com.sleepsaver.feature.tonight.oneoff
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -89,11 +90,22 @@ class OneOffSheetContentTest {
 
     @Test
     fun `from the week plan the day can be picked`() {
-        show(state(dates = (0L until 8L).map { today.plusDays(it) }))
+        // In the evening the dates start tomorrow: today's wake time has passed.
+        show(state(dates = oneOffDates(wednesday)))
 
-        // Today is only in the date row (pauses start tomorrow).
-        compose.onNodeWithText("Tue, Oct 6").performScrollTo().performClick()
+        compose.onNodeWithText("Tue, Oct 6").assertDoesNotExist()
+        // The last date, a week after the first; the pause row lists it too, below the date row.
+        compose.onAllNodesWithText("Wed, Oct 14")[0].performScrollTo().performClick()
 
-        assertThat(calls).containsExactly("date:$today")
+        assertThat(calls).containsExactly("date:${today.plusDays(8)}")
+    }
+
+    @Test
+    fun `a date a week away is named by its date`() {
+        show(state(dates = oneOffDates(wednesday)).copy(date = today.plusDays(7)))
+
+        compose.onNodeWithText("No alarm on Tue, Oct\u00A013. The week plan stays as it is.").assertExists()
+        compose.onNodeWithText("Take Tue, Oct\u00A013 off").assertExists()
+        compose.onNodeWithText("Set for Tue, Oct\u00A013").performScrollTo().assertExists()
     }
 }

@@ -31,6 +31,7 @@ import com.sleepsaver.feature.tonight.oneoff.OneOffContext
 import com.sleepsaver.feature.tonight.oneoff.OneOffWrites
 import com.sleepsaver.feature.tonight.requestTestRing
 import com.sleepsaver.feature.tonight.roundTo
+import com.sleepsaver.feature.tonight.tonight.cardDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -58,7 +59,9 @@ internal sealed interface WeekPlanUiState {
     /**
      * The plan: the [next] alarm for the subtitle ([night] = no-clock night, so no "Next"), the one-offs, seven
      * [rows], the [planCheck] (planned keel and its notices, unless [noticeDismissed]) with the measured [keel], and
-     * the quick-setup time [presetWake] (Monday's usual wake).
+     * the quick-setup time [presetWake] (Monday's usual wake). [firstWakeDate] is the first morning a one-off can
+     * still change, the date Tonight's alarm card is on: today until this morning's alarm has rung (or, without one,
+     * until last night ends), then tomorrow.
      */
     @Immutable
     data class Ready(
@@ -66,6 +69,7 @@ internal sealed interface WeekPlanUiState {
         val zone: ZoneId,
         val next: PlannedAlarm?,
         val night: Boolean,
+        val firstWakeDate: LocalDate,
         val oneOffs: OneOffs,
         val rows: List<WeekDayRow>,
         val planCheck: PlanCheck?,
@@ -168,6 +172,8 @@ internal class WeekPlanViewModel @Inject constructor(
                 zone = time.zone(),
                 next = p.alarms.firstOrNull(),
                 night = clockNow?.isNight == true,
+                // Until the night clock is in, tomorrow: never a morning whose wake time may have passed.
+                firstWakeDate = clockNow?.let { cardDate(it.today, it.wakeDate, it.now, p.alarms) } ?: today.plusDays(1),
                 oneOffs = p.oneOffs,
                 rows = weekRows(p.week, p.oneOffs, p.usualWake, c.activities, c.inputs, today, config),
                 planCheck = c.planCheck,

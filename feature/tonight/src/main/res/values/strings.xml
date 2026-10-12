@@ -292,13 +292,13 @@
     <!-- One-off sheet -->
     <string name="tonight_oneoff_title">Change for one day</string>
     <string name="tonight_oneoff_day_off_title">Day off</string>
-    <!-- %1$s: the short day name, e.g. "Tue". -->
+    <!-- %1$s: the short day name, e.g. "Tue" ("Tue, Oct 13" when 6 or more days away, or today). -->
     <string name="tonight_oneoff_day_off_body">No alarm on %1$s. The week plan stays as it is.</string>
-    <!-- %1$s: the short day name. -->
+    <!-- %1$s: the short day name, or the date as in tonight_oneoff_day_off_body. -->
     <string name="tonight_oneoff_day_off_apply">Take %1$s off</string>
     <string name="tonight_oneoff_once_title">Just this once</string>
     <string name="tonight_oneoff_mode_none">No alarm, just the time</string>
-    <!-- %1$s: the short day name. -->
+    <!-- %1$s: the short day name, or the date as in tonight_oneoff_day_off_body. -->
     <string name="tonight_oneoff_once_apply">Set for %1$s</string>
     <string name="tonight_oneoff_pause_title">Pause alarms until…</string>
     <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->

@@ -161,6 +161,7 @@ internal object TonightSamples {
         zone = zone,
         next = next,
         night = night,
+        firstWakeDate = now.atZone(zone).toLocalDate().plusDays(1),
         oneOffs = oneOffs,
         rows = weekRows(week, oneOffs, usualWake, PlanSamples.activities(), debtInputs(week), now.atZone(zone).toLocalDate(), config),
         planCheck = planCheck,

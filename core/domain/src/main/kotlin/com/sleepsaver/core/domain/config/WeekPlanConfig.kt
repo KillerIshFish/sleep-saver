@@ -23,7 +23,10 @@ data class WeekPlanConfig(
     val timeRounding: Duration = Duration.ofMinutes(5),
     /** Time pickers in the editor step by this. */
     val timeStep: Duration = Duration.ofMinutes(5),
-    /** The one-off sheet offers this many dates to change: a week and a day. Alarms are planned further out. */
+    /**
+     * The one-off sheet offers this many dates to change, a week and a day, from the next morning a one-off can still
+     * change (never one whose wake time has passed). Alarms are planned further out ([alarmPlanningDays]).
+     */
     val alarmLookaheadDays: Int = 8,
     /**
      * Dates AlarmPlanner looks through for alarms: today .. today + 14. Two weeks, so the next occurrence of every

@@ -36,7 +36,6 @@ import com.sleepsaver.core.ui.components.PrimaryButton
 import com.sleepsaver.core.ui.components.SecondaryButton
 import com.sleepsaver.core.ui.components.SelectableChip
 import com.sleepsaver.core.ui.components.title
-import com.sleepsaver.core.ui.format.formatDayShort
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
@@ -45,13 +44,14 @@ import com.sleepsaver.feature.tonight.AlarmGate
 import com.sleepsaver.feature.tonight.ArmBlockerNotice
 import com.sleepsaver.feature.tonight.ArmSource
 import com.sleepsaver.feature.tonight.R
+import com.sleepsaver.feature.tonight.nearDay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * The one-off sheet as drawn. [date] is the day being changed; [dates] the days it can switch to (from the week plan;
- * empty when opened from the alarm card, which is about one date). [alarmOn] = that date has an alarm, so "Day off"
+ * The one-off sheet as drawn. [date] is the day being changed; [dates] the days it can switch to (from the week plan,
+ * [oneOffDates]; empty when opened from the alarm card, which is about one date). [alarmOn] = that date has an alarm, so "Day off"
  * is offered. [time] and [mode] are "Just this once"'s choice; [pauseUntil] the last paused day of [pauseDates].
  * [armBlocker] is why Just this once didn't apply (notifications or the alarm channel), [pauseBlocker] why a shorter
  * pause didn't.
@@ -87,7 +87,9 @@ internal class OneOffSheetActions(
  * "Change for one day", from the alarm card or the week plan: Day off, Just this once (another time, with or without
  * an alarm) or "Pause alarms until…". Each is a one-off row; the week plan stays as it is. Applying closes the sheet.
  * Just this once with an alarm, and a pause that ends an earlier one sooner (alarms come back after it), go through
- * [gate].
+ * [gate]. It opens on [date]; with [chooseDate] (the week plan) [date] is the next morning a one-off can change (the
+ * Tonight card's date), and the sheet offers it and the `week.alarmLookaheadDays − 1` after it: at 8:41 PM, tomorrow
+ * on, never this morning, whose wake time has passed.
  */
 @Composable
 internal fun OneOffSheet(
@@ -104,9 +106,11 @@ internal fun OneOffSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var picked by rememberSaveable { mutableStateOf(date.toString()) }
-    val day = LocalDate.parse(picked)
-    var time by rememberSaveable(picked) { mutableStateOf(context.startTime(day, config).toString()) }
-    var mode by rememberSaveable(picked) { mutableStateOf(context.startMode(day, config)) }
+    val dates = if (chooseDate) oneOffDates(date, config) else emptyList()
+    // A pick the list has moved past (this morning's alarm rang while the sheet was open) moves on with it.
+    val day = LocalDate.parse(picked).let { if (chooseDate) maxOf(it, date) else it }
+    var time by rememberSaveable(day) { mutableStateOf(context.startTime(day, config).toString()) }
+    var mode by rememberSaveable(day) { mutableStateOf(context.startMode(day, config)) }
     val pauseDates = (1L..config.week.pauseMaxDays).map { context.today.plusDays(it) }
     var pauseUntil by rememberSaveable { mutableStateOf((context.oneOffs.pause?.until ?: pauseDates.first()).toString()) }
 
@@ -125,7 +129,7 @@ internal fun OneOffSheet(
         OneOffSheetContent(
             state = OneOffSheetState(
                 date = day,
-                dates = if (chooseDate) (0L until config.week.alarmLookaheadDays).map { context.today.plusDays(it) } else emptyList(),
+                dates = dates,
                 today = context.today,
                 alarmOn = context.resolve(day).alarmOn,
                 time = LocalTime.parse(time),
@@ -159,7 +163,8 @@ internal fun OneOffSheet(
 /** The sheet's body, separate so it can be screenshot-tested. */
 @Composable
 internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetActions, modifier: Modifier = Modifier) {
-    val dayName = formatDayShort(state.date.dayOfWeek)
+    // "Set for Mon", or "Set for Mon, Oct 19" when the dates offered hold two Mondays.
+    val dayName = nearDay(state.date, state.today)
     Column(
         modifier = modifier
             .fillMaxWidth()

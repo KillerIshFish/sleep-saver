@@ -85,6 +85,14 @@ internal data class OneOffContext(
 }
 
 /**
+ * The dates the week plan's one-off sheet offers: [first], the next morning a one-off can still change (the Tonight
+ * card's date), and the `week.alarmLookaheadDays − 1` after it. Example: Sunday 8:41 PM → Mon .. next Mon, not Sunday,
+ * whose wake time has passed; Monday 3 AM, before that morning's alarm → Mon .. next Mon.
+ */
+internal fun oneOffDates(first: LocalDate, config: SleepConfig = SleepConfig.DEFAULT): List<LocalDate> =
+    (0L until config.week.alarmLookaheadDays).map { first.plusDays(it) }
+
+/**
  * The one-off writes Tonight and the Week plan share. Each is a separate row: the week plan itself never changes.
  * Writes go through [writer] (ordered, never thrown), launched in [scope].
  */
