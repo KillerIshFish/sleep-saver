@@ -107,6 +107,6 @@ private fun NoticeCardPreview() = SleepSaverTheme {
             onAction = {},
             tone = NoticeTone.WARNING,
         )
-        NoticeCard(title = "Planned keel 84", body = "Free days wake 1 h 40 m later than alarm days.")
+        NoticeCard(title = "Planned keel 84", body = "Free days wake 1h 40m later than alarm days.")
     }
 }

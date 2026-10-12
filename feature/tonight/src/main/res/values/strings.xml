@@ -207,9 +207,9 @@
     <!-- No-break spaces keep "last 14 days: 76" on one line. -->
     <string name="tonight_planned_keel_last">" · last\u00A0%1$d\u00A0days:\u00A0%2$d"</string>
     <string name="tonight_plan_notice_title">Social jetlag</string>
-    <!-- %1$s: e.g. "1 h 40 m". -->
+    <!-- %1$s: e.g. "1h 40m" (formatDuration). -->
     <string name="tonight_plan_free_shift">Free days wake %1$s later than alarm days. Keeping it within an hour steadies your Keel; a short early-afternoon catnap is one alternative.</string>
-    <!-- %1$s: e.g. "1 h 10 m". -->
+    <!-- %1$s: e.g. "1h 10m" (formatDuration). -->
     <string name="tonight_plan_jetlag">Your planned sleep on free days sits %1$s later than on alarm days.</string>
     <string name="tonight_plan_got_it">Got it</string>
     <string name="tonight_quick_title">Quick setup</string>

@@ -30,18 +30,6 @@ internal fun dayAndTime(date: LocalDate, time: LocalTime): String =
 internal fun formatMonthDay(date: LocalDate): String =
     "${date.month.getDisplayName(TextStyle.SHORT, English)}\u00A0${date.dayOfMonth}"
 
-/** "1 h 40 m", "2 h", "45 m": the spaced form the plan notices use ("Free days wake 1 h 40 m later …"). */
-internal fun formatHoursSpaced(duration: Duration): String {
-    val minutes = Math.abs((duration.toMillis() + if (duration.isNegative) -30_000 else 30_000) / 60_000)
-    val h = minutes / 60
-    val m = minutes % 60
-    return when {
-        h == 0L -> "$m m"
-        m == 0L -> "$h h"
-        else -> "$h h $m m"
-    }
-}
-
 /**
  * Where an evening's Night steps start for [bedtime]: the wind-down phase start, `B − melatoninHalfWidth − length`
  * with the evening's length clamped to `week.windDownMinLength..windDownMaxLength` (as EnergyScheduleCalculator

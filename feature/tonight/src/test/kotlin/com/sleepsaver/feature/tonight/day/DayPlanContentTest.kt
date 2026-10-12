@@ -151,7 +151,7 @@ class DayPlanContentTest {
         show(s.dayPlan(part = DayPart.EVENING))
 
         scrollTo("3 steps · same as every evening")
-        compose.onNodeWithText("1 h 30 m").assertExists()
+        compose.onNodeWithText("1h 30m").assertExists()
         compose.onNodeWithText("before bedtime · From 9:30\u00A0PM").assertExists()
         tap("Settings rule")
         tap("Edit steps")

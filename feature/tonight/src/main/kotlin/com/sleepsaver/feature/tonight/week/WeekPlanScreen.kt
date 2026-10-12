@@ -69,6 +69,7 @@ import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDayLong
 import com.sleepsaver.core.ui.format.formatDayShort
+import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.platform.AlarmBlocker
@@ -81,7 +82,6 @@ import com.sleepsaver.feature.tonight.R
 import com.sleepsaver.feature.tonight.TestRingMessages
 import com.sleepsaver.feature.tonight.TonightSnackbarHost
 import com.sleepsaver.feature.tonight.dayAndTime
-import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.WeekPlanNavigation
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheet
 import com.sleepsaver.feature.tonight.rememberAlarmGate
@@ -270,8 +270,8 @@ private fun ReadyWeekPlan(
                 NoticeCard(
                     title = stringResource(R.string.tonight_plan_notice_title),
                     body = when {
-                        check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatHoursSpaced(shift))
-                        jetlag != null -> stringResource(R.string.tonight_plan_jetlag, formatHoursSpaced(jetlag.abs()))
+                        check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatDuration(shift))
+                        jetlag != null -> stringResource(R.string.tonight_plan_jetlag, formatDuration(jetlag.abs()))
                         else -> ""
                     },
                     actionLabel = stringResource(R.string.tonight_plan_got_it),

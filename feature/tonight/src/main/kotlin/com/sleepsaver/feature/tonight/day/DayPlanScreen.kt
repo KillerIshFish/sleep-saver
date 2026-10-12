@@ -91,7 +91,6 @@ import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.DebtPreviewChip
 import com.sleepsaver.feature.tonight.GroupLabel
 import com.sleepsaver.feature.tonight.R
-import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.DayPlanNavigation
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import java.time.DayOfWeek
@@ -536,7 +535,6 @@ private fun NightStepsCard(state: DayPlanUiState.Ready, actions: DayPlanActions,
             step = config.week.windDownStep.toMinutes().toInt(),
             min = (config.week.windDownMinLength + config.melatoninHalfWidth).toMinutes().toInt(),
             max = (config.week.windDownMaxLength + config.melatoninHalfWidth).toMinutes().toInt(),
-            format = { formatHoursSpaced(Duration.ofMinutes(it.toLong())) },
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
         val from = state.shownBedtime?.minusMinutes(before.toLong())

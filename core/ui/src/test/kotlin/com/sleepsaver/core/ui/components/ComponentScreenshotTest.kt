@@ -329,7 +329,7 @@ class ComponentScreenshotTest : ScreenshotTest() {
             )
             NoticeCard(
                 title = "Planned keel 84 · Even keel",
-                body = "Free days wake 1 h 40 m later than alarm days. Keeping it within an hour steadies your Keel; " +
+                body = "Free days wake 1h 40m later than alarm days. Keeping it within an hour steadies your Keel; " +
                     "a short early-afternoon catnap is one alternative.",
                 actionLabel = "Got it",
                 onAction = {},

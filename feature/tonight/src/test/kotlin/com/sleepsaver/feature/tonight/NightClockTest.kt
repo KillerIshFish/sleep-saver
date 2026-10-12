@@ -158,7 +158,5 @@ class NightClockTest {
         assertThat(LocalTime.of(7, 3).roundTo(Duration.ofMinutes(5))).isEqualTo(LocalTime.of(7, 5))
         assertThat(LocalTime.of(7, 2).roundTo(Duration.ofMinutes(5))).isEqualTo(LocalTime.of(7, 0))
         assertThat(LocalTime.of(23, 58).roundTo(Duration.ofMinutes(5))).isEqualTo(LocalTime.MIDNIGHT)
-        assertThat(formatHoursSpaced(Duration.ofMinutes(100))).isEqualTo("1 h 40 m")
-        assertThat(formatHoursSpaced(Duration.ofMinutes(120))).isEqualTo("2 h")
     }
 }
