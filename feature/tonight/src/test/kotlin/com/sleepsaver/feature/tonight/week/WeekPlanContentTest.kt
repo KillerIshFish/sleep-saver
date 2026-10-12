@@ -141,9 +141,11 @@ class WeekPlanContentTest {
         show(s.weekPlanState(planCheck = PlanSamples.planCheck(warn = true)))
 
         compose.onNodeWithText("Planned keel 66 · Choppy · last\u00A014\u00A0days:\u00A084").assertExists()
+        // Labelled as the plan's, so it never reads like Progress's social jetlag from the recorded nights.
+        compose.onNodeWithText("Planned social jetlag").assertExists()
         compose.onNodeWithText(
-            "Free days wake 1h 45m later than alarm days. Keeping it within an hour steadies your Keel; " +
-                "a short early-afternoon catnap is one alternative.",
+            "In this plan, free days wake 1h 45m later than alarm days. Keeping it within an hour steadies your " +
+                "Keel; a short early-afternoon catnap is one alternative.",
         ).assertExists()
         tap("Got it")
 
@@ -156,6 +158,7 @@ class WeekPlanContentTest {
         show(s.weekPlanState(planCheck = check, keel = PlanSamples.keelCalibrating()))
 
         compose.onNodeWithText("Planned keel 66 · Choppy").assertExists()
+        compose.onNodeWithText("Planned social jetlag").assertExists()
         compose.onNodeWithText("Your planned sleep on free days sits 1h 35m later than on alarm days.").assertExists()
     }
 

@@ -345,7 +345,9 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
   Free days = days without an alarm in the week plan; before any alarm is set, Saturday and Sunday.
 - **Planned keel** = Keel of 14 synthetic nights [B + latency, W] from the plan. Alarm days come from the weekly plan
   only (a one-off never makes 13 free days). Notice (dismissible, never blocking) when free days wake > 60 min later
-  than alarm days or |planned social jetlag| ≥ 60 min.
+  than alarm days or |planned social jetlag| ≥ 60 min. The notice is titled "Planned social jetlag" ("In this plan,
+  free days wake 1h 40m later …"): it measures the next 14 planned nights, and the free-day shift compares wake times,
+  so it can differ from Progress's social jetlag, which is mid-sleep on the recorded nights.
 
 ### 3.16 Drop anchor, debt preview, Hush, night rules (v2)
 - **Drop anchor** records an instant + offset and starts the night state: no current time or countdown anywhere in the
