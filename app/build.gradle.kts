@@ -55,3 +55,8 @@ dependencies {
     ksp(libs.androidx.hilt.compiler)
     implementation(libs.kotlinx.serialization.json)
 }
+
+// ReleaseRulesTest reads the R8 rules, so a change to them runs the unit tests again.
+tasks.withType<Test>().configureEach {
+    inputs.file("proguard-rules.pro").withPropertyName("releaseRules").withPathSensitivity(PathSensitivity.RELATIVE)
+}
