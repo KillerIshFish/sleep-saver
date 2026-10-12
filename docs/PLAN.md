@@ -159,6 +159,12 @@ Nights before your very first recorded night are not flagged as missing.
 - **Target bedtime B** (Settings → Bedtime): *From my sleep data* (default) = learned fall-asleep time for tonight's
   kind of night − 15 min latency (the user's own bedtime until there's enough data); *To meet my sleep need* =
   tomorrow's W − need − 15 min; *A fixed time* = the user's own bedtime. A time before noon means after midnight.
+- **One bedtime per evening.** B (the time to be in bed) is the only bedtime the app shows, and every screen reads it
+  from `ScheduleTimes.bedtime` with the same nights, need and timing (week plan, one-offs and personal latency
+  merged): the energy schedule, the Bedtime habit and its reminder, Tonight, Night steps (from
+  `ScheduleTimes.windDownStart` to B, with or without nights), the week plan and Day plan, and the alarm's planned
+  bedtime. "Asleep by" (B + latency) appears only in the debt preview; Settings rows show the usual (plan-free) B.
+  Pinned by `BedtimeAgreementTest`.
 - The sleep midpoint (circular mean of main-sleep midpoints) is still computed and kept in the schedule for reference.
 
 ### 3.6 Energy curve (two-process model), t in hours
@@ -192,7 +198,7 @@ shown as "↑13m earlier" / "↓8m later" when |shift| ≥ 1 min.
 **Schedule day.** Until yesterday's melatonin window has ended, the home screen, widget and reminders keep using
 yesterday's schedule, so a night owl at 00:30 still sees tonight's wind-down and bedtime, not tomorrow's morning.
 
-### 3.8 Habits (all offsets configurable)
+### 3.8 Habits (offsets configurable, except Bedtime's)
 | Habit | Default time | Default |
 |---|---|---|
 | Morning light | W + 15 m (typical wake: Garmin data lags) | on |
@@ -202,7 +208,7 @@ yesterday's schedule, so a night owl at 00:30 still sees tonight's wind-down and
 | Intense-exercise cutoff | B − 2 h | off |
 | Dim the lights | wind-down start | on |
 | Evening routine | wind-down start, chosen activities | on |
-| Bedtime | melatonin window start | on |
+| Bedtime | target bedtime B, until the melatonin window ends (B + 30 m); fixed at B (moved via Settings → Bedtime or the week plan) | on |
 | Nap window | afternoon-dip start, 20–30 min max | off |
 
 Reminders: one `AlarmManager` alarm for the earliest pending reminder; on fire it posts every reminder due within
@@ -419,7 +425,8 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 22. **Night sounds.** The evidence for noise is very low and a 2026 lab study found pink noise reduced REM sleep. Hush
     is framed as masking a noisy room, defaults to a 45-min timer and a low volume, and suggests earplugs.
 23. **No clock at night.** Watching the clock keeps people awake, so after Drop anchor (or bedtime) the app shows no
-    time and no countdown until morning, and posts nothing but the alarm.
+    time and no countdown until morning, and posts nothing but the alarm. The Bedtime reminder, at bedtime itself, is
+    the last one and carries no time.
 24. **Marks show patterns, not causes.** Small samples make "after alcohol you sleep 32 min less" mostly noise, so a
     pattern needs 6 nights each way and a 90 % bootstrap interval that excludes zero, and every line says it isn't
     causal.
@@ -429,6 +436,12 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
     Grogginess, Energy potential) mirror another app's wording. They come from the original spec and were left for the
     owner to decide; all v2 names are new (Surfacing alarm, Night steps, Week plan, Drop anchor, Keel, Marks, Hush,
     Catnap, Wake landing, Morning feel).
+27. **One bedtime.** The Bedtime habit used to sit at the melatonin window's start (B − 30 min), so Energy showed a
+    bedtime half an hour before the one Tonight, Night steps and the week plan showed, while Night steps were still
+    running. It now sits at B, the centre of the melatonin window, and Night steps without nights use the same rule as
+    everything else instead of Settings' own time (§3.5). Its timing has no shift of its own (a stored offset from an
+    older build is ignored): a shifted habit would bring back a second "Bedtime", so its detail screen links to
+    Settings and the week plan, where B is set.
 
 ## 5. Alarm reliability (v2, Android 9–17)
 

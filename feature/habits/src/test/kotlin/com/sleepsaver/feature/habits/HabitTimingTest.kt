@@ -13,7 +13,7 @@ class HabitTimingTest {
     @Test
     fun `every default offset sits inside its habit's range and on its step grid`() {
         habitCatalog.all.forEach { definition ->
-            val spec = timingSpec(definition.type)
+            val spec = timingSpec(definition.type) ?: return@forEach
             val value = spec.valueOf(definition.defaultOffset)
             assertThat(spec.offsetOf(value)).isEqualTo(definition.defaultOffset)
             assertThat((value - spec.min) % spec.step).isEqualTo(0)
@@ -21,8 +21,16 @@ class HabitTimingTest {
     }
 
     @Test
+    fun `only habits whose time can be moved get a stepper`() {
+        habitCatalog.all.forEach { definition ->
+            assertThat(timingSpec(definition.type) != null).isEqualTo(definition.adjustable)
+        }
+        assertThat(timingSpec(HabitType.BEDTIME)).isNull()
+    }
+
+    @Test
     fun `cutoffs read as positive hours before bedtime`() {
-        val spec = timingSpec(HabitType.CAFFEINE_CUTOFF)
+        val spec = timingSpec(HabitType.CAFFEINE_CUTOFF)!!
 
         assertThat(spec.valueOf(Duration.ofHours(-10))).isEqualTo(600)
         assertThat(spec.offsetOf(570)).isEqualTo(Duration.ofMinutes(-570))
@@ -30,7 +38,7 @@ class HabitTimingTest {
 
     @Test
     fun `shifts keep their sign`() {
-        val spec = timingSpec(HabitType.NAP_WINDOW)
+        val spec = timingSpec(HabitType.NAP_WINDOW)!!
 
         assertThat(spec.valueOf(Duration.ofMinutes(-30))).isEqualTo(-30)
         assertThat(spec.offsetOf(45)).isEqualTo(Duration.ofMinutes(45))

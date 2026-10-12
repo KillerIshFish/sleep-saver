@@ -23,21 +23,46 @@ data class HabitDetailRoute(val type: String)
 /**
  * The habit list and a habit's detail screen. Taps on a screen that isn't resumed (still animating in or out) are
  * dropped, so a double tap can't open two screens or pop twice. [onOpenRoutineEditor] is the Night steps habit's
- * "Edit Night steps": the routine editor (feature:winddown, every evening's list), wired in app.
+ * "Edit Night steps": the routine editor (feature:winddown, every evening's list); [onOpenSettings] and
+ * [onOpenWeekPlan] are Bedtime's links to where the target bedtime is set (feature:settings, feature:tonight). All
+ * wired in app.
  */
-fun NavGraphBuilder.habitsGraph(navController: NavController, onOpenRoutineEditor: () -> Unit = {}) = habitsGraph(
+fun NavGraphBuilder.habitsGraph(
+    navController: NavController,
+    onOpenRoutineEditor: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenWeekPlan: () -> Unit = {},
+) = habitsGraph(
     navController = navController,
     list = { onBack, onOpenHabit -> HabitsScreen(onBack = onBack, onOpenHabit = onOpenHabit) },
-    detail = { onBack, onEditNightSteps -> HabitDetailScreen(onBack = onBack, onEditNightSteps = onEditNightSteps) },
+    detail = { onBack, links ->
+        HabitDetailScreen(
+            onBack = onBack,
+            onEditNightSteps = links.onEditNightSteps,
+            onOpenSettings = links.onOpenSettings,
+            onOpenWeekPlan = links.onOpenWeekPlan,
+        )
+    },
     onOpenRoutineEditor = onOpenRoutineEditor,
+    onOpenSettings = onOpenSettings,
+    onOpenWeekPlan = onOpenWeekPlan,
+)
+
+/** Where a habit's detail screen leads outside feature:habits. */
+internal class HabitDetailLinks(
+    val onEditNightSteps: () -> Unit,
+    val onOpenSettings: () -> Unit,
+    val onOpenWeekPlan: () -> Unit,
 )
 
 /** [habitsGraph] with the screens passed in, so tests can drive the real routes without Hilt. */
 internal fun NavGraphBuilder.habitsGraph(
     navController: NavController,
     list: @Composable (onBack: () -> Unit, onOpenHabit: (HabitType) -> Unit) -> Unit,
-    detail: @Composable (onBack: () -> Unit, onEditNightSteps: () -> Unit) -> Unit,
+    detail: @Composable (onBack: () -> Unit, links: HabitDetailLinks) -> Unit,
     onOpenRoutineEditor: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenWeekPlan: () -> Unit = {},
 ) {
     composable<HabitsRoute> { entry ->
         list(
@@ -48,7 +73,11 @@ internal fun NavGraphBuilder.habitsGraph(
     composable<HabitDetailRoute> {
         detail(
             dropUnlessResumed { navController.popBackStack() },
-            dropUnlessResumed(block = onOpenRoutineEditor),
+            HabitDetailLinks(
+                onEditNightSteps = dropUnlessResumed(block = onOpenRoutineEditor),
+                onOpenSettings = dropUnlessResumed(block = onOpenSettings),
+                onOpenWeekPlan = dropUnlessResumed(block = onOpenWeekPlan),
+            ),
         )
     }
 }

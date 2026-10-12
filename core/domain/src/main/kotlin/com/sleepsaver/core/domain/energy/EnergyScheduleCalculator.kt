@@ -46,8 +46,9 @@ import kotlin.math.roundToLong
  *    latency; FIXED → the user's own bedtime. latency = [SleepTiming.latency] ?: `sleepLatency`. A clock time before
  *    noon means after midnight (the next calendar day). [EnergySchedule.lastNightBedtime] is B of the evening before
  *    [date] by the same rules (that evening's plan), so night mode after midnight knows when last night began.
- *  - Phases per the table in §3.7. The wind-down lasts the evening plan's windDownLength clamped to
- *    [week.windDownMinLength, week.windDownMaxLength]; [EnergySchedule.nightStepsOn] is the evening plan's switch.
+ *  - Phases per the table in §3.7. The wind-down starts at [ScheduleTimes.windDownStart] (the evening plan's
+ *    windDownLength clamped to [week.windDownMinLength, week.windDownMaxLength] before the melatonin window), where
+ *    Night steps start too; [EnergySchedule.nightStepsOn] is the evening plan's switch.
  *    Morning peak, afternoon dip and evening peak never start before grogginess ends (matters after a very late wake).
  *  - Phases list order: GROGGINESS, MORNING_PEAK, AFTERNOON_DIP, EVENING_PEAK, WIND_DOWN, MELATONIN_WINDOW.
  *  - shiftVsYesterday is left null here; see [withShifts].
@@ -93,8 +94,7 @@ class EnergyScheduleCalculator(private val config: SleepConfig = SleepConfig.DEF
         val afternoonDip = guardedPhase(PhaseType.AFTERNOON_DIP, config.afternoonDip, w, curve, peak = false).afterGrogginess()
         val eveningPeak = guardedPhase(PhaseType.EVENING_PEAK, config.eveningPeak, w, curve, peak = true).afterGrogginess()
         val melatoninStart = bedtime - config.melatoninHalfWidth
-        val windDownLength = evening.windDownLength.coerceIn(config.week.windDownMinLength, config.week.windDownMaxLength)
-        val windDown = Phase(PhaseType.WIND_DOWN, melatoninStart - windDownLength, melatoninStart)
+        val windDown = Phase(PhaseType.WIND_DOWN, scheduleTimes.windDownStart(bedtime, evening), melatoninStart)
         val melatonin = Phase(PhaseType.MELATONIN_WINDOW, melatoninStart, bedtime + config.melatoninHalfWidth)
 
         return EnergySchedule(

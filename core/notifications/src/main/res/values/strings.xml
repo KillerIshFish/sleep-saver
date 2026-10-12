@@ -10,7 +10,7 @@
     <string name="channel_wind_down_name">Wind-down</string>
     <string name="channel_wind_down_description">When to dim the lights and start your evening routine.</string>
     <string name="channel_bedtime_name">Bedtime</string>
-    <string name="channel_bedtime_description">When your best window to fall asleep opens.</string>
+    <string name="channel_bedtime_description">At your target bedtime.</string>
     <string name="channel_naps_name">Naps</string>
     <string name="channel_naps_description">When your afternoon nap window opens.</string>
     <string name="channel_sync_name">Sync</string>
@@ -32,8 +32,8 @@
     <string name="reminder_evening_routine_title">Night steps start now</string>
     <string name="reminder_evening_routine_body">Time to start easing toward bed.</string>
     <string name="reminder_evening_routine_body_with_activities">Tonight: %1$s</string>
-    <string name="reminder_bedtime_title">Your sleep window is open</string>
-    <string name="reminder_bedtime_body">This is your best stretch to fall asleep tonight. Head to bed when you can.</string>
+    <string name="reminder_bedtime_title">It\'s bedtime</string>
+    <string name="reminder_bedtime_body">You\'re in your best stretch to fall asleep tonight. Head to bed when you can.</string>
     <string name="reminder_nap_title">Nap window</string>
     <string name="reminder_nap_body">A short nap now can lift the rest of your day. Aim for 10–20 minutes; 30 can leave you groggy at first.</string>
 

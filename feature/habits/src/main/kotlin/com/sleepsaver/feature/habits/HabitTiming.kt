@@ -17,7 +17,7 @@ internal enum class TimingKind {
     /** Morning light: minutes after the typical wake-up. */
     AFTER_WAKE,
 
-    /** Wind-down habits, bedtime, nap window: a signed shift from their phase (negative = earlier). */
+    /** Wind-down habits, nap window: a signed shift from their anchor (negative = earlier). */
     SHIFT,
 }
 
@@ -42,8 +42,12 @@ internal data class TimingSpec(val kind: TimingKind, val min: Int, val max: Int,
     fun clamp(value: Int): Int = value.coerceIn(min, max)
 }
 
-/** Allowed ranges: cutoffs in 30-minute steps; morning light and phase-anchored habits in 15-minute steps. */
-internal fun timingSpec(type: HabitType): TimingSpec = when (type) {
+/**
+ * Allowed ranges: cutoffs in 30-minute steps; morning light and phase-anchored habits in 15-minute steps. null for a
+ * habit whose time can't be moved (HabitDefinition.adjustable): Bedtime is the target bedtime itself, changed in
+ * Settings or the week plan, never shifted on its own.
+ */
+internal fun timingSpec(type: HabitType): TimingSpec? = when (type) {
     HabitType.CAFFEINE_CUTOFF -> TimingSpec(TimingKind.BEFORE_BEDTIME, min = 4 * 60, max = 14 * 60, step = 30)
     HabitType.LARGE_MEAL_CUTOFF,
     HabitType.ALCOHOL_CUTOFF,
@@ -52,9 +56,9 @@ internal fun timingSpec(type: HabitType): TimingSpec = when (type) {
     HabitType.MORNING_LIGHT -> TimingSpec(TimingKind.AFTER_WAKE, min = 0, max = 90, step = 15)
     HabitType.DIM_LIGHTS,
     HabitType.EVENING_ROUTINE,
-    HabitType.BEDTIME,
     HabitType.NAP_WINDOW,
     -> TimingSpec(TimingKind.SHIFT, min = -60, max = 60, step = 15)
+    HabitType.BEDTIME -> null
 }
 
 internal val habitCatalog = HabitCatalog()
@@ -64,7 +68,6 @@ internal fun anchorTime(schedule: EnergySchedule, anchor: HabitAnchor): Instant?
     HabitAnchor.TYPICAL_WAKE -> schedule.typicalWake.toInstant()
     HabitAnchor.TARGET_BEDTIME -> schedule.targetBedtime
     HabitAnchor.WIND_DOWN_START -> schedule.phase(PhaseType.WIND_DOWN)?.start
-    HabitAnchor.MELATONIN_START -> schedule.phase(PhaseType.MELATONIN_WINDOW)?.start
     HabitAnchor.AFTERNOON_DIP_START -> schedule.phase(PhaseType.AFTERNOON_DIP)?.start
 }
 

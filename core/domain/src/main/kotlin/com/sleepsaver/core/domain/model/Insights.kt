@@ -281,7 +281,7 @@ enum class HabitType {
 }
 
 /** What a habit's time is measured from. */
-enum class HabitAnchor { TYPICAL_WAKE, TARGET_BEDTIME, WIND_DOWN_START, MELATONIN_START, AFTERNOON_DIP_START }
+enum class HabitAnchor { TYPICAL_WAKE, TARGET_BEDTIME, WIND_DOWN_START, AFTERNOON_DIP_START }
 
 /** Notification channel groups. */
 enum class ReminderCategory { MORNING_LIGHT, CUTOFFS, WIND_DOWN, BEDTIME, NAPS }
@@ -296,6 +296,11 @@ data class HabitDefinition(
     val defaultEnabled: Boolean,
     val defaultReminder: Boolean,
     val category: ReminderCategory,
+    /**
+     * Whether the user's stored offset moves the habit. Bedtime's doesn't: it is the target bedtime itself, which moves
+     * only where B is set (Settings' bedtime, the week plan), so it always agrees with every other screen.
+     */
+    val adjustable: Boolean = true,
 )
 
 /** The user's per-habit settings (stored in Room). */

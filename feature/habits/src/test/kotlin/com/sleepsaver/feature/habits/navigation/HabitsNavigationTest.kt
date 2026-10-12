@@ -35,6 +35,10 @@ class HabitsNavigationTest {
     /** How often "Edit Night steps" reached the app's routine-editor lambda. */
     private var routineEditorOpened = 0
 
+    /** How often Bedtime's timing card reached the app's Settings and week plan lambdas. */
+    private var settingsOpened = 0
+    private var weekPlanOpened = 0
+
     /** Reads the habit type from the route, like HabitDetailViewModel. */
     class TypeViewModel(handle: SavedStateHandle) : ViewModel() {
         val type = handle.toRoute<HabitDetailRoute>().type
@@ -53,17 +57,22 @@ class HabitsNavigationTest {
                         Column {
                             Button(onClick = { onOpenHabit(HabitType.CAFFEINE_CUTOFF) }) { Text("open caffeine") }
                             Button(onClick = { onOpenHabit(HabitType.EVENING_ROUTINE) }) { Text("open routine") }
+                            Button(onClick = { onOpenHabit(HabitType.BEDTIME) }) { Text("open bedtime") }
                             Button(onClick = onBack) { Text("back from list") }
                         }
                     },
-                    detail = { onBack, onEditNightSteps ->
+                    detail = { onBack, links ->
                         val viewModel = viewModel { TypeViewModel(createSavedStateHandle()) }
                         Column {
                             Button(onClick = onBack) { Text("back from ${viewModel.type}") }
-                            Button(onClick = onEditNightSteps) { Text("edit night steps") }
+                            Button(onClick = links.onEditNightSteps) { Text("edit night steps") }
+                            Button(onClick = links.onOpenSettings) { Text("open settings") }
+                            Button(onClick = links.onOpenWeekPlan) { Text("open week plan") }
                         }
                     },
                     onOpenRoutineEditor = { routineEditorOpened++ },
+                    onOpenSettings = { settingsOpened++ },
+                    onOpenWeekPlan = { weekPlanOpened++ },
                 )
             }
         }
@@ -121,6 +130,22 @@ class HabitsNavigationTest {
         compose.runOnIdle { assertThat(routineEditorOpened).isEqualTo(1) }
         currentIs { it.currentDestination?.hasRoute<HabitDetailRoute>() == true }
         compose.runOnIdle { assertThat(navController.currentBackStackEntry!!.toRoute<HabitDetailRoute>().type).isEqualTo("EVENING_ROUTINE") }
+    }
+
+    @Test
+    fun `bedtime's timing hands over to Settings and the week plan`() {
+        setUpNavHost()
+        compose.onNodeWithText("open bedtime").performClick()
+
+        compose.onNodeWithText("open settings").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("open week plan").performClick()
+
+        compose.runOnIdle {
+            assertThat(settingsOpened).isEqualTo(1)
+            assertThat(weekPlanOpened).isEqualTo(1)
+        }
+        currentIs { it.currentDestination?.hasRoute<HabitDetailRoute>() == true }
     }
 
     @Test

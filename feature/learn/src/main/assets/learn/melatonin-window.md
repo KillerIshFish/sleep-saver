@@ -24,4 +24,4 @@ The name comes from melatonin, a hormone your body releases as evening turns to 
 
 The melatonin window spans the hour around your target bedtime, 30 minutes either side. By default your target bedtime follows your data: when you usually fall asleep on nights like tonight, minus 15 minutes to drift off. In Settings you can work it out backwards from your sleep need instead (tomorrow's wake time, minus your need, minus 15 minutes), or pick a fixed time.
 
-The **Bedtime** reminder arrives as the window opens, and your wind-down block sits just before it. Treat the window as a guide rather than a deadline. Anywhere inside it is a good time to turn in.
+The **Bedtime** reminder arrives at your target bedtime, in the middle of the window, and your wind-down block sits just before the window opens. Tonight, Night steps and your week plan show that same bedtime. Treat the window as a guide rather than a deadline. Anywhere inside it is a good time to turn in.

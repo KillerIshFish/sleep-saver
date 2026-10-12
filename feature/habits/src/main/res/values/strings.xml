@@ -42,7 +42,7 @@
     <string name="habits_why_exercise">Moving during the day helps you sleep, but a hard session late keeps your heart rate and body temperature up. Finishing intense workouts about 2 hours before bed leaves time to cool down. Gentle stretching is fine any time.</string>
     <string name="habits_why_dim_lights">Bright evening light tells your body it\'s still daytime and holds sleepiness back. Turning down lamps and screens as your wind-down starts lets your natural night-time signals build.</string>
     <string name="habits_why_evening_routine">A short, familiar routine tells your mind the day is over. Pick a few easy things you enjoy and start them as your wind-down begins, so drifting off comes more naturally.</string>
-    <string name="habits_why_bedtime">This is when your best window for falling asleep opens, worked out from your rhythm and sleep need. Getting into bed now makes it easier to drift off and helps you pay down sleep debt.</string>
+    <string name="habits_why_bedtime">Your target bedtime sits in the middle of your best window for falling asleep, worked out from your rhythm and sleep need. Getting into bed now makes it easier to drift off and helps you pay down sleep debt.</string>
     <string name="habits_why_nap_window">Energy naturally sags in the early afternoon, which makes it the easiest time to nap. Keep it to 10–20 minutes so you wake up refreshed and still sleep well tonight.</string>
 
     <!-- Habit detail -->
@@ -73,9 +73,12 @@
     <string name="habits_timing_before_bedtime">before your target bedtime</string>
     <string name="habits_timing_after_wake">after you usually wake up</string>
     <string name="habits_timing_shift_wind_down">compared with the start of your wind-down</string>
-    <string name="habits_timing_shift_sleep_window">compared with the start of your best sleep window</string>
     <string name="habits_timing_shift_dip">compared with the start of your afternoon dip</string>
     <string name="habits_shift_none">On time</string>
+    <!-- Bedtime's timing card: it has no stepper, because it is the target bedtime itself -->
+    <string name="habits_timing_bedtime_fixed">Bedtime is always your target bedtime, the same one Tonight and Night steps show. Set your usual bedtime in Settings, or a different one for some evenings in your week plan.</string>
+    <string name="habits_timing_open_settings">Open Settings</string>
+    <string name="habits_timing_open_week_plan">Open week plan</string>
     <!-- "30m earlier" -->
     <string name="habits_shift_earlier">%1$s earlier</string>
     <!-- "30m later" -->
@@ -91,9 +94,6 @@
     <string name="habits_anchor_wind_down_before">%1$s before your wind-down starts at %2$s</string>
     <string name="habits_anchor_wind_down_after">%1$s after your wind-down starts at %2$s</string>
     <string name="habits_anchor_wind_down_at">As your wind-down starts at %1$s</string>
-    <string name="habits_anchor_sleep_window_before">%1$s before your best sleep window opens at %2$s</string>
-    <string name="habits_anchor_sleep_window_after">%1$s after your best sleep window opens at %2$s</string>
-    <string name="habits_anchor_sleep_window_at">As your best sleep window opens at %1$s</string>
     <string name="habits_anchor_dip_before">%1$s before your afternoon dip starts at %2$s</string>
     <string name="habits_anchor_dip_after">%1$s after your afternoon dip starts at %2$s</string>
     <string name="habits_anchor_dip_at">As your afternoon dip starts at %1$s</string>

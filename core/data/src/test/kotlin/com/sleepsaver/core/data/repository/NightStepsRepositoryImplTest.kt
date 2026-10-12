@@ -18,6 +18,7 @@ import com.sleepsaver.core.data.testing.testNight
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Anchor
 import com.sleepsaver.core.domain.journal.AnchorSource
+import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.LastNightState
 import com.sleepsaver.core.domain.model.Phase
 import com.sleepsaver.core.domain.model.PhaseType
@@ -25,6 +26,7 @@ import com.sleepsaver.core.domain.nightsteps.EveningState
 import com.sleepsaver.core.domain.nightsteps.StepSuggestion
 import com.sleepsaver.core.domain.nightsteps.SuggestionReason
 import com.sleepsaver.core.domain.nightsteps.Technique
+import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -99,6 +101,24 @@ class NightStepsRepositoryImplTest {
             instant("2026-10-06T21:45:00Z"),
             instant("2026-10-06T22:00:00Z"),
         ).inOrder()
+    }
+
+    @Test
+    fun `without nights a sleep-need bedtime is the one the week plan and the alarm use`() = runTest {
+        settings.state.update {
+            it.copy(sleep = it.sleep.copy(bedtimeMode = BedtimeMode.SLEEP_NEED, typicalWake = LocalTime.of(6, 30), sleepNeed = Duration.ofHours(8)))
+        }
+        val repository = repository()
+
+        val session = repository.tonight.first { it != null && it.steps.isNotEmpty() }!!
+
+        // Wednesday 06:30 − 8 h need − 15 min latency, not Settings' own 23:00 (which this rule doesn't use).
+        val sleepSettings = settings.state.value.sleep
+        assertThat(session.bedtime).isEqualTo(instant("2026-10-06T22:15:00Z"))
+        assertThat(session.bedtime)
+            .isEqualTo(ScheduleTimes().bedtime(today, ZoneOffset.UTC, emptyList(), sleepSettings.sleepNeed, sleepSettings.timing).first)
+        assertThat(session.windowStart).isEqualTo(instant("2026-10-06T20:45:00Z"))
+        assertThat(session.fromSettingsOnly).isTrue()
     }
 
     @Test

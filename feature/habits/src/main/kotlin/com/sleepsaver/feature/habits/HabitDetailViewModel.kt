@@ -44,11 +44,12 @@ internal sealed interface HabitDetailUiState {
         val type: HabitType,
         val enabled: Boolean,
         val reminderEnabled: Boolean,
-        /** The stored signed offset from [anchor]. */
+        /** The signed offset from [anchor] the habit is timed with (Bedtime's is always zero, whatever is stored). */
         val offset: Duration,
         val anchor: HabitAnchor,
-        val timing: TimingSpec,
-        /** Stepper value for [offset], inside the timing range. */
+        /** The timing stepper; null when the habit's time can't be moved (Bedtime: changed in Settings or the week plan). */
+        val timing: TimingSpec?,
+        /** Stepper value for [offset], inside the timing range (0 without a stepper). */
         val value: Int,
         val defaultValue: Int,
         /** Today's time and window end; null without a schedule. */
@@ -123,13 +124,14 @@ internal class HabitDetailViewModel @Inject constructor(
     /** [value] is a stepper value (e.g. minutes before bedtime); it's clamped to the habit's range. */
     fun setTimingValue(value: Int) {
         val ready = uiState.value as? HabitDetailUiState.Ready ?: return
-        val offset = ready.timing.offsetOf(value)
+        val offset = ready.timing?.offsetOf(value) ?: return
         if (offset == ready.offset) return
         showThenSave(offset) { writer.setOffset(it, offset) }
     }
 
     fun resetTiming() {
         val type = type ?: return
+        if (timingSpec(type) == null) return
         showThenSave(habitCatalog.definition(type).defaultOffset) { writer.resetOffset(it) }
     }
 
@@ -167,15 +169,16 @@ internal fun habitDetailUiState(
     val timing = timingSpec(type)
     val schedule = (insights as? InsightsState.Ready)?.insights?.schedule
     val habit = schedule?.let { scheduler.schedule(it, complete).firstOrNull { habit -> habit.type == type } }
+    val offset = habitCatalog.effectiveOffset(setting)
     return HabitDetailUiState.Ready(
         type = type,
         enabled = setting.enabled,
         reminderEnabled = setting.reminderEnabled,
-        offset = setting.offset,
+        offset = offset,
         anchor = definition.anchor,
         timing = timing,
-        value = timing.valueOf(setting.offset),
-        defaultValue = timing.valueOf(definition.defaultOffset),
+        value = timing?.valueOf(offset) ?: 0,
+        defaultValue = timing?.valueOf(definition.defaultOffset) ?: 0,
         time = habit?.time,
         windowEnd = habit?.windowEnd,
         anchorTime = schedule?.let { anchorTime(it, definition.anchor) },

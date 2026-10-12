@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -83,6 +84,7 @@ import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatClockAxis
+import com.sleepsaver.core.ui.format.formatClockTime
 import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatNightLabel
 import com.sleepsaver.core.ui.format.formatShift
@@ -118,11 +120,22 @@ internal object TimelineDimens {
     val NowHeight = 26.dp
     val HabitHeight = 38.dp
     val LabelGap = 6.dp
+
+    /** A habit's place in its label row: start padding, icon, the gap after it, and end padding. */
+    val HabitStartPadding = 4.dp
+    val HabitIcon = 28.dp
+    val HabitIconGap = 8.dp
+    val HabitEndPadding = 10.dp
+
+    /** A shared habit row ends at least this far left of the energy curve. */
+    val CurveClearance = 8.dp
 }
 
 /**
  * Pixel columns for a timeline [width] wide. The hour axis is as wide as its widest label at the current font
  * size and clock format, and label heights follow the font scale, so large text never spills into the next label.
+ * Habit titles and the widest clock time are measured too, so habits at the same minute share a label row only
+ * while they fit side by side, left of the curve.
  */
 @Composable
 internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
@@ -130,9 +143,18 @@ internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
     val use24h = LocalUse24HourClock.current
     val measurer = rememberTextMeasurer()
     val axisStyle = MaterialTheme.typography.labelMedium
-    return remember(width, density, use24h, axisStyle) {
+    val titleStyle = MaterialTheme.typography.labelMedium
+    val timeStyle = MaterialTheme.typography.labelSmall
+    val titles = HabitType.entries.map { stringResource(it.shortTitleRes) }
+    return remember(width, density, use24h, axisStyle, titleStyle, timeStyle, titles) {
         val widestAxisLabel = (0..23).maxOf { hour ->
             measurer.measure(formatClockAxis(LocalTime.of(hour, 0), use24h), axisStyle).size.width
+        }
+        val titleWidths = HabitType.entries.zip(titles).associate { (type, title) ->
+            type to measurer.measure(title, titleStyle, maxLines = 1).size.width.toFloat()
+        }
+        val widestTime = (0..23).maxOf { hour ->
+            measurer.measure(formatClockTime(LocalTime.of(hour, 59), use24h), timeStyle, maxLines = 1).size.width
         }
         with(density) {
             val widthPx = width.toPx()
@@ -161,6 +183,13 @@ internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
                 tickRight = axisRight + 8.dp.toPx(),
                 gridLeft = axisRight + 10.dp.toPx(),
                 contentRight = contentRight,
+                habitTitleWidths = titleWidths,
+                habitTimeWidth = widestTime.toFloat(),
+                habitChromeWidth = (
+                    TimelineDimens.HabitStartPadding + TimelineDimens.HabitIcon + TimelineDimens.HabitIconGap +
+                        TimelineDimens.HabitEndPadding
+                    ).toPx(),
+                curveClearance = TimelineDimens.CurveClearance.toPx(),
             )
         }
     }
@@ -257,7 +286,7 @@ internal fun EnergyTimeline(
             HabitLabel(
                 mark = mark,
                 zone = state.zone,
-                onOpen = { onOpenHabit(mark.habit.type) },
+                onOpen = onOpenHabit,
                 height = with(density) { layout.spec.habitHeight.toDp() },
                 modifier = Modifier
                     .offset { IntOffset(layout.labelLeft.roundToInt() - with(density) { 4.dp.roundToPx() }, mark.labelTop.roundToInt()) }
@@ -272,6 +301,14 @@ internal fun EnergyTimeline(
                 height = with(density) { layout.spec.nowHeight.toDp() },
                 modifier = Modifier.offset { IntOffset(layout.labelLeft.roundToInt(), now.labelTop.roundToInt()) },
             )
+        }
+        // A shared row stays left of the curve, but one habit's label at large text can still reach it late in the
+        // evening: the dots stay on top.
+        Canvas(Modifier.fillMaxSize()) {
+            layout.habits.forEach { mark ->
+                drawCircle(palette.background, radius = 5.dp.toPx(), center = Offset(mark.anchorX, mark.anchorY))
+                drawCircle(palette.curve, radius = 3.5.dp.toPx(), center = Offset(mark.anchorX, mark.anchorY), style = Stroke(1.5.dp.toPx()))
+            }
         }
     }
 }
@@ -387,9 +424,9 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
         drawCurve(layout, state.now, palette)
 
         // Habits: a tick at the exact time beside the lanes with a connector to the label, and a dotted guide
-        // across the curve column to a dot on the curve.
+        // across the curve column to a dot on the curve (drawn above the labels, in EnergyTimeline).
         layout.habits.forEach { mark ->
-            // Only a label its neighbours pushed away needs pointing back to its time.
+            // Only a label its neighbours moved (up or down) needs pointing back to its time.
             val railX = layout.lanesRight + 5.dp.toPx()
             val labelY = mark.labelTop + spec.habitHeight / 2
             if (abs(labelY - mark.anchorY) >= 1.dp.toPx()) {
@@ -403,8 +440,6 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
                 strokeWidth = 1.dp.toPx(),
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 3.dp.toPx())),
             )
-            drawCircle(palette.background, radius = 5.dp.toPx(), center = Offset(mark.anchorX, mark.anchorY))
-            drawCircle(palette.curve, radius = 3.5.dp.toPx(), center = Offset(mark.anchorX, mark.anchorY), style = Stroke(1.5.dp.toPx()))
         }
 
         // Now.
@@ -422,7 +457,7 @@ private fun TimelineCanvas(layout: TimelineLayout, state: EnergyUiState.Ready, p
 
 /**
  * From a label's exact time to the label: straight across when the label sits at its time, otherwise along a
- * vertical rail beside the phase lanes, so labels pushed down by their neighbours read as a tidy list.
+ * vertical rail beside the phase lanes, so labels moved up or down by their neighbours read as a tidy list.
  */
 private fun DrawScope.drawConnector(color: Color, fromX: Float, anchorY: Float, railX: Float, labelY: Float, toX: Float) {
     val path = Path().apply {
@@ -859,39 +894,51 @@ private fun PhaseLabel(
     }
 }
 
+/**
+ * One label row: each habit at that time with its own icon, short title, time and button, side by side when several
+ * share the minute ("Dim the lights 9:32 PM · Night steps 9:32 PM").
+ */
 @Composable
-private fun HabitLabel(mark: HabitMark, zone: ZoneId, onOpen: () -> Unit, height: Dp, modifier: Modifier = Modifier) {
-    val type = mark.habit.type
-    val title = stringResource(type.shortTitleRes)
+private fun HabitLabel(mark: HabitMark, zone: ZoneId, onOpen: (HabitType) -> Unit, height: Dp, modifier: Modifier = Modifier) {
     val time = clockTime(mark.habit.time, zone)
-    val description = stringResource(R.string.energy_habit_marker_description, type.title(), time)
     Row(
         modifier
             .height(height)
             .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.88f))
-            .clickable(role = Role.Button, onClick = onOpen)
-            .clearAndSetSemantics {
-                contentDescription = description
-                role = Role.Button
-                onClick { onOpen(); true }
-            }
-            .padding(start = 4.dp, end = 10.dp),
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.88f)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(SleepSaverTheme.colors.cardRaised),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(type.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        }
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(time, style = MaterialTheme.typography.labelSmall, color = SleepSaverTheme.colors.textSecondary, maxLines = 1)
+        mark.habits.forEach { habit ->
+            val type = habit.type
+            val title = stringResource(type.shortTitleRes)
+            val description = stringResource(R.string.energy_habit_marker_description, type.title(), time)
+            Row(
+                Modifier
+                    .fillMaxHeight()
+                    .clickable(role = Role.Button) { onOpen(type) }
+                    .clearAndSetSemantics {
+                        contentDescription = description
+                        role = Role.Button
+                        onClick { onOpen(type); true }
+                    }
+                    .padding(start = TimelineDimens.HabitStartPadding, end = TimelineDimens.HabitEndPadding),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(TimelineDimens.HabitIcon)
+                        .clip(CircleShape)
+                        .background(SleepSaverTheme.colors.cardRaised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(type.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(TimelineDimens.HabitIconGap))
+                Column {
+                    Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(time, style = MaterialTheme.typography.labelSmall, color = SleepSaverTheme.colors.textSecondary, maxLines = 1)
+                }
+            }
         }
     }
 }

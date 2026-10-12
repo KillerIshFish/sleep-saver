@@ -154,12 +154,14 @@ data class LabelSlot(
 )
 
 /**
- * Places labels in one column without overlaps. Fixed slots split the column into free intervals; each movable
- * label goes into the interval its anchor falls in, in anchor order (ties keep input order). Inside an interval
- * labels sit at their desired position when there's room, are pushed down otherwise (a label never reads earlier
- * than its time), and pushed up only where the next fixed slot or [maxBottom] leaves no room below. An interval
- * too small for its labels hands its last ones to the next interval (and, at the bottom, its first ones to the
- * previous). Only when the whole column is too short may the lowest labels overlap.
+ * Places labels in one column without overlaps, each as close to its time as its neighbours allow. Fixed slots split
+ * the column into free intervals; each movable label goes into the interval its anchor falls in, in anchor order (ties
+ * keep input order). Inside an interval the labels keep that order and at least [gap] between them, and sit where the
+ * sum of squared distances from their desired tops is smallest (pool adjacent violators): a lone label stays at its
+ * time, and a crowd spreads evenly above and below its times instead of piling up under the first one, so no label
+ * drifts far from its time. An interval too small for its labels hands its last ones to the next interval (and, at
+ * the bottom, its first ones to the previous). Only when the whole column is too short may the lowest labels overlap.
+ * Example: three 20-px labels that all want their top at 100, with a 5-px gap → 75, 100, 125.
  * Returns each label's top, in input order.
  */
 fun placeLabels(slots: List<LabelSlot>, minTop: Float, maxBottom: Float, gap: Float): List<Float> {
@@ -204,27 +206,41 @@ fun placeLabels(slots: List<LabelSlot>, minTop: Float, maxBottom: Float, gap: Fl
     }
 
     groups.forEachIndexed { k, group ->
-        // Down from the interval's top, up from its bottom, and down again if it still can't hold them all.
-        var cursor = starts[k]
-        group.forEach { i ->
-            tops[i] = maxOf(slots[i].desiredTop, cursor)
-            cursor = tops[i] + slots[i].height + gap
+        if (group.isEmpty()) return@forEachIndexed
+        val labels = group.toList()
+        // Packed tightly, each label's top sits this far below the first one's.
+        val offsets = FloatArray(labels.size)
+        for (j in 1 until labels.size) offsets[j] = offsets[j - 1] + slots[labels[j - 1]].height + gap
+        // The first label's top for each label to sit at its desired top; pooled where that would break the order.
+        val pools = ArrayList<Pool>()
+        labels.forEachIndexed { j, i ->
+            pools += Pool(sum = slots[i].desiredTop - offsets[j], count = 1)
+            while (pools.size > 1 && pools[pools.lastIndex - 1].mean > pools.last().mean) {
+                val last = pools.removeAt(pools.lastIndex)
+                pools[pools.lastIndex] = pools.last() + last
+            }
         }
-        var limit = ends[k]
-        group.reversed().forEach { i ->
-            tops[i] = minOf(tops[i], limit - slots[i].height)
-            limit = tops[i] - gap
-        }
-        cursor = starts[k]
-        group.forEach { i ->
-            tops[i] = maxOf(tops[i], cursor)
-            cursor = tops[i] + slots[i].height + gap
+        // Inside the interval; an interval that can't hold them all lets them run past its end, not above its start.
+        val highest = ends[k] - (offsets.last() + slots[labels.last()].height)
+        var j = 0
+        pools.forEach { pool ->
+            val base = maxOf(minOf(pool.mean, highest), starts[k])
+            repeat(pool.count) {
+                tops[labels[j]] = base + offsets[j]
+                j++
+            }
         }
     }
     return tops.toList()
 }
 
 private data class Obstacle(val top: Float, val bottom: Float, val anchor: Float)
+
+/** Labels whose first-label tops were pooled into one run: [sum] of those tops over [count] labels. */
+private data class Pool(val sum: Float, val count: Int) {
+    val mean: Float get() = sum / count
+    operator fun plus(other: Pool) = Pool(sum + other.sum, count + other.count)
+}
 
 /**
  * Where a long press inside the sleep block starts the added awake time: [pressed] rounded to the nearest

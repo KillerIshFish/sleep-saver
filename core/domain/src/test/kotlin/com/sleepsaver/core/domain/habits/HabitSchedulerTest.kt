@@ -56,7 +56,8 @@ class HabitSchedulerTest {
         assertThat(habits.of(HabitType.DIM_LIGHTS).time).isEqualTo(at("21:15"))
         assertThat(habits.of(HabitType.DIM_LIGHTS).windowEnd).isEqualTo(at("22:15"))
         assertThat(habits.of(HabitType.EVENING_ROUTINE).time).isEqualTo(at("21:15"))
-        assertThat(habits.of(HabitType.BEDTIME).time).isEqualTo(at("22:15"))
+        // Bedtime is B itself (the bedtime every screen shows), until the melatonin window ends.
+        assertThat(habits.of(HabitType.BEDTIME).time).isEqualTo(bedtime)
         assertThat(habits.of(HabitType.BEDTIME).windowEnd).isEqualTo(at("23:15"))
         assertThat(habits.of(HabitType.NAP_WINDOW).time).isEqualTo(dipStart)
         assertThat(habits.of(HabitType.NAP_WINDOW).windowEnd).isEqualTo(dipStart.plus(Duration.ofMinutes(30)))
@@ -107,6 +108,21 @@ class HabitSchedulerTest {
         val dipStart = schedule.phase(PhaseType.AFTERNOON_DIP)!!.start
         assertThat(habits.of(HabitType.NAP_WINDOW).time).isEqualTo(dipStart.plus(Duration.ofMinutes(10)))
         assertThat(habits.of(HabitType.NAP_WINDOW).enabled).isTrue()
+    }
+
+    @Test
+    fun `a stored Bedtime offset never moves it off the target bedtime`() {
+        // Older builds offered a Bedtime shift; a row saved then (or by any other writer) is ignored.
+        listOf(Duration.ofMinutes(-30), Duration.ofMinutes(60)).forEach { stored ->
+            val settings = catalog.defaultSettings().map { if (it.type == HabitType.BEDTIME) it.copy(offset = stored) else it }
+
+            val bedtime = scheduler.schedule(schedule, settings).of(HabitType.BEDTIME)
+
+            assertThat(bedtime.time).isEqualTo(schedule.targetBedtime)
+            assertThat(bedtime.windowEnd).isEqualTo(at("23:15"))
+        }
+        assertThat(catalog.definition(HabitType.BEDTIME).adjustable).isFalse()
+        assertThat(catalog.all.filter { !it.adjustable }.map { it.type }).containsExactly(HabitType.BEDTIME)
     }
 
     @Test

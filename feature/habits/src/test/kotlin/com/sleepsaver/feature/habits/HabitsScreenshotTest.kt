@@ -130,13 +130,19 @@ class HabitsScreenshotTest : ScreenshotTest() {
         }
     }
 
+    /** An offset stored by an older build changes nothing: Bedtime is the target bedtime, set in Settings or the plan. */
     @Test
-    fun detailBedtimeShiftedBlocked() = captureScreen("habit_detail_bedtime_blocked") {
+    fun detailBedtimeBlocked() = captureScreen("habit_detail_bedtime_blocked") {
         DetailScreen(
             detail(HabitType.BEDTIME, settings(HabitType.BEDTIME to { it.copy(offset = Duration.ofMinutes(-30)) })),
             scrolledToEnd = true,
             blocked = true,
         )
+    }
+
+    @Test
+    fun detailBedtimeLargeFont() = captureScreen("habit_detail_bedtime_large_font") {
+        LargeFont { DetailScreen(detail(HabitType.BEDTIME), scrolledToEnd = true) }
     }
 
     @Test

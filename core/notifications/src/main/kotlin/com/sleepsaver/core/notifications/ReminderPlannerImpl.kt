@@ -202,7 +202,8 @@ class ReminderPlannerImpl internal constructor(
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setWhen(habit.time.toEpochMilli())
-            .setShowWhen(true)
+            // Bedtime is at B, where the no-clock night starts (§5.0): its reminder carries no time.
+            .setShowWhen(habit.category != ReminderCategory.BEDTIME)
         // A window reminder (morning light, wind-down, bedtime, nap) is stale once its window has passed.
         habit.windowEnd?.let { end ->
             val left = Duration.between(time.now(), end)

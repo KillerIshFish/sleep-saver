@@ -7,6 +7,7 @@ import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.DateOverride
 import com.sleepsaver.core.domain.schedule.OverrideKind
+import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import com.sleepsaver.core.domain.schedule.WeekPreset
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.feature.tonight.TestRingEvent
@@ -73,6 +74,19 @@ class WeekPlanViewModelTest {
         assertThat(saturday.alarmOn).isFalse()
         assertThat(saturday.usualWake).isEqualTo(LocalTime.of(8, 10))
         assertThat(saturday.stepsFrom).isEqualTo(at(21, 30, date = TonightSamples.today.plusDays(4)))
+    }
+
+    @Test
+    fun `a row's Night steps start where the energy schedule's wind-down does`() = runTest {
+        val week = TonightSamples.week.let { plan ->
+            plan.with(plan.day(DayOfWeek.TUESDAY).let { it.copy(evening = it.evening.copy(windDownLength = Duration.ofMinutes(90))) })
+        }
+
+        val tuesday = viewModel(TonightFakes(week = week)).ready().rows.first { it.day == DayOfWeek.TUESDAY }
+
+        // Bedtime 23:00 − 30 min − 90 min, from ScheduleTimes.windDownStart like Energy and Night steps.
+        assertThat(tuesday.stepsFrom).isEqualTo(at(21, 0))
+        assertThat(tuesday.stepsFrom).isEqualTo(ScheduleTimes(config).windDownStart(at(23, 0), week.day(DayOfWeek.TUESDAY).evening))
     }
 
     @Test

@@ -165,7 +165,7 @@ fun SleepSaverApp(
  * Every feature's destinations and the cross-feature steps between them: Sleep → the Tonight tab; Tonight → Night
  * steps, the routine editor (a day's or every evening's), Night reset, Settings and the morning review; Night steps →
  * a day's plan and the Tonight tab; Settings → the Week plan and Alarm check; the Evening routine habit → the routine
- * editor (every evening).
+ * editor (every evening); the Bedtime habit → Settings and the Week plan.
  */
 internal fun NavGraphBuilder.appGraph(navController: NavHostController, openPrivacyPolicy: () -> Unit) {
     val openTonight = { navController.navigateToTab(TopLevel.TONIGHT) }
@@ -225,8 +225,14 @@ internal fun NavGraphBuilder.appGraph(navController: NavHostController, openPriv
         onOpenSettings = navController::navigateToSettings,
         onOpenHealthConnectSetup = navController::navigateToHealthConnectSetup,
     )
-    // "Edit Night steps" on the Evening routine habit opens the one routine editor (every evening).
-    habitsGraph(navController, onOpenRoutineEditor = { navController.navigateToRoutineEditor(null) })
+    // "Edit Night steps" on the Evening routine habit opens the one routine editor (every evening); Bedtime's timing
+    // opens where the target bedtime is set: Settings or the week plan.
+    habitsGraph(
+        navController,
+        onOpenRoutineEditor = { navController.navigateToRoutineEditor(null) },
+        onOpenSettings = navController::navigateToSettings,
+        onOpenWeekPlan = navController::navigateToWeekPlan,
+    )
     settingsGraph(
         onBack = { navController.popBackStack() },
         onOpenHabits = navController::navigateToHabits,

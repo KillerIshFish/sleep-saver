@@ -26,7 +26,6 @@ import com.sleepsaver.feature.tonight.NightClock
 import com.sleepsaver.feature.tonight.NightClockSource
 import com.sleepsaver.feature.tonight.TestRingEvent
 import com.sleepsaver.feature.tonight.TonightWriter
-import com.sleepsaver.feature.tonight.nightStepsFrom
 import com.sleepsaver.feature.tonight.oneoff.OneOffContext
 import com.sleepsaver.feature.tonight.oneoff.OneOffWrites
 import com.sleepsaver.feature.tonight.requestTestRing
@@ -111,7 +110,7 @@ internal fun weekRows(
             // This weekday's next evening, tonight included.
             val evening = (0L..6L).map { today.plusDays(it) }.first { it.dayOfWeek == plan.day }
             val bedtime = times.bedtime(evening, inputs.zone, inputs.nights, inputs.settings.sleepNeed, timing).first
-            nightStepsFrom(bedtime, plan.evening, config)
+            times.windDownStart(bedtime, plan.evening)
         } else {
             null
         }
