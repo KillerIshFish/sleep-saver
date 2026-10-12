@@ -68,11 +68,16 @@ import java.time.DayOfWeek
 import java.time.Duration
 import kotlin.math.abs
 
-/** [onEditNightSteps]: the Night steps habit's "Edit Night steps" (the routine editor). */
+/**
+ * [onEditNightSteps]: the Night steps habit's "Edit Night steps" (the routine editor). [onOpenSettings] and
+ * [onOpenWeekPlan]: Bedtime's timing card, since its time is the target bedtime set there.
+ */
 @Composable
 internal fun HabitDetailScreen(
     onBack: () -> Unit,
     onEditNightSteps: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenWeekPlan: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HabitDetailViewModel = hiltViewModel(),
 ) {
@@ -93,6 +98,8 @@ internal fun HabitDetailScreen(
         onTimingChange = viewModel::setTimingValue,
         onResetTiming = viewModel::resetTiming,
         onEditNightSteps = onEditNightSteps,
+        onOpenSettings = onOpenSettings,
+        onOpenWeekPlan = onOpenWeekPlan,
         notificationsBlocked = !notifications.allowed,
         onTurnOnNotifications = notifications::turnOn,
         modifier = modifier,
@@ -109,6 +116,8 @@ internal fun HabitDetailContent(
     onResetTiming: () -> Unit,
     onEditNightSteps: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {},
+    onOpenWeekPlan: () -> Unit = {},
     notificationsBlocked: Boolean = false,
     onTurnOnNotifications: () -> Unit = {},
     scrollState: ScrollState = rememberScrollState(),
@@ -150,6 +159,8 @@ internal fun HabitDetailContent(
                     onTimingChange = onTimingChange,
                     onResetTiming = onResetTiming,
                     onEditNightSteps = onEditNightSteps,
+                    onOpenSettings = onOpenSettings,
+                    onOpenWeekPlan = onOpenWeekPlan,
                     onTurnOnNotifications = onTurnOnNotifications,
                 )
             }
@@ -167,6 +178,8 @@ private fun HabitDetailBody(
     onTimingChange: (Int) -> Unit,
     onResetTiming: () -> Unit,
     onEditNightSteps: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenWeekPlan: () -> Unit,
     onTurnOnNotifications: () -> Unit,
 ) {
     Column(
@@ -198,7 +211,12 @@ private fun HabitDetailBody(
         if (state.type == HabitType.EVENING_ROUTINE) {
             ActivitiesCard(state.activities, state.stepsOffEvenings, onEditNightSteps, Modifier.padding(top = Spacing.cardGap))
         }
-        TimingCard(state, onTimingChange, onResetTiming, Modifier.padding(top = Spacing.cardGap))
+        val timing = state.timing
+        if (timing != null) {
+            TimingCard(state, timing, onTimingChange, onResetTiming, Modifier.padding(top = Spacing.cardGap))
+        } else {
+            FixedTimingCard(onOpenSettings, onOpenWeekPlan, Modifier.padding(top = Spacing.cardGap))
+        }
         WellnessDisclaimer(Modifier.padding(top = Spacing.xxl))
         Spacer(Modifier.height(Spacing.xl))
         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
@@ -361,24 +379,25 @@ private fun ActivitiesCard(
 @Composable
 private fun TimingCard(
     state: HabitDetailUiState.Ready,
+    timing: TimingSpec,
     onTimingChange: (Int) -> Unit,
     onResetTiming: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val format = timingFormatter(state.timing.kind)
+    val format = timingFormatter(timing.kind)
     SectionCard(title = stringResource(R.string.habits_detail_timing), modifier = modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             MinuteStepper(
                 minutes = state.value,
                 onMinutesChange = onTimingChange,
-                step = state.timing.step,
-                min = state.timing.min,
-                max = state.timing.max,
+                step = timing.step,
+                min = timing.min,
+                max = timing.max,
                 format = format,
                 modifier = Modifier.padding(top = Spacing.xs),
             )
             Text(
-                text = timingCaption(state.timing.kind, state.anchor),
+                text = timingCaption(timing.kind, state.anchor),
                 style = MaterialTheme.typography.bodyMedium,
                 color = SleepSaverTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -408,6 +427,33 @@ private fun TimingCard(
     }
 }
 
+/**
+ * Bedtime's timing: no stepper, since it is the target bedtime every screen shows. It says where that bedtime is
+ * changed and opens Settings (the usual bedtime) or the week plan (an evening's own).
+ */
+@Composable
+private fun FixedTimingCard(onOpenSettings: () -> Unit, onOpenWeekPlan: () -> Unit, modifier: Modifier = Modifier) {
+    SectionCard(title = stringResource(R.string.habits_detail_timing), modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.habits_timing_bedtime_fixed),
+            style = MaterialTheme.typography.bodyMedium,
+            color = SleepSaverTheme.colors.textSecondary,
+        )
+        SecondaryButton(
+            text = stringResource(R.string.habits_timing_open_settings),
+            onClick = onOpenSettings,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Spacing.xs),
+        )
+        SecondaryButton(
+            text = stringResource(R.string.habits_timing_open_week_plan),
+            onClick = onOpenWeekPlan,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 /** Formats a stepper value: "10h", "15m", or a shift such as "30m earlier" / "On time". */
 @Composable
 internal fun timingFormatter(kind: TimingKind): (Int) -> String {
@@ -431,7 +477,6 @@ private fun timingCaption(kind: TimingKind, anchor: HabitAnchor): String = strin
         TimingKind.BEFORE_BEDTIME -> R.string.habits_timing_before_bedtime
         TimingKind.AFTER_WAKE -> R.string.habits_timing_after_wake
         TimingKind.SHIFT -> when (anchor) {
-            HabitAnchor.TARGET_BEDTIME -> R.string.habits_timing_shift_bedtime
             HabitAnchor.AFTERNOON_DIP_START -> R.string.habits_timing_shift_dip
             else -> R.string.habits_timing_shift_wind_down
         }

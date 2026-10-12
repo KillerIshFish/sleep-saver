@@ -111,6 +111,21 @@ class HabitSchedulerTest {
     }
 
     @Test
+    fun `a stored Bedtime offset never moves it off the target bedtime`() {
+        // Older builds offered a Bedtime shift; a row saved then (or by any other writer) is ignored.
+        listOf(Duration.ofMinutes(-30), Duration.ofMinutes(60)).forEach { stored ->
+            val settings = catalog.defaultSettings().map { if (it.type == HabitType.BEDTIME) it.copy(offset = stored) else it }
+
+            val bedtime = scheduler.schedule(schedule, settings).of(HabitType.BEDTIME)
+
+            assertThat(bedtime.time).isEqualTo(schedule.targetBedtime)
+            assertThat(bedtime.windowEnd).isEqualTo(at("23:15"))
+        }
+        assertThat(catalog.definition(HabitType.BEDTIME).adjustable).isFalse()
+        assertThat(catalog.all.filter { !it.adjustable }.map { it.type }).containsExactly(HabitType.BEDTIME)
+    }
+
+    @Test
     fun `next up skips disabled habits`() {
         val habits = scheduler.schedule(schedule, catalog.defaultSettings())
 

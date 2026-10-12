@@ -296,6 +296,11 @@ data class HabitDefinition(
     val defaultEnabled: Boolean,
     val defaultReminder: Boolean,
     val category: ReminderCategory,
+    /**
+     * Whether the user's stored offset moves the habit. Bedtime's doesn't: it is the target bedtime itself, which moves
+     * only where B is set (Settings' bedtime, the week plan), so it always agrees with every other screen.
+     */
+    val adjustable: Boolean = true,
 )
 
 /** The user's per-habit settings (stored in Room). */

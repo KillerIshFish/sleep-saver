@@ -17,7 +17,8 @@ import java.time.Instant
  *
  * Bedtime is the schedule's target bedtime B itself, the one bedtime every screen shows (Energy, Tonight, Night
  * steps, the week plan), and its window runs to the end of the melatonin window: with B = 23:00 the habit and its
- * reminder are at 23:00 and it stays "next" until 23:30.
+ * reminder are at 23:00 and it stays "next" until 23:30. Its timing isn't adjustable: a stored offset (older builds
+ * offered a shift) is ignored, and B itself moves in Settings or the week plan.
  */
 class HabitCatalog(config: SleepConfig = SleepConfig.DEFAULT) {
     val all: List<HabitDefinition> = listOf(
@@ -28,11 +29,17 @@ class HabitCatalog(config: SleepConfig = SleepConfig.DEFAULT) {
         HabitDefinition(HabitType.EXERCISE_CUTOFF, HabitAnchor.TARGET_BEDTIME, config.exerciseCutoffBeforeBed.negated(), null, false, false, ReminderCategory.CUTOFFS),
         HabitDefinition(HabitType.DIM_LIGHTS, HabitAnchor.WIND_DOWN_START, Duration.ZERO, config.windDownLength, true, true, ReminderCategory.WIND_DOWN),
         HabitDefinition(HabitType.EVENING_ROUTINE, HabitAnchor.WIND_DOWN_START, Duration.ZERO, config.windDownLength, true, true, ReminderCategory.WIND_DOWN),
-        HabitDefinition(HabitType.BEDTIME, HabitAnchor.TARGET_BEDTIME, Duration.ZERO, config.melatoninHalfWidth, true, true, ReminderCategory.BEDTIME),
+        HabitDefinition(HabitType.BEDTIME, HabitAnchor.TARGET_BEDTIME, Duration.ZERO, config.melatoninHalfWidth, true, true, ReminderCategory.BEDTIME, adjustable = false),
         HabitDefinition(HabitType.NAP_WINDOW, HabitAnchor.AFTERNOON_DIP_START, Duration.ZERO, config.napMaxLength, false, false, ReminderCategory.NAPS),
     )
 
     fun definition(type: HabitType): HabitDefinition = all.first { it.type == type }
+
+    /** The offset [setting] actually times its habit with: the stored one, or the default for a fixed habit. */
+    fun effectiveOffset(setting: HabitSettings): Duration {
+        val definition = definition(setting.type)
+        return if (definition.adjustable) setting.offset else definition.defaultOffset
+    }
 
     fun defaultSettings(): List<HabitSettings> =
         all.map { HabitSettings(it.type, it.defaultEnabled, it.defaultReminder, it.defaultOffset) }
@@ -43,8 +50,9 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
 
     /**
      * One [ScheduledHabit] per HabitType, ordered by time. Missing settings fall back to the catalog defaults.
-     * time = anchor instant + offset; windowEnd = time + definition.window (if any), except for WIND_DOWN_START habits
-     * (dim lights, evening routine): time + the wind-down phase's length, which follows the evening plan.
+     * time = anchor instant + [HabitCatalog.effectiveOffset] (so Bedtime is always B); windowEnd = time +
+     * definition.window (if any), except for WIND_DOWN_START habits (dim lights, evening routine): time + the wind-down
+     * phase's length, which follows the evening plan.
      * Anchors: TYPICAL_WAKE = schedule.typicalWake, TARGET_BEDTIME = schedule.targetBedtime,
      * WIND_DOWN_START / AFTERNOON_DIP_START = that phase's start.
      * EVENING_ROUTINE is still listed when the evening's Night steps are off, without a reminder.
@@ -55,7 +63,7 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
         return catalog.all.mapNotNull { definition ->
             val setting = byType[definition.type]
                 ?: HabitSettings(definition.type, definition.defaultEnabled, definition.defaultReminder, definition.defaultOffset)
-            val time = anchorTime(schedule, definition.anchor)?.plus(setting.offset) ?: return@mapNotNull null
+            val time = anchorTime(schedule, definition.anchor)?.plus(catalog.effectiveOffset(setting)) ?: return@mapNotNull null
             val window = if (definition.anchor == HabitAnchor.WIND_DOWN_START) windDownLength else definition.window
             val stepsOff = definition.type == HabitType.EVENING_ROUTINE && !schedule.nightStepsOn
             ScheduledHabit(

@@ -198,7 +198,7 @@ shown as "↑13m earlier" / "↓8m later" when |shift| ≥ 1 min.
 **Schedule day.** Until yesterday's melatonin window has ended, the home screen, widget and reminders keep using
 yesterday's schedule, so a night owl at 00:30 still sees tonight's wind-down and bedtime, not tomorrow's morning.
 
-### 3.8 Habits (all offsets configurable)
+### 3.8 Habits (offsets configurable, except Bedtime's)
 | Habit | Default time | Default |
 |---|---|---|
 | Morning light | W + 15 m (typical wake: Garmin data lags) | on |
@@ -208,7 +208,7 @@ yesterday's schedule, so a night owl at 00:30 still sees tonight's wind-down and
 | Intense-exercise cutoff | B − 2 h | off |
 | Dim the lights | wind-down start | on |
 | Evening routine | wind-down start, chosen activities | on |
-| Bedtime | target bedtime B, until the melatonin window ends (B + 30 m) | on |
+| Bedtime | target bedtime B, until the melatonin window ends (B + 30 m); fixed at B (moved via Settings → Bedtime or the week plan) | on |
 | Nap window | afternoon-dip start, 20–30 min max | off |
 
 Reminders: one `AlarmManager` alarm for the earliest pending reminder; on fire it posts every reminder due within
@@ -430,7 +430,9 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 27. **One bedtime.** The Bedtime habit used to sit at the melatonin window's start (B − 30 min), so Energy showed a
     bedtime half an hour before the one Tonight, Night steps and the week plan showed, while Night steps were still
     running. It now sits at B, the centre of the melatonin window, and Night steps without nights use the same rule as
-    everything else instead of Settings' own time (§3.5).
+    everything else instead of Settings' own time (§3.5). Its timing has no shift of its own (a stored offset from an
+    older build is ignored): a shifted habit would bring back a second "Bedtime", so its detail screen links to
+    Settings and the week plan, where B is set.
 
 ## 5. Alarm reliability (v2, Android 9–17)
 

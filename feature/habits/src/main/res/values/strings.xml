@@ -73,9 +73,12 @@
     <string name="habits_timing_before_bedtime">before your target bedtime</string>
     <string name="habits_timing_after_wake">after you usually wake up</string>
     <string name="habits_timing_shift_wind_down">compared with the start of your wind-down</string>
-    <string name="habits_timing_shift_bedtime">compared with your target bedtime</string>
     <string name="habits_timing_shift_dip">compared with the start of your afternoon dip</string>
     <string name="habits_shift_none">On time</string>
+    <!-- Bedtime's timing card: it has no stepper, because it is the target bedtime itself -->
+    <string name="habits_timing_bedtime_fixed">Bedtime is always your target bedtime, the same one Tonight and Night steps show. Set your usual bedtime in Settings, or a different one for some evenings in your week plan.</string>
+    <string name="habits_timing_open_settings">Open Settings</string>
+    <string name="habits_timing_open_week_plan">Open week plan</string>
     <!-- "30m earlier" -->
     <string name="habits_shift_earlier">%1$s earlier</string>
     <!-- "30m later" -->

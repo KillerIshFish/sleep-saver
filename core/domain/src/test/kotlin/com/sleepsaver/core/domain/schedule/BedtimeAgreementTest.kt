@@ -5,6 +5,7 @@ import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.insights.InsightsEngine
 import com.sleepsaver.core.domain.model.BedtimeMode
 import com.sleepsaver.core.domain.model.DailyInsights
+import com.sleepsaver.core.domain.model.HabitSettings
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.PhaseType
@@ -30,7 +31,7 @@ import org.junit.jupiter.api.Test
 class BedtimeAgreementTest {
 
     private val engine = InsightsEngine()
-    private val habitSettings = HabitCatalog().defaultSettings()
+    private val defaultHabits = HabitCatalog().defaultSettings()
     private val times = ScheduleTimes()
     private val zone: ZoneId = ZoneId.of("America/New_York")
 
@@ -42,8 +43,11 @@ class BedtimeAgreementTest {
 
     private fun at(date: LocalDate, time: String): Instant = ZonedDateTime.of(date, LocalTime.parse(time), zone).toInstant()
 
-    private fun insights(settings: UserSleepSettings, now: Instant = at(sunday, "20:37")): DailyInsights =
-        engine.compute(nights, settings, habitSettings, now, zone)
+    private fun insights(
+        settings: UserSleepSettings,
+        now: Instant = at(sunday, "20:37"),
+        habitSettings: List<HabitSettings> = defaultHabits,
+    ): DailyInsights = engine.compute(nights, settings, habitSettings, now, zone)
 
     /** Every place an evening's bedtime is read from, for the evening [insights] shows. */
     private fun assertOneBedtime(insights: DailyInsights, settings: UserSleepSettings): Instant {
@@ -85,6 +89,24 @@ class BedtimeAgreementTest {
             UserSleepSettings(bedtimeMode = BedtimeMode.FIXED, bedtime = LocalTime.of(22, 40)),
             UserSleepSettings(week = sundaySetBedtime),
         ).forEach { settings -> assertOneBedtime(insights(settings), settings) }
+    }
+
+    @Test
+    fun `a stored Bedtime habit offset can't bring a second bedtime back`() {
+        // Older builds let Bedtime shift ±60 min; Energy's "Bedtime", Sleep home's "Next" and the reminder would then
+        // have read B ± that under the same name while Tonight, Night steps and the alarm read B.
+        listOf(Duration.ofMinutes(-30), Duration.ofMinutes(45)).forEach { stored ->
+            val habits = defaultHabits.map { if (it.type == HabitType.BEDTIME) it.copy(offset = stored) else it }
+            listOf(UserSleepSettings(), UserSleepSettings(bedtimeMode = BedtimeMode.FIXED, bedtime = LocalTime.of(22, 40))).forEach { settings ->
+                val insights = insights(settings, habitSettings = habits)
+
+                assertOneBedtime(insights, settings)
+                // Before B, the next habit up is Bedtime at B itself.
+                val next = insights(settings, now = insights.schedule.targetBedtime - Duration.ofMinutes(5), habitSettings = habits).nextHabit
+                assertThat(next?.type).isEqualTo(HabitType.BEDTIME)
+                assertThat(next?.time).isEqualTo(insights.schedule.targetBedtime)
+            }
+        }
     }
 
     @Test

@@ -184,16 +184,40 @@ class HabitDetailViewModelTest {
     @Test
     fun `phase habits shift at most an hour either way`() = runTest {
         val dim = viewModel(HabitType.DIM_LIGHTS)
-        val bedtime = viewModel(HabitType.BEDTIME)
+        val nap = viewModel(HabitType.NAP_WINDOW)
 
         dim.setTimingValue(-90)
-        bedtime.setTimingValue(75)
+        nap.setTimingValue(75)
 
         assertThat(storedOffset(HabitType.DIM_LIGHTS)).isEqualTo(Duration.ofMinutes(-60))
-        assertThat(storedOffset(HabitType.BEDTIME)).isEqualTo(Duration.ofMinutes(60))
-        // Bedtime shifts from the target bedtime itself, the one every screen shows.
-        assertThat(bedtime.ready().anchor).isEqualTo(HabitAnchor.TARGET_BEDTIME)
-        assertThat(bedtime.ready().time).isEqualTo(insights.schedule.targetBedtime.plusSeconds(3600))
+        assertThat(storedOffset(HabitType.NAP_WINDOW)).isEqualTo(Duration.ofMinutes(60))
+    }
+
+    @Test
+    fun `bedtime is the target bedtime itself and its timing can't be shifted`() = runTest {
+        val viewModel = viewModel(HabitType.BEDTIME)
+
+        viewModel.setTimingValue(45)
+        viewModel.resetTiming()
+
+        val state = viewModel.ready()
+        assertThat(state.timing).isNull()
+        assertThat(state.anchor).isEqualTo(HabitAnchor.TARGET_BEDTIME)
+        assertThat(state.time).isEqualTo(insights.schedule.targetBedtime)
+        assertThat(state.anchorTime).isEqualTo(insights.schedule.targetBedtime)
+        assertThat(storedOffset(HabitType.BEDTIME)).isEqualTo(Duration.ZERO)
+        assertThat(planner.replans).isEqualTo(0)
+    }
+
+    @Test
+    fun `a bedtime offset stored by an older build is ignored`() = runTest {
+        habits.setOffset(HabitType.BEDTIME, Duration.ofMinutes(-30))
+
+        val state = viewModel(HabitType.BEDTIME).ready()
+
+        // "Right at your target bedtime", not "30m before" it.
+        assertThat(state.offset).isEqualTo(Duration.ZERO)
+        assertThat(state.time).isEqualTo(insights.schedule.targetBedtime)
     }
 
     @Test
