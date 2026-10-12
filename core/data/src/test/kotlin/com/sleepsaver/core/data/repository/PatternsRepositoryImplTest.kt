@@ -146,6 +146,26 @@ class PatternsRepositoryImplTest {
     }
 
     @Test
+    fun `a Hush play or an anchor after the night's wake-up marks no night`() = runTest {
+        sleep.state.value = nights(14) // each woke at 07:00, the last one this morning
+        // Hush tried at 10:27 this morning: wake date today by the 14:00 rule, but this night was over.
+        db.hushPlayDao().insert(HushPlayEntity(startEpochMs = epochMs(today, "10:27"), endEpochMs = epochMs(today, "10:40"), offsetSec = 0, color = "PINK", wakeDate = "$today"))
+        // Anchor dropped yesterday at 09:30 (after that night) and last night at 22:45.
+        db.anchorDao().insert(AnchorEntity(atEpochMs = epochMs(today.minusDays(1), "09:30"), offsetSec = 0, wakeDate = "${today.minusDays(1)}", source = "TONIGHT", wholeNightLog = false))
+        db.anchorDao().insert(AnchorEntity(atEpochMs = epochMs(today.minusDays(1), "22:45"), offsetSec = 0, wakeDate = "$today", source = "TONIGHT", wholeNightLog = false))
+        val repository = repository()
+
+        val effects = repository.markEffects.first { it.isNotEmpty() }
+            .filter { it.metric == EffectMetric.TOTAL_SLEEP }
+            .associateBy { it.mark }
+
+        // Not "Hush on: 1 night, 0 without": Hush can first have been on tonight.
+        assertThat(effects.getValue(Mark.HUSH_USED).let { it.withNights to it.withoutNights }).isEqualTo(0 to 0)
+        // Only last night's anchor counts, and it is the first night one could have.
+        assertThat(effects.getValue(Mark.ANCHOR_DROPPED).let { it.withNights to it.withoutNights }).isEqualTo(1 to 0)
+    }
+
+    @Test
     fun `anchor stats use the anchor that counts for the night, or the latest one before the night is in`() = runTest {
         sleep.state.value = listOf(testNight(today)) // asleep 23:00
         db.anchorDao().insert(AnchorEntity(atEpochMs = epochMs(today.minusDays(1), "22:40"), offsetSec = 0, wakeDate = "$today", source = "TONIGHT", wholeNightLog = false))

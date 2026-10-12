@@ -339,7 +339,9 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 ### 3.14 Marks and Morning feel (v2)
 - Marks (stored): late caffeine, alcohol, late meal, late workout, stress, screens in bed, away from home, unwell.
   Derived: Night steps done, Hush on, anchor dropped. Keyed by the wake date of the night they precede; editable for
-  7 days (and tonight).
+  7 days (and tonight). Hush on and anchor dropped go with the night a play or tap fell in: its wake date (14:00
+  cutoff), but only before that night's last wake-up. One after it (Hush tried at 10:27 after a 07:20 wake) was
+  daytime use and marks no night, and the mark's first date is then the next night.
 - "What went with your nights": per mark × metric (total sleep, awake time, Morning feel) over 90 days from the mark's
   first date; ≥ 6 nights with and without; difference of medians with a seeded 90 % bootstrap interval (1000
   resamples). CLEAR when the interval excludes 0 by ≥ 15 min sleep / 5 min awake / 0.5 feel, POSSIBLE when it just

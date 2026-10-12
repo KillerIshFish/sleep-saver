@@ -15,6 +15,7 @@ import com.sleepsaver.core.domain.alarm.DeepPriorEstimator
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Anchor
 import com.sleepsaver.core.domain.journal.Mark
+import com.sleepsaver.core.domain.journal.momentMarkDates
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.RoutineActivity
 import com.sleepsaver.core.domain.model.UserSleepSettings
@@ -42,6 +43,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -118,7 +120,10 @@ class PatternsRepositoryImpl @Inject internal constructor(
         .flowOn(defaultDispatcher)
         .distinctUntilChanged()
 
-    /** Stored marks plus the derived ones (Night steps done the evening before, Hush used, anchor dropped). */
+    /**
+     * Stored marks plus the derived ones: Night steps done the evening before, and Hush used and anchor dropped during
+     * the night ([momentMarkDates]: a play or tap after the night's wake-up was daytime use and marks no night).
+     */
     override val markEffects: Flow<List<MarkEffect>> = combine(
         combine(
             database.nightMarkDao().observeAll().orFallback(TAG, "Marks query") { emptyList() },
@@ -206,7 +211,9 @@ class PatternsRepositoryImpl @Inject internal constructor(
         val stored = marksByDate(journal.marks)
         val logs = journal.stepLogs.map { it.toDomain() }
         val anchors: List<Anchor> = anchorRows.map { it.toDomain() }
-        val hushDates = hush.map { LocalDate.parse(it.wakeDate) }
+        val nightsByDate = nights.associateBy { it.wakeDate }
+        val hushUsed = momentMarkDates(hush.map { Instant.ofEpochMilli(it.startEpochMs) to LocalDate.parse(it.wakeDate) }, nightsByDate)
+        val anchorDropped = momentMarkDates(anchors.map { it.at to it.wakeDate }, nightsByDate)
 
         // Night steps done on evening E → mark on wake date E + 1, by stepAdherence's own DONE rule.
         val plannedCount = { evening: LocalDate ->
@@ -223,8 +230,8 @@ class PatternsRepositoryImpl @Inject internal constructor(
 
         val derived = mapOf(
             Mark.NIGHT_STEPS_DONE to stepsDone.toSet(),
-            Mark.HUSH_USED to hushDates.toSet(),
-            Mark.ANCHOR_DROPPED to anchors.mapTo(HashSet()) { it.wakeDate },
+            Mark.HUSH_USED to hushUsed.dates,
+            Mark.ANCHOR_DROPPED to anchorDropped.dates,
         )
         val marks = HashMap<LocalDate, MutableSet<Mark>>()
         stored.forEach { (date, set) -> marks.getOrPut(date) { HashSet() } += set }
@@ -234,8 +241,8 @@ class PatternsRepositoryImpl @Inject internal constructor(
         val firstDates = HashMap<Mark, LocalDate>()
         stored.forEach { (date, set) -> set.forEach { mark -> firstDates.merge(mark, date) { a, b -> minOf(a, b) } } }
         logs.minOfOrNull { it.nightOf }?.let { firstDates[Mark.NIGHT_STEPS_DONE] = it.plusDays(1) }
-        hushDates.minOrNull()?.let { firstDates[Mark.HUSH_USED] = it }
-        anchors.minOfOrNull { it.wakeDate }?.let { firstDates[Mark.ANCHOR_DROPPED] = it }
+        hushUsed.first?.let { firstDates[Mark.HUSH_USED] = it }
+        anchorDropped.first?.let { firstDates[Mark.ANCHOR_DROPPED] = it }
 
         val feel = journal.feel.mapNotNull { it.toDomainOrNull() }.associate { it.wakeDate to it.feel }
         return markEffectsCalculator.effects(nights, marks, feel, firstDates, today)
