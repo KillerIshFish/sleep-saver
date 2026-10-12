@@ -230,7 +230,7 @@ class OnboardingContentTest {
             ),
         )
 
-        compose.onNodeWithText("Your free nights suggest 8h 35m (medium confidence)").assertIsDisplayed()
+        compose.onNodeWithText("Your free nights suggest 8h 35m (medium confidence)").assertIsDisplayed()
         // The same words as the Sleep tab's card.
         compose.onNodeWithText("Based on 6 nights you woke at least 45 min later than on a usual weekday.").assertIsDisplayed()
         compose.onNodeWithText("Use it").performClick()

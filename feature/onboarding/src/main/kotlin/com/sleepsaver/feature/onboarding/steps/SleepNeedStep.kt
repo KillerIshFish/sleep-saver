@@ -147,7 +147,8 @@ private fun SuggestionCard(suggestion: NeedSuggestion, inUse: Boolean, onUse: ()
                 Text(
                     text = stringResource(
                         R.string.onboarding_need_suggestion,
-                        formatDuration(Duration.ofMinutes(suggestion.minutes.toLong())),
+                        // "8h 35m" stays on one line when "In use" narrows the card.
+                        formatDuration(Duration.ofMinutes(suggestion.minutes.toLong())).replace(' ', ' '),
                         confidence,
                     ),
                     style = MaterialTheme.typography.titleSmall,
