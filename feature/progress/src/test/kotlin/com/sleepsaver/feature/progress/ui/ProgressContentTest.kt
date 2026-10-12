@@ -1,10 +1,16 @@
 package com.sleepsaver.feature.progress.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -14,6 +20,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.patterns.KeelResult
@@ -51,19 +59,23 @@ class ProgressContentTest {
     private var next = 0
     private var latest = 0
 
-    private fun show(state: ProgressUiState) {
+    /** Shows [state], with the system font scaled by [fontScale] when given. */
+    private fun show(state: ProgressUiState, fontScale: Float? = null) {
         compose.setContent {
-            SleepSaverTheme {
-                ProgressContent(
-                    state = state,
-                    onPreviousWindow = { previous++ },
-                    onNextWindow = { next++ },
-                    onLatestWindow = { latest++ },
-                    onOpenNight = { opened += it },
-                    onAddMissingNight = { added += it },
-                    onOpenSettings = { settingsOpened++ },
-                    onOpenHealthConnectSetup = { setupOpened++ },
-                )
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides if (fontScale == null) density else Density(density.density, fontScale)) {
+                SleepSaverTheme {
+                    ProgressContent(
+                        state = state,
+                        onPreviousWindow = { previous++ },
+                        onNextWindow = { next++ },
+                        onLatestWindow = { latest++ },
+                        onOpenNight = { opened += it },
+                        onAddMissingNight = { added += it },
+                        onOpenSettings = { settingsOpened++ },
+                        onOpenHealthConnectSetup = { setupOpened++ },
+                    )
+                }
             }
         }
     }
@@ -94,6 +106,52 @@ class ProgressContentTest {
         compose.onNodeWithText("Sleep quality").performClick()
         compose.onNodeWithText(NIGHTS_HEADER).assertIsDisplayed()
     }
+
+    @Test
+    fun `the tabs stay put when a large font wraps the nights but not the days`() {
+        show(ProgressFixtures.ready(), fontScale = 2f)
+
+        // At twice the font size the tabs read "Times | Debt | Quality".
+        assertTabsStayPut(nights = NIGHTS_HEADER, days = DAYS_HEADER, timesTab = "Times", debtTab = "Debt", qualityTab = "Quality")
+    }
+
+    @Test
+    fun `the tabs stay put when the nights of a window across the new year wrap but its days don't`() {
+        val newYear = LocalDate.of(2027, 1, 4)
+        show(ProgressFixtures.ready(SampleData.nights(today = newYear), today = newYear))
+
+        assertTabsStayPut(
+            nights = "Nights of Dec 21, 2026 – Jan 3, 2027",
+            days = "Dec 22, 2026 – Jan 4, 2027",
+            timesTab = "Sleep times",
+            debtTab = "Sleep debt",
+            qualityTab = "Sleep quality",
+        )
+    }
+
+    /**
+     * Checks that the [nights] header wraps to more lines than the [days] one (so the test means something), then that
+     * switching between tabs, and so between the two, never moves the tab row.
+     */
+    private fun assertTabsStayPut(nights: String, days: String, timesTab: String, debtTab: String, qualityTab: String) {
+        val nightsHeight = compose.onNodeWithText(nights).assertIsDisplayed().height()
+        val top = tab(timesTab).top()
+
+        tab(debtTab).performClick()
+        assertThat(compose.onNodeWithText(days).assertIsDisplayed().height()).isLessThan(nightsHeight)
+        assertThat(tab(debtTab).top()).isEqualTo(top)
+
+        tab(qualityTab).performClick()
+        compose.onNodeWithText(nights).assertIsDisplayed()
+        assertThat(tab(qualityTab).top()).isEqualTo(top)
+    }
+
+    /** The segment of the tab row labelled [label] (not a card title with the same words). */
+    private fun tab(label: String) = compose.onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+
+    private fun SemanticsNodeInteraction.top(): Dp = getBoundsInRoot().top
+
+    private fun SemanticsNodeInteraction.height(): Dp = getBoundsInRoot().let { it.bottom - it.top }
 
     @Test
     fun `tapping a bar opens that night, a placeholder adds it`() {

@@ -184,7 +184,10 @@ private val ScreenPadding = PaddingValues(
     bottom = Spacing.xl,
 )
 
-/** The title, the dates [tab] shows (see [windowSubtitle]), the two-week pager and Settings. */
+/**
+ * The title, the dates [tab] shows (see [windowSubtitle]), the two-week pager and Settings. The dates keep the height
+ * of the tallest tab's, so the tabs below stay put under the finger when "Nights of …" wraps and the days don't.
+ */
 @Composable
 private fun ProgressHeader(
     window: ProgressWindow?,
@@ -194,9 +197,11 @@ private fun ProgressHeader(
     tab: ProgressTab = ProgressTab.SLEEP_TIMES,
 ) {
     val colors = SleepSaverTheme.colors
+    val subtitles = window?.let { w -> ProgressTab.entries.associateWith { windowSubtitle(w, it) } }
     ScreenHeader(
         title = stringResource(R.string.progress_title),
-        subtitle = window?.let { windowSubtitle(it, tab) },
+        subtitle = subtitles?.getValue(tab),
+        subtitleAlternatives = subtitles?.values?.toList().orEmpty(),
     ) {
         if (window != null) {
             Row(
