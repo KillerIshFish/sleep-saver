@@ -4,9 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -28,8 +26,10 @@ import com.sleepsaver.core.ui.components.LoadingOrb
 import com.sleepsaver.core.ui.theme.Spacing
 
 /**
- * The frame of every Night steps screen: the app background, safe-area padding at the top and sides, and a back
- * (or close) button above [content]. Bodies scroll on their own and end with the bottom inset.
+ * The frame of every Night steps screen: the app background, a back (or close) button above [content], and the
+ * safe area on every side. The background runs edge to edge, but the content (scrolling bodies, a running tool's End,
+ * Night reset's "Back to night") stays clear of the status bar, the navigation bar (gesture or three-button) and the
+ * keyboard, also while it scrolls.
  */
 @Composable
 internal fun WinddownSurface(
@@ -40,7 +40,7 @@ internal fun WinddownSurface(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
+        Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
             TopIconButton(
                 icon = backIcon,
                 description = backDescription,

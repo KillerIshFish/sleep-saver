@@ -1,10 +1,6 @@
 package com.sleepsaver.feature.tonight.night
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.ui.components.HushControlsState
@@ -30,9 +26,7 @@ class NightScreenshotTest : ScreenshotTest() {
     /** As NightScreen lays it out. */
     @Composable
     private fun Night(model: NightModel, hush: HushControlsState = this.hush) {
-        Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-            NightContent(night = model, hush = hush, actions = NightActions())
-        }
+        NightScreenFrame { NightContent(night = model, hush = hush, actions = NightActions()) }
     }
 
     @Test
@@ -56,4 +50,14 @@ class NightScreenshotTest : ScreenshotTest() {
 
     @Test
     fun largeFont() = captureScreen("night_screen_large_font") { LargeFont { Night(NightModel(alarm, log = MovementLog.LOGGING)) } }
+
+    // The status bar and a three-button navigation bar (grey bands): nothing readable or tappable under them.
+
+    @Test
+    fun systemBars() = captureClearOfSystemBars("bars_night_screen") { Night(NightModel(alarm, log = MovementLog.STOPPED)) }
+
+    @Test
+    fun systemBarsLargeFont() = captureClearOfSystemBars("bars_night_screen_large_font") {
+        LargeFont { Night(NightModel(alarm, log = MovementLog.LOGGING)) }
+    }
 }

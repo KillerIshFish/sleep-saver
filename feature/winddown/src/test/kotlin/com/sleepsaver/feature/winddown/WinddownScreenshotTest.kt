@@ -17,6 +17,7 @@ import com.sleepsaver.core.testing.PlanSamples.NightVariant
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.core.ui.format.LocalUse24HourClock
 import com.sleepsaver.core.ui.testing.ScreenshotTest
+import com.sleepsaver.core.ui.testing.rememberScrolledToEnd
 import com.sleepsaver.feature.winddown.editor.RoutineEditorActions
 import com.sleepsaver.feature.winddown.editor.RoutineEditorContent
 import com.sleepsaver.feature.winddown.editor.RoutineEditorUiState
@@ -285,5 +286,80 @@ class WinddownScreenshotTest : ScreenshotTest() {
     @Test
     fun nightResetLargeFont() = captureScreen("night_reset_large_font") {
         LargeFont { NightResetContent(reset(ResetStage.TEXT, nightState = PlanSamples.nightState(NightVariant.HUSH_PLAYING)), NightResetActions()) }
+    }
+
+    // ---------------------------------------------------------------- System bars
+    // The status bar and a three-button navigation bar as the edge-to-edge app gets them (the grey bands): nothing
+    // that shows text or takes a tap may sit under them, at the top of a scroll, at its end, or on a fixed layout.
+
+    /** The e2e bug: "Back to night" ran under the gesture bar, as the advice scrolled under it. */
+    @Test
+    fun nightResetTextBars() = captureClearOfSystemBars("bars_night_reset_text") { NightResetContent(reset(ResetStage.TEXT), NightResetActions()) }
+
+    @Test
+    fun nightResetTextEndBars() = captureClearOfSystemBars("bars_night_reset_text_end") {
+        NightResetContent(reset(ResetStage.TEXT), NightResetActions(), scrollState = rememberScrolledToEnd())
+    }
+
+    @Test
+    fun nightResetBreathingBars() = captureClearOfSystemBars("bars_night_reset_breathing") {
+        NightResetContent(reset(ResetStage.BREATHING, eyesClosed = false), NightResetActions(), breathProgress = 0.4f)
+    }
+
+    @Test
+    fun nightStepsBars() = captureClearOfSystemBars("bars_night_steps") { Steps(WinddownSamples.nightSteps()) }
+
+    @Test
+    fun nightStepsEndBars() = captureClearOfSystemBars("bars_night_steps_end") {
+        NightStepsContent(WinddownSamples.nightSteps(), NightStepsActions(), scrollState = rememberScrolledToEnd())
+    }
+
+    @Test
+    fun editorBars() = captureClearOfSystemBars("bars_editor") { Editor(routineEditorUiState(null, WeekPlan.DEFAULT, richActivities(), SampleData.habits)) }
+
+    @Test
+    fun editorEndBars() = captureClearOfSystemBars("bars_editor_end") {
+        RoutineEditorContent(
+            routineEditorUiState(null, WeekPlan.DEFAULT, richActivities(), SampleData.habits),
+            RoutineEditorActions(),
+            scrollState = rememberScrolledToEnd(),
+        )
+    }
+
+    @Test
+    fun libraryBars() = captureClearOfSystemBars("bars_library") { StepLibraryContent(library, StepLibraryActions()) }
+
+    @Test
+    fun slowTideSetupBars() = captureClearOfSystemBars("bars_slow_tide_setup") { SlowTideContent(tide(ToolStage.Setup), SlowTideActions()) }
+
+    @Test
+    fun slowTideBars() = captureClearOfSystemBars("bars_slow_tide") { SlowTideContent(tide(breathingIn), SlowTideActions(), breathProgress = 0.6f) }
+
+    @Test
+    fun slowTideEyesClosedBars() = captureClearOfSystemBars("bars_slow_tide_eyes_closed") {
+        SlowTideContent(tide(breathingIn, eyesClosed = true), SlowTideActions(), breathProgress = 0.6f)
+    }
+
+    @Test
+    fun bodyScanBars() = captureClearOfSystemBars("bars_body_scan") {
+        BodyScanContent(ToolStage.Running(RunPosition(index = 2, count = 10, cue = 2, length = config.steps.bodyScanStep)), BodyScanActions())
+    }
+
+    @Test
+    fun muscleReleaseIntroBars() = captureClearOfSystemBars("bars_muscle_release_intro") { MuscleReleaseContent(ToolStage.Setup, MuscleReleaseActions()) }
+
+    @Test
+    fun muscleReleaseBars() = captureClearOfSystemBars("bars_muscle_release") {
+        val cue = MuscleCue(MuscleGroup.SHOULDERS, tense = true)
+        MuscleReleaseContent(ToolStage.Running(RunPosition(index = 6, count = 24, cue = cue, length = config.steps.muscleTense)), MuscleReleaseActions())
+    }
+
+    @Test
+    fun tomorrowListBars() = captureClearOfSystemBars("bars_tomorrow_list") {
+        TomorrowListContent(
+            state = TomorrowListUiState.Ready(PlanSamples.today, "Call Sam about the boiler\nBuy oat milk", saved = true, checkedOff = true),
+            onDone = {},
+            onClose = {},
+        )
     }
 }
