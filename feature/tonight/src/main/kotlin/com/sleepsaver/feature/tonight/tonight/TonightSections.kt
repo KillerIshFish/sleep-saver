@@ -239,7 +239,7 @@ private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, show
             is AlarmCardModel.DayOff -> {
                 BigLine(stringResource(R.string.tonight_alarm_no_alarm_day, dayName))
                 Line(stringResource(R.string.tonight_alarm_day_off))
-                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time))) }
+                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time, state.today))) }
                 CardActions {
                     TextLinkButton(stringResource(R.string.tonight_action_turn_back_on), onClick = { actions.onTurnBackOn(alarm.wakeDate) })
                 }
@@ -247,7 +247,7 @@ private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, show
             is AlarmCardModel.Paused -> {
                 BigLine(stringResource(R.string.tonight_alarm_paused))
                 Line(stringResource(R.string.tonight_alarm_paused_until, formatShortDate(alarm.until, state.today)))
-                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time))) }
+                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time, state.today))) }
                 CardActions {
                     TextLinkButton(stringResource(R.string.tonight_action_resume), onClick = actions.onResumeAlarms)
                 }
@@ -258,7 +258,7 @@ private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, show
                         if (alarm.wakeDate == state.today) R.string.tonight_alarm_none_today else R.string.tonight_alarm_none,
                     ),
                 )
-                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time))) }
+                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time, state.today))) }
                 CardActions {
                     TextLinkButton(stringResource(R.string.tonight_action_set_one, dayName), onClick = { actions.onOneOff(alarm.wakeDate) })
                     TextLinkButton(stringResource(R.string.tonight_action_week_plan), onClick = actions.onOpenWeekPlan)
@@ -281,7 +281,7 @@ private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, show
                         else -> stringResource(R.string.tonight_alarm_done_ended, dayName)
                     },
                 )
-                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time))) }
+                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time, state.today))) }
                 CardActions {
                     TextLinkButton(stringResource(R.string.tonight_action_set_one, dayName), onClick = { actions.onOneOff(alarm.wakeDate) })
                     TextLinkButton(stringResource(R.string.tonight_action_week_plan), onClick = actions.onOpenWeekPlan)

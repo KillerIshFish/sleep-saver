@@ -32,6 +32,7 @@ import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.tonight.TonightPhase
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import com.sleepsaver.feature.tonight.night.NightActions
 import org.junit.Rule
 import org.junit.Test
@@ -194,11 +195,21 @@ class TonightContentTest {
 
         compose.onNodeWithText("No alarm Wed").assertExists()
         compose.onNodeWithText("Wed's alarm already rang.").assertExists()
-        compose.onNodeWithText("Next alarm: Thu 6:45 AM").assertExists()
+        compose.onNodeWithText("Next alarm: Thu 6:45\u00A0AM").assertExists()
         compose.onNodeWithText("May ring from", substring = true).assertDoesNotExist()
         tap("Set one for Wed")
 
         assertThat(calls).containsExactly("oneOff:$wednesday")
+    }
+
+    @Test
+    fun `a next alarm a week away carries its date`() {
+        // Tuesday-only 6:45, the morning it rang: the next one is next Tuesday.
+        val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        show(s.ready(s.inputs(at(7, 30), week = tuesdays)))
+
+        compose.onNodeWithText("No alarm tomorrow").assertExists()
+        compose.onNodeWithText("Next alarm: Tue, Oct\u00A013, 6:45\u00A0AM").assertExists()
     }
 
     @Test

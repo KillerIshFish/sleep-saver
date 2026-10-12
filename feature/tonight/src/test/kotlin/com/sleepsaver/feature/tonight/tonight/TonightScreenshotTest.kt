@@ -8,6 +8,7 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
+import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.PlanPause
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.PlanSamples.NightVariant
@@ -18,7 +19,9 @@ import com.sleepsaver.feature.tonight.LargeFont
 import com.sleepsaver.feature.tonight.SheetOver
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import org.junit.Test
+import java.time.DayOfWeek
 
 /** The Tonight tab in each phase and card state (SPEC_V2 §5.2). Tue Oct 6, alarm Mon–Fri 6:45, bedtime 23:00. */
 class TonightScreenshotTest : ScreenshotTest() {
@@ -87,6 +90,13 @@ class TonightScreenshotTest : ScreenshotTest() {
         val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
         val alarms = s.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
         captureScreen("tonight_alarm_done") { Tonight(s.ready(s.inputs(now, alarms = alarms, tomorrowEvent = rang))) }
+    }
+
+    /** A Tuesday-only alarm the morning it rang: the next one, a week away, carries its date. */
+    @Test
+    fun nextAlarmNextWeek() = captureScreen("tonight_next_alarm_next_week") {
+        val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        Tonight(s.ready(s.inputs(at(7, 30), week = tuesdays)))
     }
 
     @Test

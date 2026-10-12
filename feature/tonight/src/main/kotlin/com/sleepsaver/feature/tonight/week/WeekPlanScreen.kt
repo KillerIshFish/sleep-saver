@@ -83,6 +83,7 @@ import com.sleepsaver.feature.tonight.TonightSnackbarHost
 import com.sleepsaver.feature.tonight.dayAndTime
 import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.WeekPlanNavigation
+import com.sleepsaver.feature.tonight.nearDay
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheet
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import java.time.DayOfWeek
@@ -224,7 +225,7 @@ private fun ReadyWeekPlan(
         state.oneOffs.pause?.let { pause ->
             Spacer(Modifier.height(Spacing.l))
             NoticeCard(
-                title = stringResource(R.string.tonight_week_paused, formatDayShort(pause.until.dayOfWeek)),
+                title = stringResource(R.string.tonight_week_paused, nearDay(pause.until, state.today)),
                 body = stringResource(R.string.tonight_week_paused_body),
                 icon = Icons.Rounded.AlarmOff,
                 actionLabel = stringResource(R.string.tonight_action_resume_short),
@@ -300,7 +301,7 @@ private fun ReadyWeekPlan(
 private fun subtitle(state: WeekPlanUiState.Ready): String {
     val next = state.next ?: return stringResource(R.string.tonight_week_no_alarms)
     val occurrence = next.occurrence
-    val alarm = dayAndTime(occurrence.date, occurrence.localTime)
+    val alarm = dayAndTime(occurrence.date, occurrence.localTime, state.today)
     val window = next.window.length.toMinutes().toInt()
     val surfacing = occurrence.settings.mode == AlarmMode.SURFACING
     return when {

@@ -44,7 +44,7 @@
     <!-- %1$s: the short day name, e.g. "Tue". -->
     <string name="tonight_alarm_no_alarm_day">No alarm %1$s</string>
     <string name="tonight_alarm_day_off">Day off</string>
-    <!-- %1$s: the next alarm's day and time, e.g. "Wed 6:45 AM". -->
+    <!-- %1$s: the next alarm's day and time, e.g. "Wed 6:45 AM", or "Mon, Oct 19, 6:50 AM" when 6 or more days away. -->
     <string name="tonight_alarm_next">Next alarm: %1$s</string>
     <string name="tonight_alarm_paused">Alarms paused</string>
     <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->
@@ -166,14 +166,15 @@
 
     <!-- Week plan -->
     <string name="tonight_week_plan_title">Week plan</string>
-    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM"; %2$d: its window in minutes. -->
+    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM" ("Mon, Oct 19, 6:50 AM" when 6 or more days away);
+         %2$d: its window in minutes. -->
     <string name="tonight_week_next_window">Next: %1$s · window %2$d min</string>
-    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM". -->
+    <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM" ("Mon, Oct 19, 6:50 AM" when 6 or more days away). -->
     <string name="tonight_week_next">Next: %1$s</string>
     <!-- At night, without "Next". %1$s: day and time; %2$d: window in minutes. -->
     <string name="tonight_week_alarm_window">%1$s · window %2$d min</string>
     <string name="tonight_week_no_alarms">No alarms set</string>
-    <!-- %1$s: the last paused day, e.g. "Sun". -->
+    <!-- %1$s: the last paused day, e.g. "Sun" ("Sun, Oct 25" when 6 or more days away). -->
     <string name="tonight_week_paused">Alarms paused until %1$s</string>
     <string name="tonight_week_paused_body">No alarm rings until then. The week plan stays as it is.</string>
     <string name="tonight_oneoffs_title">One-off changes</string>

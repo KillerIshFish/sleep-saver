@@ -21,6 +21,7 @@ import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.tonight.TonightSamples
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -80,6 +81,15 @@ class WeekPlanContentTest {
     }
 
     @Test
+    fun `a next alarm a week away carries its date`() {
+        // Tuesday-only 6:45 seen on Tuesday afternoon: the next one is next Tuesday, not today.
+        val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        show(s.weekPlanState(week = tuesdays))
+
+        compose.onNodeWithText("Next: Tue, Oct\u00A013, 6:45\u00A0AM · window 30 min").assertExists()
+    }
+
+    @Test
     fun `at night the subtitle drops Next`() {
         show(s.weekPlanState(night = true))
         compose.onNodeWithText("Wed 6:45\u00A0AM · window 30 min").assertExists()
@@ -126,7 +136,8 @@ class WeekPlanContentTest {
         compose.onNodeWithText("Wed, Oct 7: day off").assertExists()
         compose.onNodeWithText("Thu, Oct 8: 5:30\u00A0AM just this once").assertExists()
         compose.onNodeWithText("Paused until Mon, Oct 12").assertExists()
-        compose.onNodeWithText("Alarms paused until Mon").assertExists()
+        // Six days away: with its date.
+        compose.onNodeWithText("Alarms paused until Mon, Oct\u00A012").assertExists()
         compose.onAllNodesWithText("Undo")[0].performScrollTo().performClick()
         compose.onAllNodesWithText("Undo")[1].performScrollTo().performClick()
         compose.onAllNodesWithText("Undo")[2].performScrollTo().performClick()
