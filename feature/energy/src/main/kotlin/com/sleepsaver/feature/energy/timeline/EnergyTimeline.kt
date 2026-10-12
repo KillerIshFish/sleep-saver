@@ -126,13 +126,16 @@ internal object TimelineDimens {
     val HabitIcon = 28.dp
     val HabitIconGap = 8.dp
     val HabitEndPadding = 10.dp
+
+    /** A shared habit row ends at least this far left of the energy curve. */
+    val CurveClearance = 8.dp
 }
 
 /**
  * Pixel columns for a timeline [width] wide. The hour axis is as wide as its widest label at the current font
  * size and clock format, and label heights follow the font scale, so large text never spills into the next label.
  * Habit titles and the widest clock time are measured too, so habits at the same minute share a label row only
- * while they fit side by side.
+ * while they fit side by side, left of the curve.
  */
 @Composable
 internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
@@ -186,6 +189,7 @@ internal fun rememberTimelineSpec(width: Dp): TimelineSpec {
                     TimelineDimens.HabitStartPadding + TimelineDimens.HabitIcon + TimelineDimens.HabitIconGap +
                         TimelineDimens.HabitEndPadding
                     ).toPx(),
+                curveClearance = TimelineDimens.CurveClearance.toPx(),
             )
         }
     }
@@ -298,7 +302,8 @@ internal fun EnergyTimeline(
                 modifier = Modifier.offset { IntOffset(layout.labelLeft.roundToInt(), now.labelTop.roundToInt()) },
             )
         }
-        // A wide row (habits sharing a minute) can reach the curve late in the evening: its dots stay on top.
+        // A shared row stays left of the curve, but one habit's label at large text can still reach it late in the
+        // evening: the dots stay on top.
         Canvas(Modifier.fillMaxSize()) {
             layout.habits.forEach { mark ->
                 drawCircle(palette.background, radius = 5.dp.toPx(), center = Offset(mark.anchorX, mark.anchorY))

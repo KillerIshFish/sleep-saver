@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.energy.timeline
 
+import androidx.compose.ui.geometry.Offset
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.PhaseType
@@ -410,6 +411,60 @@ class TimelineGeometryTest {
     }
 
     @Test
+    fun `a shared row that would reach the curve goes back to one row per habit`() {
+        // Sunday 8:20 PM: Dim the lights and Night steps at the wind-down's start. The label column starts at about
+        // 200 px and the curve runs between 594 and 1030 px: with 20 px of clearance a 300-px row always fits, and an
+        // 800-px one (still inside the column) never does.
+        val state = EnergyTestData.sundayEvening()
+        fun spec(habitWidth: Float) = testSpec().copy(habitChromeWidth = habitWidth, curveClearance = 20f)
+
+        val narrow = buildTimelineLayout(state, spec(150f))
+        val wide = buildTimelineLayout(state, spec(400f))
+
+        assertThat(narrow.rowOf(HabitType.DIM_LIGHTS).habits.map { it.type })
+            .containsExactly(HabitType.DIM_LIGHTS, HabitType.EVENING_ROUTINE).inOrder()
+        assertThat(wide.rowOf(HabitType.DIM_LIGHTS).habits.map { it.type }).containsExactly(HabitType.DIM_LIGHTS)
+        assertThat(wide.rowOf(HabitType.EVENING_ROUTINE).habits.map { it.type }).containsExactly(HabitType.EVENING_ROUTINE)
+        listOf(narrow, wide).forEach { layout ->
+            layout.habits.forEach { row ->
+                val curveX = layout.curve.minXBetween(row.labelTop, row.labelTop + layout.spec.habitHeight) ?: return@forEach
+                if (row.habits.size > 1) assertThat(layout.labelLeft + row.width + layout.spec.curveClearance).isAtMost(curveX)
+            }
+            assertNoLabelOverlap(layout)
+        }
+    }
+
+    @Test
+    fun `the curve's leftmost point between two heights counts its edges`() {
+        val curve = listOf(Offset(300f, 0f), Offset(200f, 100f), Offset(250f, 200f))
+
+        assertThat(curve.minXBetween(50f, 150f)).isEqualTo(200f)
+        assertThat(curve.minXBetween(0f, 50f)).isEqualTo(250f)
+        assertThat(curve.minXBetween(150f, 400f)).isEqualTo(225f)
+        assertThat(curve.minXBetween(300f, 400f)).isNull()
+    }
+
+    @Test
+    fun `a crowded stretch drops its pills' shift captions, a roomy one keeps them`() {
+        // 9:10 PM: wind-down, Dim the lights and Night steps (all at 9:31), the melatonin window and bedtime, all in
+        // the stretch under the now pill, can't all sit within 30 min of their times.
+        val crowded = buildTimelineLayout(EnergyTestData.ready(now = at(21, 10)), testSpec())
+        val shifted = crowded.phases.filter { it.phase.hasShift() && it.anchorY > crowded.now!!.y }
+        assertThat(shifted.map { it.phase.type }).containsAtLeast(PhaseType.WIND_DOWN, PhaseType.MELATONIN_WINDOW)
+        shifted.forEach {
+            assertThat(it.showsShift).isFalse()
+            assertThat(it.labelHeight).isEqualTo(testSpec().pillHeight)
+        }
+        assertNoLabelOverlap(crowded)
+
+        // Sunday 8:20 PM has the room: wind-down keeps its "↑47m earlier".
+        val roomy = buildTimelineLayout(EnergyTestData.sundayEvening(), testSpec())
+        val windDown = roomy.phases.single { it.phase.type == PhaseType.WIND_DOWN }
+        assertThat(windDown.showsShift).isTrue()
+        assertThat(windDown.labelHeight).isEqualTo(testSpec().pillHeight + testSpec().captionHeight)
+    }
+
+    @Test
     fun `in a crowded evening nothing after now moves above it and the range runs on to fit`() {
         val state = EnergyTestData.ready(now = at(21, 10))
         val layout = buildTimelineLayout(state, testSpec())
@@ -576,6 +631,8 @@ class TimelineGeometryTest {
         nowHeight = 68f,
         labelGap = 16f,
     )
+
+    private fun TimelineLayout.rowOf(type: HabitType): HabitMark = habits.single { row -> row.habits.any { it.type == type } }
 
     private fun assertNoLabelOverlap(layout: TimelineLayout) {
         val spec = layout.spec
