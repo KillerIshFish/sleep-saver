@@ -6,7 +6,9 @@ import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
+import com.sleepsaver.core.domain.alarm.AlarmEvent
 import com.sleepsaver.core.domain.alarm.AlarmPlanner
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
@@ -68,15 +70,21 @@ internal object TonightSamples {
     fun debtInputs(week: WeekPlan = this.week, nights: List<Night> = this.nights): DebtPreviewInputs =
         DebtPreviewInputs(nights, sleepSettings.copy(week = week), zone)
 
-    /** The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them. */
-    fun alarms(now: Instant, week: WeekPlan = this.week, oneOffs: OneOffs = OneOffs()): List<PlannedAlarm> =
-        AlarmPlanner(config).upcoming(week, oneOffs, now, zone).map { occurrence ->
-            PlanSamples.plannedAlarm(
+    /** The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them, leaving out the [ended] ones. */
+    fun alarms(
+        now: Instant,
+        week: WeekPlan = this.week,
+        oneOffs: OneOffs = OneOffs(),
+        ended: EndedAlarms = EndedAlarms(),
+    ): List<PlannedAlarm> =
+        AlarmPlanner(config).upcoming(week, oneOffs, now, zone, ended.ids, ended.dates).map { occurrence ->
+            val planned = PlanSamples.plannedAlarm(
                 date = occurrence.date,
                 time = occurrence.localTime,
                 mode = occurrence.settings.mode,
                 window = occurrence.settings.window,
             )
+            planned.copy(occurrence = planned.occurrence.copy(source = occurrence.source))
         }
 
     fun local(
@@ -101,7 +109,10 @@ internal object TonightSamples {
         marks: Map<LocalDate, Set<Mark>> = emptyMap(),
         lastNightList: TomorrowList? = null,
         local: TonightLocal = local(),
-        alarms: List<PlannedAlarm> = alarms(now, week, oneOffs),
+        ended: EndedAlarms = EndedAlarms(),
+        alarms: List<PlannedAlarm> = alarms(now, week, oneOffs, ended),
+        todayEvent: AlarmEvent? = null,
+        tomorrowEvent: AlarmEvent? = null,
     ): TonightInputs {
         val state = insights ?: insights(now, week, oneOffs)
         val evening = (state as? InsightsState.Ready)?.insights?.schedule?.date ?: today
@@ -119,7 +130,9 @@ internal object TonightSamples {
             adherence = PlanSamples.adherence(evening),
             marks = marks,
             lastNightList = lastNightList,
-            todayEvent = null,
+            todayEvent = todayEvent,
+            tomorrowEvent = tomorrowEvent,
+            ended = ended,
             local = local,
         )
     }
@@ -141,11 +154,13 @@ internal object TonightSamples {
         planCheck: PlanCheck? = PlanSamples.planCheck(warn = false),
         keel: KeelResult? = PlanSamples.keelReady(),
         night: Boolean = false,
+        next: PlannedAlarm? = alarms(now, week, oneOffs).firstOrNull(),
     ): WeekPlanUiState.Ready = WeekPlanUiState.Ready(
         today = now.atZone(zone).toLocalDate(),
         zone = zone,
-        next = alarms(now, week, oneOffs).firstOrNull(),
+        next = next,
         night = night,
+        firstWakeDate = now.atZone(zone).toLocalDate().plusDays(1),
         oneOffs = oneOffs,
         rows = weekRows(week, oneOffs, usualWake, PlanSamples.activities(), debtInputs(week), now.atZone(zone).toLocalDate(), config),
         planCheck = planCheck,

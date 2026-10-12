@@ -14,6 +14,8 @@ import com.sleepsaver.core.data.testing.FakeTimeProvider
 import com.sleepsaver.core.data.testing.inMemoryDatabase
 import com.sleepsaver.core.data.testing.instant
 import com.sleepsaver.core.data.testing.latencySource
+import com.sleepsaver.core.domain.alarm.AlarmSource
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.WakeTimeMode
@@ -257,8 +259,8 @@ class ScheduleRepositoryImplTest {
         assertThat(next.occurrence.id).isEqualTo("2026-10-07T06:30")
         assertThat(next.occurrence.target).isEqualTo(instant("2026-10-07T06:30:00Z"))
         assertThat(plan.following.map { it.occurrence.id }).containsExactly("2026-10-08T06:30", "2026-10-09T06:30").inOrder()
-        // Still planned: yesterday through the lookahead, whatever has rung.
-        assertThat(plan.plannedIds).containsAtLeast("2026-10-05T06:30", "2026-10-06T06:30", "2026-10-13T06:30")
+        // Still planned: yesterday through the two-week horizon, whatever has rung.
+        assertThat(plan.plannedIds).containsAtLeast("2026-10-05T06:30", "2026-10-06T06:30", "2026-10-13T06:30", "2026-10-20T06:30")
         assertThat(plan.computedAt).isEqualTo(time.now)
         // No nights: Settings' 23:00 bedtime, 15 min to fall asleep, 7 h 15 min of opportunity → the plain 30-min window.
         assertThat(next.plannedBedtime).isEqualTo(instant("2026-10-06T23:00:00Z"))
@@ -304,6 +306,53 @@ class ScheduleRepositoryImplTest {
         // A just-once alarm the user sets for this morning still rings.
         repository.setOverride(DateOverride(LocalDate.of(2026, 10, 7), OverrideKind.JUST_ONCE, LocalTime.of(8, 0), AlarmMode.FIXED))
         assertThat(repository.computeAlarmPlan(time.now, emptySet()).next!!.occurrence.id).isEqualTo("2026-10-07T08:00")
+    }
+
+    @Test
+    fun `a weekly alarm that already rang tomorrow is armed for the week after, not dropped`() = runTest {
+        // Wednesday-only 06:30. It rang on Wednesday and was stopped, then the clock went back to Tuesday 20:55.
+        time.now = instant("2026-10-06T20:55:00Z")
+        time.ticks.value = time.now
+        val repository = repository()
+        repository.updateDay(DayOfWeek.WEDNESDAY) {
+            it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(6, 30), alarm = it.morning.alarm.copy(mode = AlarmMode.SURFACING)))
+        }
+        db.alarmEventDao().upsert(plannedEvent("2026-10-07", "2026-10-07T06:30", outcome = "STOPPED"))
+
+        val plan = repository.computeAlarmPlan(time.now, exclude = setOf("2026-10-07T06:30"))
+
+        // Wednesday the 7th doesn't ring again; the 14th (today + 8) is armed instead of nothing.
+        assertThat(plan.next!!.occurrence.id).isEqualTo("2026-10-14T06:30")
+        assertThat(plan.plannedIds).contains("2026-10-14T06:30")
+        assertThat(repository.nextAlarm.first { it != null }!!.occurrence.id).isEqualTo("2026-10-14T06:30")
+    }
+
+    @Test
+    fun `ended alarms are what the plan leaves out, and a just-once alarm at the ended time is that same occurrence`() = runTest {
+        // As above: Wednesday's 06:30 rang and was stopped, then the clock went back to Tuesday 20:55.
+        time.now = instant("2026-10-06T20:55:00Z")
+        time.ticks.value = time.now
+        val wednesday = LocalDate.of(2026, 10, 7)
+        val repository = repository()
+        repository.updateDay(DayOfWeek.WEDNESDAY) {
+            it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(6, 30), alarm = it.morning.alarm.copy(mode = AlarmMode.SURFACING)))
+        }
+        db.alarmEventDao().upsert(plannedEvent("2026-10-07", "2026-10-07T06:30", outcome = "STOPPED"))
+        // A cancelled pending ring ends its occurrence but not the morning.
+        db.alarmEventDao().upsert(plannedEvent("2026-10-08", "2026-10-08T06:30", outcome = "CANCELLED"))
+
+        assertThat(repository.endedAlarms.first { it.ids.size == 2 })
+            .isEqualTo(EndedAlarms(ids = setOf("2026-10-07T06:30", "2026-10-08T06:30"), dates = setOf(wednesday)))
+
+        // Just this once at 06:30 is the alarm that already rang there, so it isn't planned (the one-off sheet says so).
+        repository.setOverride(DateOverride(wednesday, OverrideKind.JUST_ONCE, LocalTime.of(6, 30), AlarmMode.FIXED))
+        assertThat(repository.computeAlarmPlan(time.now, setOf("2026-10-07T06:30")).next!!.occurrence.id).isEqualTo("2026-10-14T06:30")
+        assertThat(repository.nextAlarm.first { it != null }!!.occurrence.id).isEqualTo("2026-10-14T06:30")
+
+        // At 06:35 it is a new alarm, and it rings.
+        repository.setOverride(DateOverride(wednesday, OverrideKind.JUST_ONCE, LocalTime.of(6, 35), AlarmMode.FIXED))
+        assertThat(repository.computeAlarmPlan(time.now, setOf("2026-10-07T06:30")).next!!.occurrence.id).isEqualTo("2026-10-07T06:35")
+        assertThat(repository.nextAlarm.first { it?.occurrence?.source == AlarmSource.JUST_ONCE }!!.occurrence.id).isEqualTo("2026-10-07T06:35")
     }
 
     @Test
@@ -367,8 +416,9 @@ class ScheduleRepositoryImplTest {
         val repository = repository()
         repository.weekdayAlarmsAt(LocalTime.of(6, 30))
         assertThat(repository.nextAlarm.first { it != null }!!.occurrence.id).isEqualTo("2026-10-07T06:30")
-        // Wednesday, Thursday, Friday, next Monday and next Tuesday (the lookahead ends there).
-        assertThat(repository.upcomingAlarms.first { it.isNotEmpty() }).hasSize(5)
+        // Wednesday through next Thursday: upcomingLimit (7) of the two-week horizon's ten.
+        assertThat(repository.upcomingAlarms.first { it.isNotEmpty() }.map { it.occurrence.date.dayOfMonth })
+            .containsExactly(7, 8, 9, 12, 13, 14, 15).inOrder()
 
         time.ticks.value = instant("2026-10-07T07:00:00Z")
 

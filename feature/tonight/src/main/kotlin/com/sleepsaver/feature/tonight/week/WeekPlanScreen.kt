@@ -83,6 +83,7 @@ import com.sleepsaver.feature.tonight.TonightSnackbarHost
 import com.sleepsaver.feature.tonight.dayAndTime
 import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.WeekPlanNavigation
+import com.sleepsaver.feature.tonight.nearDay
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheet
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import java.time.DayOfWeek
@@ -149,7 +150,8 @@ internal fun WeekPlanScreen(
     if (sheetOpen && context != null) {
         OneOffSheet(
             context = context,
-            date = context.today.plusDays(1),
+            // The next morning a one-off can still change, never one whose wake time has passed.
+            date = (state as? WeekPlanUiState.Ready)?.firstWakeDate ?: context.today.plusDays(1),
             chooseDate = true,
             gate = gate,
             onDayOff = viewModel::onDayOff,
@@ -224,7 +226,7 @@ private fun ReadyWeekPlan(
         state.oneOffs.pause?.let { pause ->
             Spacer(Modifier.height(Spacing.l))
             NoticeCard(
-                title = stringResource(R.string.tonight_week_paused, formatDayShort(pause.until.dayOfWeek)),
+                title = stringResource(R.string.tonight_week_paused, nearDay(pause.until, state.today)),
                 body = stringResource(R.string.tonight_week_paused_body),
                 icon = Icons.Rounded.AlarmOff,
                 actionLabel = stringResource(R.string.tonight_action_resume_short),
@@ -295,17 +297,24 @@ private fun ReadyWeekPlan(
     }
 }
 
-/** "Next: Thu 6:40 AM · window 30 min" (fixed: no window); at night without "Next". */
+/**
+ * "Next: Thu 6:40 AM · window 30 min" (fixed: no window); at night without "Next". The window is the day's setting,
+ * as its row says; when the planned alarm widens it (a debt-aware night) the wider one follows: "window 30 min (40
+ * while you're short on sleep)".
+ */
 @Composable
 private fun subtitle(state: WeekPlanUiState.Ready): String {
     val next = state.next ?: return stringResource(R.string.tonight_week_no_alarms)
     val occurrence = next.occurrence
-    val alarm = dayAndTime(occurrence.date, occurrence.localTime)
-    val window = next.window.length.toMinutes().toInt()
+    val alarm = dayAndTime(occurrence.date, occurrence.localTime, state.today)
+    val window = occurrence.window.toMinutes().toInt()
+    val armed = next.window.length.toMinutes().toInt()
     val surfacing = occurrence.settings.mode == AlarmMode.SURFACING
     return when {
+        state.night && surfacing && armed > window -> stringResource(R.string.tonight_week_alarm_window_wider, alarm, window, armed)
         state.night && surfacing -> stringResource(R.string.tonight_week_alarm_window, alarm, window)
         state.night -> alarm
+        surfacing && armed > window -> stringResource(R.string.tonight_week_next_window_wider, alarm, window, armed)
         surfacing -> stringResource(R.string.tonight_week_next_window, alarm, window)
         else -> stringResource(R.string.tonight_week_next, alarm)
     }.keepTimesTogether()

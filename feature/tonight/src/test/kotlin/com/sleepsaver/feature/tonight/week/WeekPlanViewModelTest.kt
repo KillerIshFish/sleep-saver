@@ -14,6 +14,7 @@ import com.sleepsaver.feature.tonight.TonightFakes
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
 import com.sleepsaver.feature.tonight.TonightSamples.writer
+import com.sleepsaver.feature.tonight.oneoff.oneOffDates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -198,6 +199,23 @@ class WeekPlanViewModelTest {
         assertThat(viewModel.ready().oneOffs.overrides).isEmpty()
         assertThat(viewModel.ready().oneOffs.pause).isNull()
         assertThat(fakes.schedule.updatedDays).isEmpty()
+    }
+
+    @Test
+    fun `the one-off sheet starts at the next morning that can still change`() = runTest {
+        val today = TonightSamples.today
+        val tomorrow = today.plusDays(1)
+
+        // 8:41 PM: this morning's wake time has long passed.
+        val evening = viewModel(TonightFakes(now = at(20, 41))).ready().firstWakeDate
+        assertThat(evening).isEqualTo(tomorrow)
+        assertThat(oneOffDates(evening)).containsExactlyElementsIn((1L..8L).map { today.plusDays(it) }).inOrder()
+        // 3 AM: this morning's 6:45 is still to come.
+        assertThat(viewModel(TonightFakes(now = at(3, 0))).ready().firstWakeDate).isEqualTo(today)
+        // 6:20, inside its window: still this morning (Tonight's card is on it too) ...
+        assertThat(viewModel(TonightFakes(now = at(6, 20))).ready().firstWakeDate).isEqualTo(today)
+        // ... and once it has rung, tomorrow.
+        assertThat(viewModel(TonightFakes(now = at(7, 30))).ready().firstWakeDate).isEqualTo(tomorrow)
     }
 
     @Test

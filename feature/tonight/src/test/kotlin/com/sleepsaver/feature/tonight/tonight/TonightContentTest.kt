@@ -18,6 +18,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.EndedAlarms
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.DayPart
@@ -31,6 +33,7 @@ import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.tonight.TonightPhase
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import com.sleepsaver.feature.tonight.night.NightActions
 import org.junit.Rule
 import org.junit.Test
@@ -181,6 +184,33 @@ class TonightContentTest {
         compose.onNodeWithText("No alarm Wed").assertExists()
         tap("Turn back on")
         assertThat(calls).containsExactly("turnBackOn:$wednesday")
+    }
+
+    @Test
+    fun `a morning whose alarm already rang says so, and a one-off can still be set for it`() {
+        // Wednesday's 6:45 rang; the clock then went back to Tuesday evening.
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val ended = EndedAlarms(ids = setOf(checkNotNull(rang.occurrenceId)), dates = setOf(wednesday))
+        show(s.ready(s.inputs(now, ended = ended, tomorrowEvent = rang)))
+
+        compose.onNodeWithText("No alarm Wed").assertExists()
+        compose.onNodeWithText("Wed's alarm already rang.").assertExists()
+        compose.onNodeWithText("Next alarm: Thu 6:45\u00A0AM").assertExists()
+        compose.onNodeWithText("May ring from", substring = true).assertDoesNotExist()
+        tap("Set one for Wed")
+
+        assertThat(calls).containsExactly("oneOff:$wednesday")
+    }
+
+    @Test
+    fun `a next alarm a week away carries its date`() {
+        // Tuesday-only 6:45, the morning it rang: the next one is next Tuesday.
+        val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        show(s.ready(s.inputs(at(7, 30), week = tuesdays)))
+
+        compose.onNodeWithText("No alarm tomorrow").assertExists()
+        compose.onNodeWithText("Next alarm: Tue, Oct\u00A013, 6:45\u00A0AM").assertExists()
     }
 
     @Test

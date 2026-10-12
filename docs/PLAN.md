@@ -246,13 +246,22 @@ weigh less each day). Shown as "8h need − 6h 53m slept = +1.1 h", "older night
 - Settings rows show the **usual** values (plan ignored) with "Used on days without their own time."
 - Copy-to: MORNING and/or EVENING to picked days. Presets "Work week + free weekend", "Same every day".
 - One-off rows from today − 3 days still feed the schedule (night owls, Process S); rows older than 7 days are pruned.
-  Pause at most 60 days ahead.
+  Pause at most 60 days ahead. From the Week plan the one-off sheet offers 8 dates (`week.alarmLookaheadDays`) from
+  the next morning a one-off can still change, the date Tonight's alarm card is on: today until this morning's alarm
+  has rung (without one, until last night ends), then tomorrow. A morning whose wake time has passed is never offered.
 - **Planned keel / plan check** (§3.15) and **Debt preview** (§3.16) are shown in the editor.
 
 ### 3.12 Surfacing alarm (v2)
-**Planning.** `AlarmPlanner.upcoming`: dates today .. today + 7 with an alarm on; target = `ZonedDateTime.of(date,
-time, zone)` (DST gap → forward, overlap → earlier offset); id = `"<date>T<HH:mm>"`; occurrences already handled
-(stopped, timed out, missed, in progress) are excluded so a stopped early ring never rings again at the wake time.
+**Planning.** `AlarmPlanner.upcoming`: dates today .. today + 14 (`week.alarmPlanningDays` = 15) with an alarm on;
+target = `ZonedDateTime.of(date, time, zone)` (DST gap → forward, overlap → earlier offset); id = `"<date>T<HH:mm>"`;
+occurrences already handled (stopped, timed out, missed, in progress) are excluded so a stopped early ring never rings
+again at the wake time, and a week-plan morning whose alarm ended gets no second plan alarm (only a Just this once).
+The two-week horizon keeps a skipped morning from hiding its weekday's next one: a Monday-only alarm that already rang,
+with the clock set back to Sunday evening, arms the Monday after (today + 8). Since an occurrence is its date and time,
+a Just this once at the very time that already ended that morning is that same alarm and never rings either (the mirror
+and the ring service ignore a handled id too), so the one-off sheet greys out "Set for Mon" at that time and says
+"The 6:50 AM alarm on Mon already ended. Pick another time."; any other time rings. The Tonight card reads the same
+`ScheduleRepository.endedAlarms` the plan leaves out: "No alarm Mon · Mon's alarm already rang".
 
 **Window.** SURFACING: base window 10–45 min (default 30). A *debt-aware* night (planned sleep opportunity from the
 anchor or planned bedtime + latency to the wake time < 6.5 h, or debt status MODERATE/HIGH) widens it by 10 min (cap

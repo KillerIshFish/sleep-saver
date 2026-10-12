@@ -9,8 +9,10 @@ import com.sleepsaver.core.data.repository.DebtPreviewInputs
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.alarm.AlarmEvent
+import com.sleepsaver.core.domain.alarm.AlarmSource
 import com.sleepsaver.core.domain.alarm.CatnapPlan
 import com.sleepsaver.core.domain.alarm.CatnapPlanner
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
@@ -22,6 +24,7 @@ import com.sleepsaver.core.domain.patterns.DebtPreview
 import com.sleepsaver.core.domain.patterns.DebtProjector
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.ResolvedDay
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.ui.components.HushControlsState
 import com.sleepsaver.feature.tonight.TonightPhase
@@ -83,7 +86,8 @@ internal sealed interface AlarmCardModel {
 
     /**
      * An alarm rings on [wakeDate] at [time]: SURFACING from [windowStart] (widened on [debtAware] nights) or FIXED
-     * at [time]. [justOnce] = a one-off made it; [thisMorning] = the wake date is today.
+     * at [time]. [justOnce] = a one-off made it; [thisMorning] = the wake date is today. Built from the planned alarm
+     * the scheduler arms, so the card never promises a ring that isn't set.
      */
     data class On(
         override val wakeDate: LocalDate,
@@ -103,6 +107,13 @@ internal sealed interface AlarmCardModel {
 
     /** "No alarm tomorrow", with the next alarm when there is one. */
     data class None(override val wakeDate: LocalDate, val next: NextAlarm?) : AlarmCardModel
+
+    /**
+     * The plan has an alarm on [wakeDate], but that morning's alarm already ended, so it won't ring again: "No alarm
+     * Mon · Mon's alarm already rang" ([rang]; false = it ended without ringing) with the alarm after it. Happens when
+     * the clock or the time zone moves back a day after a ring.
+     */
+    data class Done(override val wakeDate: LocalDate, val rang: Boolean, val next: NextAlarm?) : AlarmCardModel
 }
 
 /** The Catnap card: the [running] catnap, or the picked [length] with its [plan] (timing hint, grogginess, coffee). */
@@ -145,6 +156,10 @@ internal data class TonightInputs(
     val lastNightList: TomorrowList?,
     /** Today's planned alarm event, if it rang. */
     val todayEvent: AlarmEvent?,
+    /** Tomorrow's planned alarm event: there is one only if it already rang (the clock or the zone moved back). */
+    val tomorrowEvent: AlarmEvent?,
+    /** The planned alarms that already ended, which the planned [alarms] leave out (ScheduleRepository.endedAlarms). */
+    val ended: EndedAlarms,
     val local: TonightLocal,
 )
 
@@ -167,7 +182,9 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
     )
     val wakeDate = clock.wakeDate
     val cardDate = cardDate(clock.today, wakeDate, i.now, i.alarms)
-    val card = alarmCard(cardDate, clock.today, i.week, i.oneOffs, i.alarms, i.zone)
+    // The card's date is today or tomorrow, so one of these is its planned event, if any.
+    val cardEvent = listOfNotNull(i.todayEvent, i.tomorrowEvent).firstOrNull { it.wakeDate == cardDate }
+    val card = alarmCard(cardDate, clock.today, i.week, i.oneOffs, i.alarms, i.zone, i.ended, cardEvent)
 
     val debtPreview = if (clock.phase == TonightPhase.EVENING) {
         i.debtInputs?.let { inputs ->
@@ -234,7 +251,12 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
         week = (0L until DAYS_IN_STRIP).map { offset ->
             val date = cardDate.plusDays(offset)
             val resolved = i.week.resolve(date, i.oneOffs)
-            WeekStripDay(date, resolved.wakeTime, resolved.alarmMode, resolved.alarmOn)
+            // A morning whose alarm already ended reads like one without an alarm, as its card does.
+            if (resolved.alarmOn && i.ended.leavesOut(resolved)) {
+                WeekStripDay(date, resolved.wakeTime, AlarmMode.OFF, alarmOn = false)
+            } else {
+                WeekStripDay(date, resolved.wakeTime, resolved.alarmMode, resolved.alarmOn)
+            }
         },
         night = night,
         demo = i.settings.demoMode,
@@ -254,8 +276,20 @@ internal fun cardDate(today: LocalDate, wakeDate: LocalDate, now: Instant, alarm
 }
 
 /**
- * The card for [wakeDate], from the week plan and one-offs (the source of truth for what rings) and the planned
- * [alarms] (tonight's effective window, debt-aware widening, and the alarm after this one).
+ * The card for [wakeDate]. The week plan and one-offs say whether that morning has an alarm at all (Day off, paused,
+ * none); the planned [alarms], the same ones the scheduler arms, say what rings: an On card takes its time, mode,
+ * tonight's effective window and debt-aware widening from the planned alarm, and the alarm after this one comes from
+ * them too.
+ *
+ * When that morning's alarm is one the planner leaves out because it already ended ([ended]: that occurrence ended,
+ * or a week-plan alarm on a morning whose alarm ended), the card is [AlarmCardModel.Done], with [event] (that
+ * morning's latest planned event) saying whether it rang. Example: Monday's 6:50 rang, then the clock went back to
+ * Sunday evening: "No alarm Mon · Mon's alarm already rang · Next alarm: Mon, Oct 19, 6:50 AM", never a 6:50 that
+ * isn't armed.
+ *
+ * Otherwise, until the planned alarms (recomputed a moment after every write) match the plan's time, mode and source,
+ * the card reads that morning's own alarm from the plan, rather than flash the old time or "already rang": "Turn back
+ * on", or "Just this once" at 7:15 over a planned 6:45.
  */
 internal fun alarmCard(
     wakeDate: LocalDate,
@@ -264,32 +298,57 @@ internal fun alarmCard(
     oneOffs: OneOffs,
     alarms: List<PlannedAlarm>,
     zone: ZoneId,
+    ended: EndedAlarms = EndedAlarms(),
+    event: AlarmEvent? = null,
 ): AlarmCardModel {
     val resolved = week.resolve(wakeDate, oneOffs)
     val next = alarms.firstOrNull { it.occurrence.date.isAfter(wakeDate) }
         ?.let { NextAlarm(it.occurrence.date, it.occurrence.localTime) }
     val time = resolved.wakeTime
     val pause = oneOffs.pause
+    val planned = alarms.firstOrNull { it.occurrence.date == wakeDate }?.takeIf { it.isFor(resolved) }
     return when {
-        resolved.alarmMode != AlarmMode.OFF && time != null -> {
-            val planned = alarms.firstOrNull { it.occurrence.date == wakeDate }
-            val windowStart = planned?.window?.start?.atZone(zone)?.toLocalTime()
-                ?: if (resolved.alarmMode == AlarmMode.SURFACING) time.minus(resolved.alarm.window) else time
+        !resolved.alarmOn || time == null -> when {
+            resolved.isDayOff -> AlarmCardModel.DayOff(wakeDate, next)
+            resolved.paused && pause != null -> AlarmCardModel.Paused(wakeDate, pause.until, next)
+            else -> AlarmCardModel.None(wakeDate, next)
+        }
+        ended.leavesOut(resolved) -> AlarmCardModel.Done(wakeDate, rang = event?.rang == true, next = next)
+        planned != null -> {
+            val occurrence = planned.occurrence
             AlarmCardModel.On(
                 wakeDate = wakeDate,
-                time = time,
-                mode = resolved.alarmMode,
-                windowStart = windowStart,
-                debtAware = planned?.window?.debtAware == true,
-                justOnce = resolved.isJustOnce,
+                time = occurrence.localTime,
+                mode = occurrence.settings.mode,
+                windowStart = planned.window.start.atZone(zone).toLocalTime(),
+                debtAware = planned.window.debtAware,
+                justOnce = occurrence.source == AlarmSource.JUST_ONCE,
                 thisMorning = wakeDate == today,
             )
         }
-        resolved.isDayOff -> AlarmCardModel.DayOff(wakeDate, next)
-        resolved.paused && pause != null -> AlarmCardModel.Paused(wakeDate, pause.until, next)
-        else -> AlarmCardModel.None(wakeDate, next)
+        else -> AlarmCardModel.On(
+            wakeDate = wakeDate,
+            time = time,
+            mode = resolved.alarmMode,
+            windowStart = if (resolved.alarmMode == AlarmMode.SURFACING) time.minus(resolved.alarm.window) else time,
+            debtAware = false,
+            justOnce = resolved.isJustOnce,
+            thisMorning = wakeDate == today,
+        )
     }
 }
+
+/** Whether the planner leaves out [day]'s alarm (it has one: alarmOn) because it already ended. */
+private fun EndedAlarms.leavesOut(day: ResolvedDay): Boolean {
+    val time = day.wakeTime ?: return false
+    return leavesOut(day.date, time, justOnce = day.isJustOnce)
+}
+
+/** This planned alarm is [day]'s as the plan reads now: same time, mode and source (not one from before a write). */
+private fun PlannedAlarm.isFor(day: ResolvedDay): Boolean =
+    occurrence.localTime == day.wakeTime &&
+        occurrence.settings.mode == day.alarmMode &&
+        (occurrence.source == AlarmSource.JUST_ONCE) == day.isJustOnce
 
 /** The night's alarm line for this card. */
 internal fun AlarmCardModel.nightAlarm(): NightAlarm = when (this) {

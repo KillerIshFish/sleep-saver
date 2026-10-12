@@ -5,8 +5,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.EndedAlarms
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
+import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.PlanPause
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.PlanSamples.NightVariant
@@ -17,7 +20,13 @@ import com.sleepsaver.feature.tonight.LargeFont
 import com.sleepsaver.feature.tonight.SheetOver
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
+import com.sleepsaver.feature.tonight.oneoff.OneOffSheetActions
+import com.sleepsaver.feature.tonight.oneoff.OneOffSheetContent
+import com.sleepsaver.feature.tonight.oneoff.OneOffSheetState
 import org.junit.Test
+import java.time.DayOfWeek
+import java.time.LocalTime
 
 /** The Tonight tab in each phase and card state (SPEC_V2 §5.2). Tue Oct 6, alarm Mon–Fri 6:45, bedtime 23:00. */
 class TonightScreenshotTest : ScreenshotTest() {
@@ -77,6 +86,46 @@ class TonightScreenshotTest : ScreenshotTest() {
     @Test
     fun paused() = captureScreen("tonight_paused") {
         Tonight(s.ready(s.inputs(at(14, 0), oneOffs = PlanSamples.oneOffs(pause = PlanPause(s.today, s.today.plusDays(5))))))
+    }
+
+    /** Wednesday's 6:45 already rang (the clock went back to Tuesday evening): the card says so, with the next one. */
+    @Test
+    fun alarmDone() {
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val ended = EndedAlarms(ids = setOf(checkNotNull(rang.occurrenceId)), dates = setOf(wednesday))
+        captureScreen("tonight_alarm_done") { Tonight(s.ready(s.inputs(now, ended = ended, tomorrowEvent = rang))) }
+    }
+
+    /** "Set one for Wed" from that card: the sheet starts at the 6:45 that already rang, and won't set it again. */
+    @Test
+    fun alarmDoneSheet() {
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val ended = EndedAlarms(ids = setOf(checkNotNull(rang.occurrenceId)), dates = setOf(wednesday))
+        val sheet = OneOffSheetState(
+            date = wednesday,
+            dates = emptyList(),
+            today = s.today,
+            alarmOn = true,
+            time = LocalTime.of(6, 45),
+            mode = AlarmMode.SURFACING,
+            onceEnded = true,
+            pauseDates = (1L..60L).map { s.today.plusDays(it) },
+            pauseUntil = s.today.plusDays(1),
+        )
+        captureScreen("oneoff_sheet_already_ended") {
+            SheetOver(screen = { Tonight(s.ready(s.inputs(now, ended = ended, tomorrowEvent = rang))) }) {
+                OneOffSheetContent(sheet, OneOffSheetActions())
+            }
+        }
+    }
+
+    /** A Tuesday-only alarm the morning it rang: the next one, a week away, carries its date. */
+    @Test
+    fun nextAlarmNextWeek() = captureScreen("tonight_next_alarm_next_week") {
+        val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        Tonight(s.ready(s.inputs(at(7, 30), week = tuesdays)))
     }
 
     @Test

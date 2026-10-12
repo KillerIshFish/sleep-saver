@@ -4,6 +4,7 @@ import com.sleepsaver.core.domain.alarm.AlarmEvent
 import com.sleepsaver.core.domain.alarm.AlarmOccurrence
 import com.sleepsaver.core.domain.alarm.AlarmTuning
 import com.sleepsaver.core.domain.alarm.DeepPrior
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.MovementEpoch
 import com.sleepsaver.core.domain.alarm.SurfacingWindow
@@ -318,6 +319,13 @@ interface ScheduleRepository {
      */
     val upcomingAlarms: Flow<List<PlannedAlarm>>
     val nextAlarm: Flow<PlannedAlarm?>
+
+    /**
+     * The planned alarms from yesterday on that already ended (their alarm events have an outcome): exactly what
+     * [upcomingAlarms] leaves out, so the UI can say why a morning has no alarm, or that a time can't ring there.
+     * Falls back to none when the events can't be read.
+     */
+    val endedAlarms: Flow<EndedAlarms>
 
     /**
      * For the alarm scheduler only: computed now from storage, no fallbacks. Throws when the plan, one-offs,

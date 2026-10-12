@@ -38,13 +38,18 @@ class AlarmPlannerTest {
     private fun at(date: LocalDate, time: String): Instant = Fx.instant(date, time)
 
     @Test
-    fun `upcoming alarms are the planned mornings after now, in time order, within the lookahead`() {
+    fun `upcoming alarms are the planned mornings after now, in time order, within the horizon`() {
         val upcoming = planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC)
 
-        // Wednesday's 06:30 has passed; the lookahead ends on the next Wednesday.
+        // Wednesday's 06:30 has passed; the list stops at upcomingLimit (7).
         assertThat(upcoming.map { it.id }).containsExactly(
             "2026-10-08T06:30", "2026-10-09T06:30", "2026-10-12T06:30", "2026-10-13T06:30", "2026-10-14T06:30",
+            "2026-10-15T06:30", "2026-10-16T06:30",
         ).inOrder()
+        // The horizon ends two weeks out: today + 14 is the last date, Wednesday the 21st.
+        val all = planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = Int.MAX_VALUE)
+        assertThat(all.last().id).isEqualTo("2026-10-21T06:30")
+        assertThat(all).hasSize(10)
         with(upcoming.first()) {
             assertThat(date).isEqualTo(wednesday.plusDays(1))
             assertThat(localTime).isEqualTo(sixThirty)
@@ -89,6 +94,45 @@ class AlarmPlannerTest {
     }
 
     @Test
+    fun `a skipped morning never hides the same weekday's next one`() {
+        // Monday-only 06:50. Monday the 12th rang and was stopped; then the clock went back to Sunday 20:55.
+        val mondays = Fx.weekPlan(MONDAY to LocalTime.of(6, 50))
+        val sunday = LocalDate.of(2026, 10, 11)
+        val now = at(sunday, "20:55")
+
+        val next = planner.next(mondays, OneOffs(), now, Fx.UTC, exclude = setOf("2026-10-12T06:50"), endedDates = setOf(sunday.plusDays(1)))
+
+        // Today + 8, past a one-week horizon.
+        assertThat(next?.id).isEqualTo("2026-10-19T06:50")
+        // The same when only the id is excluded (handled, or in progress).
+        assertThat(planner.next(mondays, OneOffs(), now, Fx.UTC, exclude = setOf("2026-10-12T06:50"))?.id).isEqualTo("2026-10-19T06:50")
+        // A Sunday alarm skipped today and next Sunday too still finds the one after: today + 14.
+        val sundays = Fx.weekPlan(SUNDAY to LocalTime.of(21, 0))
+        val skipped = setOf("2026-10-11T21:00", "2026-10-18T21:00")
+        assertThat(planner.next(sundays, OneOffs(), now, Fx.UTC, exclude = skipped)?.id).isEqualTo("2026-10-25T21:00")
+    }
+
+    @Test
+    fun `a just-once alarm at the time that already ended there is that occurrence, so only another time rings`() {
+        // Monday's 06:50 rang and was stopped; the clock went back to Sunday 20:55.
+        val mondays = Fx.weekPlan(MONDAY to LocalTime.of(6, 50))
+        val monday = LocalDate.of(2026, 10, 12)
+        val now = at(monday.minusDays(1), "20:55")
+        val ended = EndedAlarms(ids = setOf("2026-10-12T06:50"), dates = setOf(monday))
+        fun once(time: LocalTime) = OneOffs(overrides = listOf(DateOverride(monday, OverrideKind.JUST_ONCE, time, AlarmMode.FIXED)))
+
+        val sameTime = planner.next(mondays, once(LocalTime.of(6, 50)), now, Fx.UTC, ended.ids, ended.dates)
+        val later = planner.next(mondays, once(LocalTime.of(6, 55)), now, Fx.UTC, ended.ids, ended.dates)
+
+        assertThat(sameTime?.id).isEqualTo("2026-10-19T06:50")
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 50), justOnce = true)).isTrue()
+        assertThat(later?.id).isEqualTo("2026-10-12T06:55")
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 55), justOnce = true)).isFalse()
+        // The week plan's own time on that morning stays out at any time.
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 55), justOnce = false)).isTrue()
+    }
+
+    @Test
     fun `the limit caps the list`() {
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 2)).hasSize(2)
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 0)).isEmpty()
@@ -107,7 +151,10 @@ class AlarmPlannerTest {
 
         val upcoming = planner.upcoming(workWeek, oneOffs, at(wednesday, "07:00"), Fx.UTC)
 
-        assertThat(upcoming.map { it.id }).containsExactly("2026-10-09T06:30", "2026-10-10T08:00", "2026-10-14T06:30").inOrder()
+        assertThat(upcoming.map { it.id }).containsExactly(
+            "2026-10-09T06:30", "2026-10-10T08:00", "2026-10-14T06:30", "2026-10-15T06:30", "2026-10-16T06:30",
+            "2026-10-19T06:30", "2026-10-20T06:30",
+        ).inOrder()
         with(upcoming[1]) {
             assertThat(source).isEqualTo(AlarmSource.JUST_ONCE)
             assertThat(settings.mode).isEqualTo(AlarmMode.FIXED)
@@ -156,12 +203,13 @@ class AlarmPlannerTest {
     }
 
     @Test
-    fun `planned ids cover yesterday through the lookahead and ignore now`() {
+    fun `planned ids cover yesterday through the horizon and ignore now`() {
         val ids = planner.plannedIds(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC)
 
         assertThat(ids).containsExactly(
             "2026-10-06T06:30", "2026-10-07T06:30", "2026-10-08T06:30", "2026-10-09T06:30",
-            "2026-10-12T06:30", "2026-10-13T06:30", "2026-10-14T06:30",
+            "2026-10-12T06:30", "2026-10-13T06:30", "2026-10-14T06:30", "2026-10-15T06:30", "2026-10-16T06:30",
+            "2026-10-19T06:30", "2026-10-20T06:30", "2026-10-21T06:30",
         )
     }
 

@@ -23,6 +23,7 @@ import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.data.repository.SleepRepository
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.habits.HabitCatalog
 import com.sleepsaver.core.domain.insights.InsightsEngine
@@ -182,6 +183,7 @@ class FakeScheduleRepository(week: WeekPlan = WeekPlan.DEFAULT, oneOffs: OneOffs
     override val usualWake: Flow<Map<DayOfWeek, LocalTime>> = flowOf(DayOfWeek.values().associateWith { LocalTime.of(7, 0) })
     override val upcomingAlarms: Flow<List<PlannedAlarm>> = flowOf(emptyList())
     override val nextAlarm: Flow<PlannedAlarm?> = flowOf(null)
+    override val endedAlarms: Flow<EndedAlarms> = flowOf(EndedAlarms())
     override suspend fun computeAlarmPlan(now: Instant, exclude: Set<String>): AlarmPlan =
         AlarmPlan(next = null, following = emptyList(), plannedIds = emptySet(), computedAt = now)
     override suspend fun updateDay(day: DayOfWeek, change: (DayPlan) -> DayPlan) =

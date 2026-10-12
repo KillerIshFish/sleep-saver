@@ -23,8 +23,17 @@ data class WeekPlanConfig(
     val timeRounding: Duration = Duration.ofMinutes(5),
     /** Time pickers in the editor step by this. */
     val timeStep: Duration = Duration.ofMinutes(5),
-    /** Dates considered when looking for the next alarm: today .. today + 7. */
+    /**
+     * The one-off sheet offers this many dates to change, a week and a day, from the next morning a one-off can still
+     * change (never one whose wake time has passed). Alarms are planned further out ([alarmPlanningDays]).
+     */
     val alarmLookaheadDays: Int = 8,
+    /**
+     * Dates AlarmPlanner looks through for alarms: today .. today + 14. Two weeks, so the next occurrence of every
+     * weekday is found even when its nearest one is skipped (already rang, handled or excluded). Example: Monday's
+     * 6:50 rang, then the clock went back to Sunday evening: Monday is skipped and the Monday after (today + 8) arms.
+     */
+    val alarmPlanningDays: Int = 15,
     /** At most this many upcoming alarms (AlarmPlanner.upcoming's default limit, ScheduleRepository.upcomingAlarms). */
     val upcomingLimit: Int = 7,
     /** NightRules.isNight ignores a bedtime more than this before the night's end (a stale schedule). */

@@ -18,6 +18,7 @@ import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.alarm.AlarmEvent
 import com.sleepsaver.core.domain.alarm.AlarmTuning
 import com.sleepsaver.core.domain.alarm.DeepPrior
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.MovementEpoch
 import com.sleepsaver.core.domain.alarm.RingKind
@@ -78,11 +79,15 @@ class FakeScheduleRepository(
     oneOffs: OneOffs = OneOffs(),
     usualWake: Map<DayOfWeek, LocalTime> = DayOfWeek.values().associateWith { LocalTime.of(7, 0) },
     upcoming: List<PlannedAlarm> = emptyList(),
+    ended: EndedAlarms = EndedAlarms(),
 ) : ScheduleRepository {
     val weekState = MutableStateFlow(week)
     val oneOffsState = MutableStateFlow(oneOffs)
     val usualWakeState = MutableStateFlow(usualWake)
     val upcomingState = MutableStateFlow(upcoming)
+
+    /** What [endedAlarms] says; [upcomingState] is set on its own (keep the two consistent in a test). */
+    val endedState = MutableStateFlow(ended)
 
     /** What [computeAlarmPlan] returns; null = built from [upcomingState]. */
     var alarmPlanResult: AlarmPlan? = null
@@ -108,6 +113,7 @@ class FakeScheduleRepository(
     override val usualWake: Flow<Map<DayOfWeek, LocalTime>> = usualWakeState
     override val upcomingAlarms: Flow<List<PlannedAlarm>> = upcomingState
     override val nextAlarm: Flow<PlannedAlarm?> = upcomingState.map { it.firstOrNull() }
+    override val endedAlarms: Flow<EndedAlarms> = endedState
 
     override suspend fun computeAlarmPlan(now: Instant, exclude: Set<String>): AlarmPlan {
         alarmPlanCalls += now to exclude

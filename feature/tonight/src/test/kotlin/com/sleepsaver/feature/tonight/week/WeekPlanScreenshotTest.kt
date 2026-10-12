@@ -16,6 +16,7 @@ import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetContent
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetActions
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheetState
+import com.sleepsaver.feature.tonight.oneoff.oneOffDates
 import org.junit.Test
 import java.time.LocalTime
 
@@ -58,13 +59,23 @@ class WeekPlanScreenshotTest : ScreenshotTest() {
     @Test
     fun clock24() = captureScreen("week_plan_24h") { Clock24 { WeekPlan(s.weekPlanState(oneOffs = oneOffs)) } }
 
+    /** Tonight's window widened on a short night: the header keeps the row's 30 min and says why it is 40. */
+    private val widened get() = s.weekPlanState(next = PlanSamples.plannedAlarm(date = s.today.plusDays(1), debtAware = true))
+
+    @Test
+    fun debtAware() = captureScreen("week_plan_debt_aware") { WeekPlan(widened) }
+
+    @Test
+    fun debtAwareLargeFont() = captureScreen("week_plan_debt_aware_large_font") { LargeFont { WeekPlan(widened) } }
+
     @Test
     fun oneOffSheet() = captureScreen("oneoff_sheet") {
         SheetOver(screen = { WeekPlan(s.weekPlanState()) }) {
             OneOffSheetContent(
                 state = OneOffSheetState(
                     date = s.today.plusDays(1),
-                    dates = (0L until 8L).map { s.today.plusDays(it) },
+                    // At 2 PM: from tomorrow, the next morning a one-off can change.
+                    dates = oneOffDates(s.today.plusDays(1)),
                     today = s.today,
                     alarmOn = true,
                     time = LocalTime.of(6, 45),
