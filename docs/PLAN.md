@@ -340,8 +340,11 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 - Marks (stored): late caffeine, alcohol, late meal, late workout, stress, screens in bed, away from home, unwell.
   Derived: Night steps done, Hush on, anchor dropped. Keyed by the wake date of the night they precede; editable for
   7 days (and tonight). Hush on and anchor dropped go with the night a play or tap fell in: its wake date (14:00
-  cutoff), but only before that night's last wake-up. One after it (Hush tried at 10:27 after a 07:20 wake) was
-  daytime use and marks no night, and the mark's first date is then the next night.
+  cutoff), once that night is in only from its onset − 6 h (`journal.momentLead`) until its morning, the later of its
+  last wake-up and that date's planned wake (the plan's set time, else the usual wake). Outside that it was daytime
+  use and marks no night: Hush tried at 10:27 after a 07:20 wake (the mark's first date is then the next night), or
+  played for a 15:00 nap. Hush from Night reset at 03:20, after a last sleep that ended at 03:00, still counts for
+  that night when the planned wake is 07:00.
 - "What went with your nights": per mark × metric (total sleep, awake time, Morning feel) over 90 days from the mark's
   first date; ≥ 6 nights with and without; difference of medians with a seeded 90 % bootstrap interval (1000
   resamples). CLEAR when the interval excludes 0 by ≥ 15 min sleep / 5 min awake / 0.5 feel, POSSIBLE when it just

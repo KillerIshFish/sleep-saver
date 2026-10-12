@@ -18,6 +18,7 @@ import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.momentMarkDates
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.RoutineActivity
+import com.sleepsaver.core.domain.model.SleepTiming
 import com.sleepsaver.core.domain.model.UserSleepSettings
 import com.sleepsaver.core.domain.nightsteps.EveningState
 import com.sleepsaver.core.domain.nightsteps.routineFor
@@ -36,6 +37,7 @@ import com.sleepsaver.core.domain.patterns.PlannedKeelCalculator
 import com.sleepsaver.core.domain.patterns.SocialJetlag
 import com.sleepsaver.core.domain.patterns.SocialJetlagCalculator
 import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.ScheduleTimes
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -77,6 +79,7 @@ class PatternsRepositoryImpl @Inject internal constructor(
     private val oddNightDetector = OddNightDetector(config)
     private val anchorStatsCalculator = AnchorStatsCalculator(config)
     private val deepPriorEstimator = DeepPriorEstimator(config)
+    private val scheduleTimes = ScheduleTimes(config)
 
     private val anchorDao = database.anchorDao()
 
@@ -122,7 +125,8 @@ class PatternsRepositoryImpl @Inject internal constructor(
 
     /**
      * Stored marks plus the derived ones: Night steps done the evening before, and Hush used and anchor dropped during
-     * the night ([momentMarkDates]: a play or tap after the night's wake-up was daytime use and marks no night).
+     * the night ([momentMarkDates]: from its onset − journal.momentLead until the later of its last wake-up and that
+     * morning's planned wake, ScheduleTimes.wake; a play or tap outside it was daytime use and marks no night).
      */
     override val markEffects: Flow<List<MarkEffect>> = combine(
         combine(
@@ -141,6 +145,7 @@ class PatternsRepositoryImpl @Inject internal constructor(
             oneOffs,
             database.routineActivityDao().observeAll().orFallback(TAG, "Routine activities query") { emptyList() }
                 .map { rows -> rows.map { it.toDomain() } },
+            settings.map { it.sleep }.distinctUntilChanged(),
             ::PlanRows,
         ),
         nights,
@@ -198,7 +203,10 @@ class PatternsRepositoryImpl @Inject internal constructor(
 
     private class JournalRows(val marks: List<NightMarkEntity>, val feel: List<MorningFeelEntity>, val stepLogs: List<NightStepLogEntity>)
 
-    private class PlanRows(val week: WeekPlan, val oneOffs: OneOffs, val activities: List<RoutineActivity>)
+    private class PlanRows(val week: WeekPlan, val oneOffs: OneOffs, val activities: List<RoutineActivity>, val sleep: UserSleepSettings) {
+        /** What ScheduleTimes.wake reads: Settings' wake rule with the plan (the personal latency doesn't move W). */
+        val timing: SleepTiming get() = sleep.copy(week = week, oneOffs = oneOffs).timing
+    }
 
     private fun markEffects(
         journal: JournalRows,
@@ -212,8 +220,15 @@ class PatternsRepositoryImpl @Inject internal constructor(
         val logs = journal.stepLogs.map { it.toDomain() }
         val anchors: List<Anchor> = anchorRows.map { it.toDomain() }
         val nightsByDate = nights.associateBy { it.wakeDate }
-        val hushUsed = momentMarkDates(hush.map { Instant.ofEpochMilli(it.startEpochMs) to LocalDate.parse(it.wakeDate) }, nightsByDate)
-        val anchorDropped = momentMarkDates(anchors.map { it.at to it.wakeDate }, nightsByDate)
+        val timing = plan.timing
+        val plannedWake = { date: LocalDate -> scheduleTimes.wake(date, nights, timing).first }
+        val hushUsed = momentMarkDates(
+            hush.map { Instant.ofEpochMilli(it.startEpochMs) to LocalDate.parse(it.wakeDate) },
+            nightsByDate,
+            plannedWake,
+            config,
+        )
+        val anchorDropped = momentMarkDates(anchors.map { it.at to it.wakeDate }, nightsByDate, plannedWake, config)
 
         // Night steps done on evening E → mark on wake date E + 1, by stepAdherence's own DONE rule.
         val plannedCount = { evening: LocalDate ->

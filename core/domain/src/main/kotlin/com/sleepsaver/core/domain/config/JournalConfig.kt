@@ -28,4 +28,9 @@ data class JournalConfig(
     val oddAwake: Duration = Duration.ofMinutes(20),
     val oddOnset: Duration = Duration.ofMinutes(60),
     // --- B2 additions (append below this line only)
+    /**
+     * Hush on and anchor dropped (momentMarkDates): a play or tap counts for a night that is in from this long before
+     * its onset, so the evening's wind-down counts and an afternoon nap's Hush doesn't (asleep 23:10 → from 17:10).
+     */
+    val momentLead: Duration = Duration.ofHours(6),
 )

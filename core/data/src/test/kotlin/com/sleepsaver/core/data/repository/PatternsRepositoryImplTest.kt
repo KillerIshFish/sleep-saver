@@ -146,6 +146,25 @@ class PatternsRepositoryImplTest {
     }
 
     @Test
+    fun `a Hush play counts until the plan's wake time, and an afternoon one counts for no night`() = runTest {
+        // Every night 23:00 → 07:00, except last night: up for good at 03:00. Today's plan wakes at 09:00 (usual: 07:00).
+        sleep.state.value = nights(14) { if (it == today) testNight(it, wokeUp = "03:00") else testNight(it) }
+        schedule.updateDay(today.dayOfWeek) { it.copy(morning = it.morning.copy(wakeTime = LocalTime.of(9, 0))) }
+        // Hush for a nap two days ago at 15:00 (wake date yesterday, 8 h before that night's onset) and Night reset's
+        // Hush this morning at 08:30 (after the 03:00 wake-up, before the planned 09:00).
+        val twoDaysAgo = today.minusDays(2)
+        db.hushPlayDao().insert(HushPlayEntity(startEpochMs = epochMs(twoDaysAgo, "15:00"), endEpochMs = epochMs(twoDaysAgo, "15:30"), offsetSec = 0, color = "PINK", wakeDate = "${today.minusDays(1)}"))
+        db.hushPlayDao().insert(HushPlayEntity(startEpochMs = epochMs(today, "08:30"), endEpochMs = epochMs(today, "09:15"), offsetSec = 0, color = "PINK", wakeDate = "$today"))
+        val repository = repository()
+
+        val hush = repository.markEffects.first { it.isNotEmpty() }
+            .single { it.mark == Mark.HUSH_USED && it.metric == EffectMetric.TOTAL_SLEEP }
+
+        // From yesterday (the first night Hush could have been on): last night with it, yesterday without.
+        assertThat(hush.withNights to hush.withoutNights).isEqualTo(1 to 1)
+    }
+
+    @Test
     fun `a Hush play or an anchor after the night's wake-up marks no night`() = runTest {
         sleep.state.value = nights(14) // each woke at 07:00, the last one this morning
         // Hush tried at 10:27 this morning: wake date today by the 14:00 rule, but this night was over.
