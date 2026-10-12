@@ -68,13 +68,26 @@ class ProgressContentTest {
         show(ProgressFixtures.ready())
 
         compose.onNodeWithText("Progress").assertIsDisplayed()
-        compose.onNodeWithText("Sep 23 – Oct 6").assertIsDisplayed()
+        // Sleep times: the nights of Tue Sep 22 – Mon Oct 5, the first and last columns ("TUE" … "MON").
+        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
         compose.onNodeWithContentDescription("Next two weeks").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Previous two weeks").assertIsEnabled().performClick()
         compose.onNodeWithContentDescription("Settings").performClick()
 
         assertThat(previous).isEqualTo(1)
         assertThat(settingsOpened).isEqualTo(1)
+    }
+
+    @Test
+    fun `the header names the nights on the night tabs and the days on Sleep debt`() {
+        show(ProgressFixtures.ready())
+
+        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
+        compose.onNodeWithText("Sleep debt").performClick()
+        compose.onNodeWithText("Sep 23 – Oct 6").assertIsDisplayed()
+        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertDoesNotExist()
+        compose.onNodeWithText("Sleep quality").performClick()
+        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
     }
 
     @Test

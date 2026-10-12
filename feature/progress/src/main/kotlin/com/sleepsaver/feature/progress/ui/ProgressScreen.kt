@@ -144,7 +144,7 @@ internal fun ProgressContent(
                     contentPadding = ScreenPadding,
                 ) {
                     item(key = "header") {
-                        ProgressHeader(state.window, onPreviousWindow, onNextWindow, onOpenSettings)
+                        ProgressHeader(state.window, onPreviousWindow, onNextWindow, onOpenSettings, tab)
                     }
                     item(key = "tabs") {
                         ProgressTabs(
@@ -184,17 +184,19 @@ private val ScreenPadding = PaddingValues(
     bottom = Spacing.xl,
 )
 
+/** The title, the dates [tab] shows (see [windowSubtitle]), the two-week pager and Settings. */
 @Composable
 private fun ProgressHeader(
     window: ProgressWindow?,
     onPreviousWindow: () -> Unit,
     onNextWindow: () -> Unit,
     onOpenSettings: () -> Unit,
+    tab: ProgressTab = ProgressTab.SLEEP_TIMES,
 ) {
     val colors = SleepSaverTheme.colors
     ScreenHeader(
         title = stringResource(R.string.progress_title),
-        subtitle = window?.let { formatWindowHeader(it.from, it.to) },
+        subtitle = window?.let { windowSubtitle(it, tab) },
     ) {
         if (window != null) {
             Row(
@@ -221,6 +223,17 @@ private fun ProgressHeader(
             Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.progress_settings), tint = colors.textSecondary)
         }
     }
+}
+
+/**
+ * The dates under the title, matching the columns of [tab]: "Sep 28 – Oct 11" for the days of Sleep debt, "Nights of
+ * Sep 27 – Oct 10" for the night tabs, whose columns are labelled by the evening each night began.
+ */
+@Composable
+private fun windowSubtitle(window: ProgressWindow, tab: ProgressTab): String = when (tab) {
+    ProgressTab.SLEEP_DEBT -> formatWindowHeader(window.from, window.to)
+    ProgressTab.SLEEP_TIMES, ProgressTab.SLEEP_QUALITY ->
+        stringResource(R.string.progress_window_nights, formatWindowHeader(window.firstNight, window.lastNight))
 }
 
 /**

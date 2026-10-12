@@ -2,6 +2,9 @@
 <resources>
     <!-- Header -->
     <string name="progress_title">Progress</string>
+    <!-- Under the title on the night tabs, whose columns are labelled by the evening each night began:
+         "Nights of Sep 27 – Oct 10". The Sleep debt tab shows the days alone: "Sep 28 – Oct 11". -->
+    <string name="progress_window_nights">Nights of %1$s</string>
     <string name="progress_previous_window">Previous two weeks</string>
     <string name="progress_next_window">Next two weeks</string>
     <string name="progress_settings">Settings</string>
