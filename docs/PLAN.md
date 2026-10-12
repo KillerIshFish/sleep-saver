@@ -467,3 +467,13 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
     (about 0.5–3 s on the emulator), plus the whole ring when the screen is on and unlocked and the user is in another
     app (a heads-up instead of the full-screen screen). Vibration and the heads-up's Stop/Snooze still work. Re-check
     the behaviour-change notes and these log lines on each Android beta.
+- **Opening the ringing screen**: the ring service never starts an activity. The full-screen intent is the one path
+  from the background. SystemUI sends it, so the `E ActivityTaskManager: Activity start ONLY allowed by
+  BAL_ALLOW_NON_APP_VISIBLE_WINDOW` line is about SystemUI's status-bar windows letting *its* send through. That line
+  is a `Slog.wtf` that `BackgroundActivityStartController` writes only on debuggable builds, to size a grace period.
+  SystemUI, a persistent system process sending with BAL allowed, would also pass the later
+  `BAL_ALLOW_ALLOWLISTED_UID` check. With the app in front, MainActivity starts the screen itself while resumed
+  (`BAL_ALLOW_VISIBLE_WINDOW`, the ordinary foreground rule). That covers the screen-on, unlocked case, where Android
+  shows the full-screen intent only as a heads-up, and covers notifications being blocked. When both fire, the
+  single-instance screen gets the second start as `START_DELIVERED_TO_TOP` and nothing changes. The heads-up keeps
+  Stop and Snooze.

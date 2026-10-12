@@ -46,7 +46,9 @@ import javax.inject.Inject
  * The ringing alarm (SPEC_V2 §4.4 T6, T8, T9, T10; §4.7): a mediaPlayback foreground service started only by
  * AlarmReceiver when RING_PLAN, RING_EXTRA or RING_CATNAP fires (the exact-alarm start exemption). It posts the
  * full-screen notification 300, plays the wake-up style's cue timeline (player gain only), escalates, times out and
- * arms the one backup ring. It never idles while snoozed: a snooze stops it, and the re-ring is a fresh start.
+ * arms the one backup ring. It never idles while snoozed: a snooze stops it, and the re-ring is a fresh start. It never
+ * starts an activity itself: SystemUI sends the notification's full-screen intent, and MainActivity opens the ringing
+ * screen while the app is in front (docs/PLAN.md §5, "Opening the ringing screen").
  *
  * Android 17 background audio hardening (docs/PLAN.md §5): a service started by an alarm has no while-in-use
  * capability, so the ring's audio focus and playback rest on the exemption for USAGE_ALARM with an exact-alarm

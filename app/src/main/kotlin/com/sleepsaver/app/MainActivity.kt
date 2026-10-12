@@ -38,8 +38,11 @@ import javax.inject.Inject
 /**
  * The app's one window. Two night-time redirects (SPEC_V2 §5.6):
  *  - while an alarm is sounding, being in the app means seeing the ringing screen: whenever this activity is resumed
- *    and a ring sounds (also when one starts while it is open, e.g. with notifications blocked so no full-screen
- *    intent could show), it starts `RingingActivity` by explicit component;
+ *    and a ring sounds (also when one starts while it is open: Android shows a full-screen intent only as a heads-up
+ *    while the phone is in use, and none at all with notifications blocked), it starts `RingingActivity` by explicit
+ *    component. Only ever from a resumed window, so the platform allows it as an ordinary foreground start
+ *    (BAL_ALLOW_VISIBLE_WINDOW). When the full-screen intent got there first (the screen woke onto this activity), the
+ *    single-instance screen just gets the intent again (START_DELIVERED_TO_TOP);
  *  - a cold launch from the launcher during the night state (after Drop anchor) opens the no-clock Night screen.
  */
 @AndroidEntryPoint

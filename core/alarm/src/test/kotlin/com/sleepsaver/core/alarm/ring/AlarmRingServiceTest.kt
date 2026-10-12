@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.AlarmChannels
+import com.sleepsaver.core.alarm.AlarmPendingIntents
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredCatnap
 import com.sleepsaver.core.alarm.mirror.MirroredExtra
@@ -84,6 +85,26 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(m.ringing?.occurrenceId).isEqualTo(id)
         assertThat(events.single().firstRingAt).isEqualTo(target)
         assertThat(ringPlanId).isEqualTo(tomorrowAlarm.occurrence.id) // the plan moved on
+    }
+
+    @Test
+    fun `the ring opens its screen only through its notification, never by starting an activity itself`() {
+        armAndReachWakeTime()
+
+        val notification = shadowOf(startRing(AlarmActions.KIND_PLAN, id).get()).lastForegroundNotification
+
+        // SystemUI sends the full-screen intent; a service started from the background may not start activities, and
+        // the ring mustn't lean on a launch exemption (docs/PLAN.md §5, "Opening the ringing screen").
+        assertThat(shadowOf(context).nextStartedActivity).isNull()
+        val screen = shadowOf(notification.fullScreenIntent)
+        assertThat(screen.isActivity).isTrue()
+        assertThat(screen.savedIntent.component?.className).isEqualTo(AlarmIntents.RINGING_ACTIVITY)
+        // The screen-on, unlocked case gets a heads-up instead: a tap opens the same screen, and it can Stop or Snooze.
+        assertThat(notification.contentIntent).isEqualTo(notification.fullScreenIntent)
+        assertThat(notification.actions.map { it.actionIntent }).containsExactly(
+            AlarmPendingIntents.snooze(context),
+            AlarmPendingIntents.stop(context),
+        ).inOrder()
     }
 
     @Test
