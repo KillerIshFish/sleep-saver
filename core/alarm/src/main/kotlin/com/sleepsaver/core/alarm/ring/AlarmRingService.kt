@@ -1,10 +1,13 @@
 package com.sleepsaver.core.alarm.ring
 
+import android.app.Activity
+import android.app.Application
 import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.SystemClock
@@ -45,6 +48,11 @@ import javax.inject.Inject
  * full-screen notification 300, plays the wake-up style's cue timeline (player gain only), escalates, times out and
  * arms the one backup ring. It never idles while snoozed: a snooze stops it, and the re-ring is a fresh start.
  *
+ * Android 17 background audio hardening (docs/PLAN.md §5): a service started by an alarm has no while-in-use
+ * capability, so the ring's audio focus and playback rest on the exemption for USAGE_ALARM with an exact-alarm
+ * permission (USE_EXACT_ALARM). The player only starts after startForeground, and whenever one of our screens comes to
+ * the front mid-ring the app is in the foreground anyway: the player then asks for focus again ([screens]).
+ *
  * Direct-boot aware and direct-boot safe: everything it injects reads only the device-protected mirror until unlock.
  */
 @AndroidEntryPoint
@@ -72,6 +80,24 @@ internal class AlarmRingService : Service() {
     /** True while a ring sounds (not while snoozed). */
     val isSounding: Boolean get() = sounding != null
 
+    /**
+     * One of our screens came to the front while a ring sounds (the ringing screen from its full-screen intent or a
+     * notification tap, or the app before it redirects there): the app is in the foreground, so a focus request the
+     * audio hardening held back goes through now. Asking again is a no-op while the player holds focus.
+     */
+    private val screens = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityResumed(activity: Activity) {
+            sounding?.let { active -> output("focus") { active.sound.reclaimFocus() } }
+        }
+
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+        override fun onActivityStarted(activity: Activity) = Unit
+        override fun onActivityPaused(activity: Activity) = Unit
+        override fun onActivityStopped(activity: Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+        override fun onActivityDestroyed(activity: Activity) = Unit
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -79,6 +105,7 @@ internal class AlarmRingService : Service() {
         running = true
         current = this
         AlarmChannels.ensure(this)
+        application.registerActivityLifecycleCallbacks(screens)
     }
 
     /**
@@ -99,6 +126,7 @@ internal class AlarmRingService : Service() {
     }
 
     override fun onDestroy() {
+        application.unregisterActivityLifecycleCallbacks(screens)
         sounding?.let(::silence)
         sounding = null
         main.cancel()
@@ -174,7 +202,11 @@ internal class AlarmRingService : Service() {
         scheduler.flushEventsAsync()
     }
 
-    /** T10: the cue timeline on the main thread, then the timeout. */
+    /**
+     * T10: the cue timeline on the main thread, then the timeout. A sound or vibration that fails never ends it: the
+     * other output, the snooze label and the timeout go on (an exception here would crash the app mid-ring, and the
+     * sticky restart would resume the ring into the same failure).
+     */
     private suspend fun runTimeline(active: Sounding, timeline: CueTimeline, cap: Duration) {
         val startedAt = SystemClock.elapsedRealtime()
         var speakerOn = false
@@ -187,17 +219,26 @@ internal class AlarmRingService : Service() {
             }
             val cue = timeline.at(elapsed)
             if (cue.speaker && !speakerOn) {
-                active.sound.start(cue.gain)
-                speakerOn = true
+                speakerOn = true // started once: a player that failed isn't started again every tick
+                output("sound") { active.sound.start(cue.gain) }
             } else if (speakerOn) {
-                active.sound.setGain(cue.gain)
+                output("gain") { active.sound.setGain(cue.gain) }
             }
             if (cue.vibrate != vibrating) {
-                if (cue.vibrate) active.vibration.start() else active.vibration.stop()
                 vibrating = cue.vibrate
+                output("vibration") { if (cue.vibrate) active.vibration.start() else active.vibration.stop() }
             }
             refreshOffer(active)
             delay(AlarmPlatform.GAIN_STEP_MS)
+        }
+    }
+
+    /** Runs one call into the ring's player or vibrator; a failure is logged, never thrown into the ring. */
+    private inline fun output(what: String, call: () -> Unit) {
+        try {
+            call()
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Alarm $what failed; the ring goes on", e)
         }
     }
 

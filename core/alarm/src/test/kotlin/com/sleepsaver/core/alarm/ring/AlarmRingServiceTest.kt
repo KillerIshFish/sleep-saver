@@ -1,5 +1,6 @@
 package com.sleepsaver.core.alarm.ring
 
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
@@ -129,6 +130,38 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         advance(Duration.ofMinutes(5))
         assertThat(sound.gains.last()).isEqualTo(0.8f)
         assertThat(sound.stopped).isFalse()
+    }
+
+    @Test
+    fun `a player that fails doesn't end the ring - vibration and the timeout go on`() {
+        graph.ringOutputs.failingSound = true
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+
+        assertThat(graph.nightController.state.value.ringing).isNotNull()
+        advance(Duration.ofSeconds(31))
+        assertThat(graph.ringOutputs.vibrations.single().on).isTrue()
+        advance(Duration.ofMinutes(10))
+        assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
+        assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
+        assertThat(checkNotNull(m.extra).extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+    }
+
+    @Test
+    fun `when one of our screens comes to the front mid-ring the player asks for focus again`() {
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+        val sound = sounds.single()
+        assertThat(sound.focusReclaims).isEqualTo(0)
+
+        Robolectric.buildActivity(Activity::class.java).setup() // the ringing screen, shown by the full-screen intent
+        assertThat(sound.focusReclaims).isEqualTo(1)
+
+        ring.get().stop()
+        Robolectric.buildActivity(Activity::class.java).setup() // nothing sounds any more
+        ring.destroy()
+        Robolectric.buildActivity(Activity::class.java).setup() // the service is gone, and so is its callback
+        assertThat(sound.focusReclaims).isEqualTo(1)
     }
 
     @Test

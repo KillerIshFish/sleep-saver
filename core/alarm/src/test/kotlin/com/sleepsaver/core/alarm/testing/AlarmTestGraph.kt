@@ -152,25 +152,33 @@ internal class CountingPlanner : ReminderPlanner {
     override fun cancelAll() = Unit
 }
 
-/** Records what the ring played. */
+/** Records what the ring played. [failingSound]: every sound made from now on throws, like a broken player. */
 internal class FakeRingOutputs : RingOutputs {
     val sounds = mutableListOf<FakeSound>()
     val vibrations = mutableListOf<FakeVibration>()
+    var failingSound = false
 
-    override fun sound(tone: AlarmTone, locked: Boolean): RingSound = FakeSound(tone, locked).also { sounds += it }
+    override fun sound(tone: AlarmTone, locked: Boolean): RingSound = FakeSound(tone, locked, failingSound).also { sounds += it }
     override fun vibration(): RingVibration = FakeVibration().also { vibrations += it }
 
-    class FakeSound(val tone: AlarmTone, val locked: Boolean) : RingSound {
+    class FakeSound(val tone: AlarmTone, val locked: Boolean, private val failing: Boolean = false) : RingSound {
         val gains = mutableListOf<Float>()
         var started = false
         var stopped = false
+        var focusReclaims = 0
         override fun start(gain: Float) {
+            if (failing) throw IllegalStateException("No audio track for the alarm")
             started = true
             gains += gain
         }
 
         override fun setGain(gain: Float) {
+            if (failing) throw IllegalStateException("No audio track for the alarm")
             gains += gain
+        }
+
+        override fun reclaimFocus() {
+            focusReclaims++
         }
 
         override fun stop() {

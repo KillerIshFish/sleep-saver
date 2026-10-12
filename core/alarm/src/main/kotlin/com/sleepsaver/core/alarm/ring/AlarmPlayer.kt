@@ -14,6 +14,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.getSystemService
 import com.sleepsaver.core.alarm.AlarmPlatform
 import com.sleepsaver.core.alarm.synth.ToneSynth
@@ -35,11 +36,21 @@ internal class AlarmPlayer(
         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
         .build()
     private val audioManager = context.getSystemService<AudioManager>()
-    private var focus: AudioFocusRequest? = null
+
+    /** One request for the player's life: asking again with it is a no-op while we hold focus (same client). */
+    private val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+        .setAudioAttributes(attributes)
+        .setOnAudioFocusChangeListener { } // the alarm keeps sounding whatever else wants focus
+        .build()
+    private var focusAsked = false
     private var track: AudioTrack? = null
     private var media: MediaPlayer? = null
     @Volatile private var streaming = false
     private var thread: Thread? = null
+
+    /** Between [start] and [stop]: a player was started (the tone's stream or the phone's alarm sound). */
+    @VisibleForTesting
+    internal val playing: Boolean get() = streaming || media != null
 
     override fun start(gain: Float) {
         requestFocus()
@@ -65,18 +76,39 @@ internal class AlarmPlayer(
         track = null
         media?.let { runCatching { it.stop() }; it.release() }
         media = null
-        focus?.let { request -> audioManager?.abandonAudioFocusRequest(request) }
-        focus = null
+        if (focusAsked) {
+            focusAsked = false
+            try {
+                audioManager?.abandonAudioFocusRequest(focusRequest)
+            } catch (e: RuntimeException) {
+                Log.w(TAG, "Audio focus not abandoned", e)
+            }
+        }
     }
 
+    override fun reclaimFocus() {
+        if (focusAsked) requestFocus()
+    }
+
+    /**
+     * Focus only asks other apps to pause or duck: a refusal never stops the alarm, which plays either way.
+     *
+     * Android 17's background audio hardening logs this request from the ring service as "AudioHardening focus
+     * request … would be ignored … level: full … exemption: 4": a service started by an alarm has no while-in-use
+     * capability, and only the exact-alarm exemption for USAGE_ALARM (we hold USE_EXACT_ALARM) lets the request, and
+     * the playback, through. Its `set-enable-hardening enable` test mode refuses the request until one of our screens
+     * is in front ([reclaimFocus] asks again then), and its `throw` mode throws here instead (docs/PLAN.md §5).
+     */
     private fun requestFocus() {
         val manager = audioManager ?: return
-        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
-            .setAudioAttributes(attributes)
-            .setOnAudioFocusChangeListener { } // the alarm keeps sounding whatever else wants focus
-            .build()
-        manager.requestAudioFocus(request)
-        focus = request
+        focusAsked = true
+        try {
+            if (manager.requestAudioFocus(focusRequest) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                Log.i(TAG, "Audio focus refused; the alarm plays anyway")
+            }
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Audio focus request failed; the alarm plays anyway", e)
+        }
     }
 
     private fun startSystemSound(gain: Float): Boolean = try {
