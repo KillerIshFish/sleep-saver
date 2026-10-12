@@ -7,9 +7,12 @@ import javax.inject.Inject
 
 /** The alarm's sound: started once, then only its player gain changes. */
 internal interface RingSound {
-    /** Requests transient audio focus and starts playing at [gain]. */
+    /** Requests transient audio focus and starts playing at [gain], whether or not focus is granted. */
     fun start(gain: Float)
     fun setGain(gain: Float)
+
+    /** After [start]: asks for focus again (one of our screens came to the front); a no-op while it is held. */
+    fun reclaimFocus()
 
     /** Stops, releases the player and abandons focus. Safe to call twice. */
     fun stop()

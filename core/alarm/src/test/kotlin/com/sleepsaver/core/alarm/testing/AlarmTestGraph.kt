@@ -152,42 +152,66 @@ internal class CountingPlanner : ReminderPlanner {
     override fun cancelAll() = Unit
 }
 
-/** Records what the ring played. */
+/**
+ * Records what the ring played. [failingSound]: every call into a sound made from now on throws, like a broken player;
+ * [failingVibration]: likewise for a vibration.
+ */
 internal class FakeRingOutputs : RingOutputs {
     val sounds = mutableListOf<FakeSound>()
     val vibrations = mutableListOf<FakeVibration>()
+    var failingSound = false
+    var failingVibration = false
 
-    override fun sound(tone: AlarmTone, locked: Boolean): RingSound = FakeSound(tone, locked).also { sounds += it }
-    override fun vibration(): RingVibration = FakeVibration().also { vibrations += it }
+    override fun sound(tone: AlarmTone, locked: Boolean): RingSound = FakeSound(tone, locked, failingSound).also { sounds += it }
+    override fun vibration(): RingVibration = FakeVibration(failingVibration).also { vibrations += it }
 
-    class FakeSound(val tone: AlarmTone, val locked: Boolean) : RingSound {
+    class FakeSound(val tone: AlarmTone, val locked: Boolean, private val failing: Boolean = false) : RingSound {
         val gains = mutableListOf<Float>()
         var started = false
         var stopped = false
+        var focusReclaims = 0
         override fun start(gain: Float) {
+            fail()
             started = true
             gains += gain
         }
 
         override fun setGain(gain: Float) {
+            fail()
             gains += gain
         }
 
+        override fun reclaimFocus() {
+            fail()
+            focusReclaims++
+        }
+
         override fun stop() {
+            fail()
             stopped = true
+        }
+
+        private fun fail() {
+            if (failing) throw IllegalStateException("No audio track for the alarm")
         }
     }
 
-    class FakeVibration : RingVibration {
+    class FakeVibration(private val failing: Boolean = false) : RingVibration {
         var on = false
         var everOn = false
         override fun start() {
+            fail()
             on = true
             everOn = true
         }
 
         override fun stop() {
+            fail()
             on = false
+        }
+
+        private fun fail() {
+            if (failing) throw IllegalStateException("Vibrator service gone")
         }
     }
 }

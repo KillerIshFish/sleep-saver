@@ -449,3 +449,40 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 - **Alarm check**: notifications, the alarm channel, exact alarms, full-screen intents, background restriction,
   alarm volume, Do Not Disturb total silence, battery optimisation and Bluetooth output, each with a fix; plus "Test
   ring in 1 minute". Enabling an alarm requires notifications (the Stop button lives in the notification).
+- **Android 17 background audio hardening** (seen on every ring of the API 37 emulator, sound still played):
+  `AS.HardeningEnforcer: AudioHardening focus request for req 2 would be ignored … level: full usage: 4 exemption: 4`
+  and `AS.AudioService: AudioHardening background playback would be muted … level: full, reason: 4, usage: USAGE_ALARM`.
+  - *What it means* (AOSP `android17-release`: `HardeningEnforcer.blockFocusMethod`, audioflinger
+    `getHardeningDecision`): `level: full` = the app has a foreground service (so `OP_CONTROL_AUDIO_PARTIAL` is allowed)
+    but no while-in-use capability (`OP_CONTROL_AUDIO` denied). The ring service is started by the alarm-clock alarm
+    from the background, and such a start never gets while-in-use. `exemption`/`reason` 4 = `ALARM`: a `USAGE_ALARM`
+    request from an app holding `USE_EXACT_ALARM` or `SCHEDULE_EXACT_ALARM` is enforced only at the partial level, and
+    "would be" means the call went through. Only metrics are logged. Usage 4 is `USAGE_ALARM`.
+  - *When it would mute*: only with no foreground service and no visible window (partial level). The player starts
+    after `startForeground`, so that doesn't happen. `USE_EXACT_ALARM` can't be revoked; `ManifestPermissionsTest`
+    pins it, and every ring player and its focus request use `USAGE_ALARM`. Developer test modes behave differently.
+    With `adb shell cmd audio set-enable-hardening enable`, alarms get full enforcement: focus is refused and the track
+    is muted until one of our screens is in front. AudioFlinger re-checks the op every mix cycle, so the same track
+    unmutes by itself. With `throw`, the focus request throws and a restricted track is poisoned (its writes fail, so
+    the synthesized tone ends for that ring): a developer crash mode, not a state a user can reach.
+  - *What the ring does*: focus is advisory. A refused or throwing request is logged and the alarm plays anyway, and a
+    failing player or vibrator never ends the cue timeline: vibration, the snooze label and the timeout go on (a throw
+    there would crash the app mid-ring, and the sticky restart would ring into the same failure). When any of our
+    activities resumes mid-ring, the player re-asks with the same `AudioFocusRequest`. That's a no-op while focus is
+    held: same client, top of the stack. We rejected two other options: waiting for the ringing screen before playing
+    (the alarm would ring later), and rebuilding the track on resume (not needed, since the muted track recovers by
+    itself).
+  - *If a later Android drops the alarm exemption*: the gap is from the ring's start until the ringing screen shows
+    (about 0.5–3 s on the emulator), plus the whole ring when the screen is on and unlocked and the user is in another
+    app (a heads-up instead of the full-screen screen). Vibration and the heads-up's Stop/Snooze still work. Re-check
+    the behaviour-change notes and these log lines on each Android beta.
+- **Opening the ringing screen**: the ring service never starts an activity. The full-screen intent is the one path
+  from the background. SystemUI sends it, so the `E ActivityTaskManager: Activity start ONLY allowed by
+  BAL_ALLOW_NON_APP_VISIBLE_WINDOW` line is about SystemUI's status-bar windows letting *its* send through. That line
+  is a `Slog.wtf` that `BackgroundActivityStartController` writes only on debuggable builds, to size a grace period.
+  SystemUI, a persistent system process sending with BAL allowed, would also pass the later
+  `BAL_ALLOW_ALLOWLISTED_UID` check. With the app in front, MainActivity starts the screen itself while resumed
+  (`BAL_ALLOW_VISIBLE_WINDOW`, the ordinary foreground rule). That covers the screen-on, unlocked case, where Android
+  shows the full-screen intent only as a heads-up, and covers notifications being blocked. When both fire, the
+  single-instance screen gets the second start as `START_DELIVERED_TO_TOP` and nothing changes. The heads-up keeps
+  Stop and Snooze.
