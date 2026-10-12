@@ -238,7 +238,7 @@ class SettingsViewModelTest {
         val viewModel = viewModel()
 
         assertThat(viewModel.state.needSuggestion)
-            .isEqualTo(NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9))
+            .isEqualTo(NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9, wakeDelay = Duration.ofMinutes(45)))
 
         viewModel.useSuggestedNeed()
 

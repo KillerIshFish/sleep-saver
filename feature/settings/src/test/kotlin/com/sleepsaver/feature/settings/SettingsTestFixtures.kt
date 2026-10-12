@@ -59,7 +59,7 @@ internal object SettingsSamples {
         ),
         usualWake = LocalTime.of(6, 52),
         usualBedtime = LocalTime.of(22, 55),
-        needSuggestion = NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9),
+        needSuggestion = NeedSuggestion(Duration.ofMinutes(515), Confidence.MEDIUM, nightsUsed = 9, wakeDelay = Duration.ofMinutes(45)),
         weekPlan = WeekPlanSummary.OneTime(
             setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
             LocalTime.of(6, 30),

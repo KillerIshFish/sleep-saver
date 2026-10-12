@@ -433,7 +433,7 @@ class SettingsViewModel @Inject constructor(
         val insights = (this as? InsightsState.Ready)?.insights ?: return InsightsBits()
         val estimate = (insights.needEstimate as? SleepNeedEstimateResult.Available)?.estimate
         return InsightsBits(
-            suggestion = estimate?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed) },
+            suggestion = estimate?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed, it.freeNightWakeDelay) },
             learned = insights.learnedTiming,
         )
     }

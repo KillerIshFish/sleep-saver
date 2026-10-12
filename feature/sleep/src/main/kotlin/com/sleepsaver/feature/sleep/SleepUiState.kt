@@ -107,7 +107,8 @@ sealed interface SourceLabel {
     data class App(val name: String) : SourceLabel
 }
 
-data class NeedSuggestion(val need: Duration, val confidence: Confidence, val freeNights: Int)
+/** [freeNights] nights woken at least [wakeDelay] later than on a usual weekday suggest [need]. */
+data class NeedSuggestion(val need: Duration, val confidence: Confidence, val freeNights: Int, val wakeDelay: Duration)
 
 data class PhaseItem(val phase: Phase, val isCurrent: Boolean)
 
@@ -186,7 +187,7 @@ internal fun readyState(
                 now = insights.now,
             )
         }
-        ?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed) }
+        ?.let { NeedSuggestion(it.need, it.confidence, it.freeNightsUsed, it.freeNightWakeDelay) }
 
     val current = insights.currentPhase
     val upcoming = insights.upcomingPhases.filter { it != current }

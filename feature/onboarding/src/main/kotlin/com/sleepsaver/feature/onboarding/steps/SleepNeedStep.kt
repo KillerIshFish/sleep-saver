@@ -154,7 +154,12 @@ private fun SuggestionCard(suggestion: NeedSuggestion, inUse: Boolean, onUse: ()
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = pluralStringResource(R.plurals.onboarding_need_suggestion_nights, suggestion.freeNights, suggestion.freeNights),
+                    text = pluralStringResource(
+                        R.plurals.onboarding_need_suggestion_nights,
+                        suggestion.freeNights,
+                        suggestion.freeNights,
+                        suggestion.wakeDelayMinutes,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = SleepSaverTheme.colors.textSecondary,
                     modifier = Modifier.padding(top = 2.dp),

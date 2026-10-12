@@ -503,11 +503,14 @@ class OnboardingViewModelTest {
 
     @Test
     fun `the estimate is offered and can be used`() {
-        val estimate = SleepNeedEstimate(Duration.ofMinutes(515), 6, Duration.ofMinutes(50), Confidence.MEDIUM, LocalTime.of(6, 50))
+        val estimate = SleepNeedEstimate(
+            Duration.ofMinutes(515), 6, Duration.ofMinutes(50), Confidence.MEDIUM, LocalTime.of(6, 50),
+            freeNightWakeDelay = Duration.ofMinutes(60),
+        )
         val insights = SampleData.insights().copy(needEstimate = SleepNeedEstimateResult.Available(estimate))
         val env = Env(insights = FakeInsightsRepository(InsightsState.Ready(insights)))
 
-        assertThat(env.state.sleepNeed.suggestion).isEqualTo(NeedSuggestion(515, Confidence.MEDIUM, 6))
+        assertThat(env.state.sleepNeed.suggestion).isEqualTo(NeedSuggestion(515, Confidence.MEDIUM, 6, wakeDelayMinutes = 60))
         env.viewModel.useSuggestion()
 
         assertThat(env.state.sleepNeed.needMinutes).isEqualTo(515)

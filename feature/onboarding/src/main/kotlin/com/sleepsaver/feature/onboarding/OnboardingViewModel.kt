@@ -349,6 +349,7 @@ class OnboardingViewModel @Inject constructor(
                     minutes = it.need.toMinutes().toInt().coerceIn(MIN_NEED_MINUTES, MAX_NEED_MINUTES),
                     confidence = it.confidence,
                     freeNights = it.freeNightsUsed,
+                    wakeDelayMinutes = it.freeNightWakeDelay.toMinutes().toInt(),
                 )
             },
             wake = local.wake ?: nightsWake ?: saved.typicalWake,

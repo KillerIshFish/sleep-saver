@@ -87,6 +87,8 @@ class SettingsContentTest {
     fun `the suggestion can be applied from the list`() {
         show()
         compose.onNodeWithText("Suggested: 8h 35m · medium confidence").assertIsDisplayed()
+        // The same words as the Sleep tab and onboarding: what made a night free, never "on your own".
+        compose.onNodeWithText("Based on 9 nights you woke at least 45 min later than on a usual weekday.").assertIsDisplayed()
         compose.onNodeWithText("Use").performClick()
         assertThat(actions.calls).containsExactly("useSuggested")
     }

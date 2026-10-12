@@ -48,7 +48,8 @@ sealed interface ImportUiState {
     data class Failed(val error: SyncError?) : ImportUiState
 }
 
-data class NeedSuggestion(val minutes: Int, val confidence: Confidence, val freeNights: Int)
+/** [freeNights] nights woken at least [wakeDelayMinutes] later than on a usual weekday suggest [minutes] of sleep. */
+data class NeedSuggestion(val minutes: Int, val confidence: Confidence, val freeNights: Int, val wakeDelayMinutes: Int)
 
 data class SleepNeedUiState(
     val needMinutes: Int = DEFAULT_NEED_MINUTES,

@@ -136,9 +136,11 @@
     <string name="onboarding_need_body">The amount that leaves you feeling rested. Most adults need between 7 and 9 hours.</string>
     <string name="onboarding_need_label">Sleep need per night</string>
     <string name="onboarding_need_suggestion">Your free nights suggest %1$s (%2$s)</string>
+    <!-- What made a night "free" (SleepNeedEstimator): the wake came at least %2$d minutes (45) after the usual weekday
+         wake. Same words as the Sleep tab's sleep_need_basis. Quantity: the nights (%1$d). -->
     <plurals name="onboarding_need_suggestion_nights">
-        <item quantity="one">Based on %1$d night you woke later than on a usual weekday.</item>
-        <item quantity="other">Based on %1$d nights you woke later than on a usual weekday.</item>
+        <item quantity="one">Based on %1$d night you woke at least %2$d&#160;min later than on a usual weekday.</item>
+        <item quantity="other">Based on %1$d nights you woke at least %2$d&#160;min later than on a usual weekday.</item>
     </plurals>
     <string name="onboarding_need_use_it">Use it</string>
     <string name="onboarding_need_using_it">In use</string>

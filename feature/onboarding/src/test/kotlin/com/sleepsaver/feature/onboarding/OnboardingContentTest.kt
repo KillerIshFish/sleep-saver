@@ -226,11 +226,13 @@ class OnboardingContentTest {
         show(
             OnboardingUiState(
                 step = OnboardingStep.SLEEP_NEED,
-                sleepNeed = Previews.sleepNeed.copy(suggestion = NeedSuggestion(515, com.sleepsaver.core.domain.model.Confidence.MEDIUM, 6)),
+                sleepNeed = Previews.sleepNeed.copy(suggestion = NeedSuggestion(515, com.sleepsaver.core.domain.model.Confidence.MEDIUM, 6, 45)),
             ),
         )
 
         compose.onNodeWithText("Your free nights suggest 8h 35m (medium confidence)").assertIsDisplayed()
+        // The same words as the Sleep tab's card.
+        compose.onNodeWithText("Based on 6 nights you woke at least 45 min later than on a usual weekday.").assertIsDisplayed()
         compose.onNodeWithText("Use it").performClick()
         compose.onNodeWithText("Continue").performClick()
 

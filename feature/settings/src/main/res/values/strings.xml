@@ -25,9 +25,12 @@
     <string name="settings_sleep_need_dialog_body">How much sleep leaves you feeling rested. Most adults land somewhere between 7 and 9 hours.</string>
     <!-- "Suggested: 8h 35m · medium confidence" -->
     <string name="settings_need_suggestion">Suggested: %1$s · %2$s</string>
+    <!-- What made a night "free" (SleepNeedEstimator): the wake came at least %2$d minutes (45) after the usual weekday
+         wake. Sleep data can't tell whether an alarm rang, so never say "on your own". Same words as the Sleep tab and
+         onboarding. Quantity: the nights (%1$d). -->
     <plurals name="settings_need_suggestion_body">
-        <item quantity="one">From %1$d night you woke up on your own</item>
-        <item quantity="other">From %1$d nights you woke up on your own</item>
+        <item quantity="one">Based on %1$d night you woke at least %2$d&#160;min later than on a usual weekday.</item>
+        <item quantity="other">Based on %1$d nights you woke at least %2$d&#160;min later than on a usual weekday.</item>
     </plurals>
     <!-- Chip in the sleep need dialog: "Use suggested 8h 35m" -->
     <string name="settings_need_suggestion_chip">Use suggested %1$s</string>

@@ -20,7 +20,8 @@ import kotlin.math.floor
  *  - Requires ≥ `needEstimateMinNights` present nights.
  *  - typical weekday wake = median local wake time (Night.wokeUp in wokeUpOffset) over nights whose
  *    wakeDate is Mon–Fri.
- *  - free night = wake ≥ typical weekday wake + `freeNightWakeDelay` (compare as local time of day).
+ *  - free night = wake ≥ typical weekday wake + `freeNightWakeDelay` (compare as local time of day). Free means
+ *    "woke well after the usual weekday time", never "no alarm": sleep data doesn't say whether an alarm rang.
  *  - drop a free night if the night before it (wakeDate − 1) is present and its total < currentNeed − `shortNightMargin`.
  *  - estimate = median totalSleep of remaining free nights, rounded to `needRounding`, clamped [needClampMin, needClampMax].
  *  - requires ≥ `needMinFreeNights`; confidence from count + IQR (see SleepConfig).
@@ -74,6 +75,7 @@ class SleepNeedEstimator(private val config: SleepConfig = SleepConfig.DEFAULT) 
                 interquartileRange = iqr,
                 confidence = confidence,
                 typicalWeekdayWake = LocalTime.ofSecondOfDay(Math.round(typicalWake)),
+                freeNightWakeDelay = config.freeNightWakeDelay,
             ),
         )
     }
