@@ -208,6 +208,26 @@ class WeekPlanContentTest {
     }
 
     @Test
+    fun `with no weekly alarm the notice compares weekends with weekdays`() {
+        // No alarm days to compare against: the plan check fell back to the weekend against Monday–Friday.
+        show(s.weekPlanState(planCheck = PlanSamples.planCheck(warn = true).copy(splitByAlarms = false)))
+
+        compose.onNodeWithText(
+            "In this plan, weekends wake 1h 45m later than weekdays. Keeping it within an hour steadies your " +
+                "Keel; a short early-afternoon catnap is one alternative.",
+        ).assertExists()
+        compose.onNodeWithText("alarm days", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `with no weekly alarm social jetlag alone compares weekends with weekdays`() {
+        val check = PlanSamples.planCheck(warn = true).copy(warnFreeDayShift = false, splitByAlarms = false)
+        show(s.weekPlanState(planCheck = check, keel = PlanSamples.keelCalibrating()))
+
+        compose.onNodeWithText("Your planned sleep on weekends sits 1h 35m later than on weekdays.").assertExists()
+    }
+
+    @Test
     fun `quick setup applies the picked preset and time`() {
         show(s.weekPlanState())
 

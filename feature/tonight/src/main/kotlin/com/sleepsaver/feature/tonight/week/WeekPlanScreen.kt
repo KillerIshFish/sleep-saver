@@ -268,13 +268,23 @@ private fun ReadyWeekPlan(
                 Spacer(Modifier.height(Spacing.cardGap))
                 val shift = check.freeDayWakeShift
                 val jetlag = check.plannedSocialJetlag
+                // With no weekly alarm the plan compares the weekend with Monday–Friday, so the copy says so.
+                val byAlarms = check.splitByAlarms
                 NoticeCard(
                     title = stringResource(R.string.tonight_plan_notice_title),
                     body = when {
-                        check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatDuration(shift))
+                        check.warnFreeDayShift && shift != null -> stringResource(
+                            if (byAlarms) R.string.tonight_plan_free_shift else R.string.tonight_plan_free_shift_weekend,
+                            formatDuration(shift),
+                        )
                         // Signed like Progress's: free days can sleep earlier than alarm days too.
                         jetlag != null -> stringResource(
-                            if (jetlag.isNegative) R.string.tonight_plan_jetlag_earlier else R.string.tonight_plan_jetlag,
+                            when {
+                                byAlarms && jetlag.isNegative -> R.string.tonight_plan_jetlag_earlier
+                                byAlarms -> R.string.tonight_plan_jetlag
+                                jetlag.isNegative -> R.string.tonight_plan_jetlag_weekend_earlier
+                                else -> R.string.tonight_plan_jetlag_weekend
+                            },
                             formatDuration(jetlag.abs()),
                         )
                         else -> ""

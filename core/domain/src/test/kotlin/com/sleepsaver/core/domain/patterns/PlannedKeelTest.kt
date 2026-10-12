@@ -79,10 +79,12 @@ class PlannedKeelTest {
         assertThat(result.freeDayWakeShift).isEqualTo(Duration.ZERO)
         assertThat(result.plannedSocialJetlag).isEqualTo(Duration.ZERO)
         assertThat(result.warn).isFalse()
+        assertThat(result.splitByAlarms).isFalse()
 
         val lieIn = planCheck(setWake(WeekPlan.DEFAULT, LocalTime.of(9, 30), SATURDAY, SUNDAY))
         assertThat(lieIn.freeDayWakeShift).isEqualTo(Duration.ofMinutes(150))
         assertThat(lieIn.warnFreeDayShift).isTrue()
+        assertThat(lieIn.splitByAlarms).isFalse()
     }
 
     @Test
@@ -97,6 +99,7 @@ class PlannedKeelTest {
         assertThat(result.warnFreeDayShift).isTrue()
         assertThat(result.warnSocialJetlag).isTrue()
         assertThat(result.warn).isTrue()
+        assertThat(result.splitByAlarms).isTrue()
         // Mon..Sun twice: Fri→Sat twice and Sun→Mon once disagree for the 2 h of the lie-in.
         assertThat(result.plannedKeel).isEqualTo(PatternFx.sri(pairs = 13 * 1440, mismatches = 3 * 120))
         assertThat(result.plannedKeel).isEqualTo(96)

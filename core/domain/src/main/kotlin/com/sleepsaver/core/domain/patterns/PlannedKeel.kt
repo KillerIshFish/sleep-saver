@@ -26,6 +26,9 @@ data class PlanCheck(
     val plannedSocialJetlag: Duration?,
     val warnFreeDayShift: Boolean,
     val warnSocialJetlag: Boolean,
+    /** True when alarm days are the weekly plan's alarm days; false with no weekly alarm, when Monday–Friday stand in
+     *  for alarm days and the weekend for free days (so copy says "weekends" and "weekdays"). */
+    val splitByAlarms: Boolean = true,
 ) {
     val warn: Boolean get() = warnFreeDayShift || warnSocialJetlag
 }
@@ -97,6 +100,7 @@ class PlannedKeelCalculator(private val config: SleepConfig = SleepConfig.DEFAUL
             plannedSocialJetlag = plannedSocialJetlag,
             warnFreeDayShift = freeDayWakeShift != null && freeDayWakeShift > config.keel.freeDayShiftWarning,
             warnSocialJetlag = plannedSocialJetlag != null && plannedSocialJetlag.abs() >= config.keel.jetlagWarning,
+            splitByAlarms = anyAlarm,
         )
     }
 
