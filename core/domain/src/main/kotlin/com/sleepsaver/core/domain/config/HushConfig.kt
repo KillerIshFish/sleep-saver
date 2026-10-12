@@ -1,5 +1,6 @@
 package com.sleepsaver.core.domain.config
 
+import com.sleepsaver.core.domain.alarm.HushColor
 import java.time.Duration
 
 /**
@@ -10,6 +11,8 @@ data class HushConfig(
     val timers: List<Duration> = listOf(
         Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofMinutes(45), Duration.ofMinutes(60), Duration.ofMinutes(90),
     ),
+    /** Every screen with Hush starts from the last pick; before the first one, this colour ("Softer, like steady rain"). */
+    val defaultColor: HushColor = HushColor.PINK,
     val defaultTimer: Duration = Duration.ofMinutes(45),
     /** The notification's "+15 min". */
     val extendStep: Duration = Duration.ofMinutes(15),

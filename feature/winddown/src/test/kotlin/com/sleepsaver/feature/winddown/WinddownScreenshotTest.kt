@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.sleepsaver.core.data.hooks.NightState
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.HabitType
@@ -261,7 +262,7 @@ class WinddownScreenshotTest : ScreenshotTest() {
         breath = RunPosition(index = 3, count = 24, cue = BreathPhase.OUT, length = Duration.ofSeconds(6)),
         nightState = nightState,
         nextAlarm = PlanSamples.plannedAlarm(),
-        hush = HushChoice(color = HushColor.BROWN),
+        hush = HushSettings(color = HushColor.BROWN),
         wakeDate = PlanSamples.plannedAlarm().occurrence.date,
     )
 

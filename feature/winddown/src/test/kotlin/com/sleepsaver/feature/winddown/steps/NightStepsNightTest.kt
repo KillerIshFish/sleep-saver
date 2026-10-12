@@ -2,12 +2,12 @@ package com.sleepsaver.feature.winddown.steps
 
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.hooks.NightState
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.model.EnergySchedule
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.PlanSamples.NightVariant
 import com.sleepsaver.core.testing.SampleData
-import com.sleepsaver.feature.winddown.HushChoice
 import com.sleepsaver.feature.winddown.winddownFocus
 import org.junit.Test
 import java.time.Duration
@@ -61,7 +61,7 @@ class NightStepsNightTest {
             week = PlanSamples.weekPlan(),
             nextAlarm = alarms.firstOrNull(),
             nightState = nightState,
-            hush = HushChoice(),
+            hush = HushSettings(),
             zone = zone,
         ) as NightStepsUiState.Ready
     }

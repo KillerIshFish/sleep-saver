@@ -35,6 +35,8 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -51,7 +53,6 @@ import com.sleepsaver.core.ui.platform.DimScreen
 import com.sleepsaver.core.ui.platform.rememberMediaVolumeHigh
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
-import com.sleepsaver.feature.winddown.HushChoice
 import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
 import com.sleepsaver.feature.winddown.R
@@ -103,7 +104,7 @@ internal fun nightResetUiState(
     breath: RunPosition<BreathPhase>?,
     nightState: NightState,
     nextAlarm: PlannedAlarm?,
-    hush: HushChoice,
+    hush: HushSettings,
     wakeDate: LocalDate,
     config: SleepConfig = SleepConfig.DEFAULT,
 ) = NightResetUiState(
@@ -124,6 +125,7 @@ private fun wakeDateAt(now: Instant, zone: ZoneId): LocalDate = NightRules.wakeD
 internal class NightResetViewModel @Inject constructor(
     nightController: NightController,
     schedule: ScheduleRepository,
+    hushSettings: HushSettingsRepository,
     time: TimeProvider,
     haptics: Haptics,
     clock: GuidedClock,
@@ -153,7 +155,8 @@ internal class NightResetViewModel @Inject constructor(
 
     private val hushPicker = HushPicker(
         nightController = nightController,
-        untilWindowAvailable = { uiState.value.hush.untilWindowAvailable },
+        hushSettings = hushSettings,
+        shown = { uiState.value.hush },
         config = config,
     )
 
@@ -181,7 +184,7 @@ internal class NightResetViewModel @Inject constructor(
             null,
             nightController.state.value,
             null,
-            hushPicker.choice.value,
+            HushSettings(),
             wakeDateAt(time.now(), time.zone()),
             config,
         ),

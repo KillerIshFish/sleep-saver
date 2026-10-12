@@ -362,7 +362,9 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 - **Hush**: white (Gaussian), pink (Paul Kellet) or brown (leaky integrator + DC block) noise, a pre-rendered 20-s loop
   with a crossfaded seam and a slow ±1.5 dB drift, `USAGE_MEDIA`, default volume 25 %, timer 15/30/45/60/90 (default 45)
   or "until my window", 10-s fade-in, 5-min fade-out; stops before any ring; never starts from boot. Copy: masks
-  background noise; earplugs suit sudden noise better.
+  background noise; earplugs suit sudden noise better. One pick (colour, timer, volume; default pink, 45 min, 25 %) is
+  shared by every screen with Hush (Tonight, the Night screen, Night steps, Night reset) and kept in the settings store
+  across launches; "until my window" shows as the default timer on a night without an alarm.
 
 ## 4. Things in the spec I think are wrong or unclear (and what I did)
 

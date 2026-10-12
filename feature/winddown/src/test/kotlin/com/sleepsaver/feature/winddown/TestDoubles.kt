@@ -4,6 +4,7 @@ import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.ReminderPlanner
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.NightLogRepository
@@ -162,7 +163,7 @@ internal object WinddownSamples {
         week = week,
         nextAlarm = alarm,
         nightState = nightState,
-        hush = HushChoice(),
+        hush = HushSettings(),
         zone = PlanSamples.zone,
     )
 }

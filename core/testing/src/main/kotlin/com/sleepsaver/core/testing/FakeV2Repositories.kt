@@ -8,6 +8,8 @@ import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.repository.AlarmPlan
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.MovementTrace
 import com.sleepsaver.core.data.repository.NightLogRepository
@@ -492,6 +494,15 @@ class FakePatternsRepository(
     override val personalLatency: Flow<PersonalLatency> = personalLatencyState
     override val deepPrior: Flow<DeepPrior?> = deepPriorState
     override val debtPreviewInputs: Flow<DebtPreviewInputs?> = debtPreviewInputsState
+}
+
+// ---------------------------------------------------------------- Hush settings
+
+/** The shared Hush pick in memory; one instance given to two screens' ViewModels shows them sharing it. */
+class FakeHushSettingsRepository(initial: HushSettings = HushSettings()) : HushSettingsRepository {
+    val state = MutableStateFlow(initial)
+    override val settings: Flow<HushSettings> = state
+    override fun update(transform: (HushSettings) -> HushSettings) = state.update(transform)
 }
 
 // ---------------------------------------------------------------- Hooks

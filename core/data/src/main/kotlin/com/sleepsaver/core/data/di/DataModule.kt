@@ -24,6 +24,8 @@ import com.sleepsaver.core.data.repository.ExportRepository
 import com.sleepsaver.core.data.repository.ExportRepositoryImpl
 import com.sleepsaver.core.data.repository.HabitsRepository
 import com.sleepsaver.core.data.repository.HabitsRepositoryImpl
+import com.sleepsaver.core.data.repository.HushSettingsRepository
+import com.sleepsaver.core.data.repository.HushSettingsRepositoryImpl
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsRepositoryImpl
 import com.sleepsaver.core.data.repository.JournalRepository
@@ -151,4 +153,7 @@ abstract class DataBindingsModule {
 
     @Binds
     abstract fun patternsRepository(impl: PatternsRepositoryImpl): PatternsRepository
+
+    @Binds
+    abstract fun hushSettingsRepository(impl: HushSettingsRepositoryImpl): HushSettingsRepository
 }

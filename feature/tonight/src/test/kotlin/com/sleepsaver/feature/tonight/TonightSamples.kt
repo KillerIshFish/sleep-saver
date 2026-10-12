@@ -4,6 +4,7 @@ import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.Ringing
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.alarm.AlarmPlanner
@@ -83,9 +84,7 @@ internal object TonightSamples {
         endedAt: Instant? = null,
         hushColor: HushColor = HushColor.PINK,
     ): TonightLocal = TonightLocal(
-        hushColor = hushColor,
-        hushTimer = config.hush.defaultTimer,
-        hushVolume = config.hush.defaultVolume,
+        hush = HushSettings(color = hushColor),
         catnapLength = config.napIdealLength,
         endedAt = endedAt,
     )

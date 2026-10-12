@@ -12,6 +12,7 @@ import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.patterns.EffectMetric
 import com.sleepsaver.core.domain.patterns.MarkEffect
 import com.sleepsaver.core.domain.patterns.PatternLabel
+import com.sleepsaver.core.testing.FakeHushSettingsRepository
 import com.sleepsaver.core.testing.FakeJournalRepository
 import com.sleepsaver.core.testing.FakeNightController
 import com.sleepsaver.core.testing.FakeNightStepsRepository
@@ -62,6 +63,7 @@ class NightStepsViewModelTest {
     private val timingPatterns = FakePatternsRepository(debtPreviewInputs = PlanSamples.debtPreviewInputs())
     private val schedule = FakeScheduleRepository(week = PlanSamples.weekPlan(), upcoming = listOf(PlanSamples.plannedAlarm()))
     private val nightController = FakeNightController()
+    private val hushSettings = FakeHushSettingsRepository()
 
     /** Tue Oct 6, 21:50: Night steps run (window 21:30, bedtime 23:00). */
     private val time = FakeTimeProvider(PlanSamples.at(today, LocalTime.of(21, 50)))
@@ -83,6 +85,7 @@ class NightStepsViewModelTest {
             schedule = schedule,
             nightSource = nightSource(nightSteps, time, schedule, nightController, patterns = patterns),
             nightController = nightController,
+            hushSettings = hushSettings,
             time = time,
             writer = writer(),
         )
@@ -345,7 +348,7 @@ class NightStepsViewModelTest {
         viewModel.hushActions.onTimer(null)
         viewModel.hushActions.onPlay()
 
-        assertThat(nightController.nightControllerCalls).containsExactly("startHush(WHITE, PT45M, 0.25)")
+        assertThat(nightController.nightControllerCalls).containsExactly("startHush(PINK, PT45M, 0.25)")
     }
 
     @Test
