@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.schedule.PlanPause
@@ -77,6 +78,15 @@ class TonightScreenshotTest : ScreenshotTest() {
     @Test
     fun paused() = captureScreen("tonight_paused") {
         Tonight(s.ready(s.inputs(at(14, 0), oneOffs = PlanSamples.oneOffs(pause = PlanPause(s.today, s.today.plusDays(5))))))
+    }
+
+    /** Wednesday's 6:45 already rang (the clock went back to Tuesday evening): the card says so, with the next one. */
+    @Test
+    fun alarmDone() {
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val alarms = s.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
+        captureScreen("tonight_alarm_done") { Tonight(s.ready(s.inputs(now, alarms = alarms, tomorrowEvent = rang))) }
     }
 
     @Test

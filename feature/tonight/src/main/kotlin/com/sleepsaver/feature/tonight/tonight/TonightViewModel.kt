@@ -102,10 +102,16 @@ internal class TonightViewModel @Inject constructor(
     val uiState: StateFlow<TonightUiState> = run {
         val ticks = time.minuteTicks
         val today = ticks.map { it.atZone(time.zone()).toLocalDate() }.distinctUntilChanged()
-        val todayEvent = today.flatMapLatest { nightLog.alarmEvent(it) }
+        // Today's and tomorrow's planned events: the alarm card's date is one of the two.
+        val events = today.flatMapLatest { date ->
+            combine(nightLog.alarmEvent(date), nightLog.alarmEvent(date.plusDays(1)), ::Pair)
+        }
         val lastNightList = today.flatMapLatest { journal.tomorrowList(it.minusDays(1)) }
         val plan = combine(schedule.weekPlan, schedule.oneOffs, schedule.upcomingAlarms, ::Triple)
-        val journalPart = combine(nightSteps.tonight, nightSteps.adherence, journal.marksByDate, lastNightList, todayEvent, ::JournalPart)
+        val journalPart = combine(nightSteps.tonight, nightSteps.adherence, journal.marksByDate, lastNightList, events) {
+                session, adherence, marks, list, (todayEvent, tomorrowEvent) ->
+            JournalPart(session, adherence, marks, list, todayEvent, tomorrowEvent)
+        }
         val base = combine(insights.state, patterns.debtPreviewInputs, settings.settings, nightController.state, ticks, ::BasePart)
         val screen = combine(local, nightController.state.map { it.endedAt }.distinctUntilChanged()) { l, endedAt -> l.copy(endedAt = endedAt) }
         combine(base, plan, journalPart, screen) { b, (week, oneOffs, alarms), j, l ->
@@ -125,6 +131,7 @@ internal class TonightViewModel @Inject constructor(
                     marks = j.marks,
                     lastNightList = j.lastNightList,
                     todayEvent = j.todayEvent,
+                    tomorrowEvent = j.tomorrowEvent,
                     local = l,
                 ),
                 config,
@@ -237,6 +244,7 @@ internal class TonightViewModel @Inject constructor(
         val marks: Map<LocalDate, Set<Mark>>,
         val lastNightList: TomorrowList?,
         val todayEvent: AlarmEvent?,
+        val tomorrowEvent: AlarmEvent?,
     )
 
     private companion object {

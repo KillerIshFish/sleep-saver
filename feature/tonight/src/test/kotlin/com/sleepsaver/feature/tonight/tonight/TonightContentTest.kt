@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.DayPart
@@ -181,6 +182,23 @@ class TonightContentTest {
         compose.onNodeWithText("No alarm Wed").assertExists()
         tap("Turn back on")
         assertThat(calls).containsExactly("turnBackOn:$wednesday")
+    }
+
+    @Test
+    fun `a morning whose alarm already rang says so, and a one-off can still be set for it`() {
+        // Wednesday's 6:45 rang; the clock then went back to Tuesday evening.
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val alarms = s.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
+        show(s.ready(s.inputs(now, alarms = alarms, tomorrowEvent = rang)))
+
+        compose.onNodeWithText("No alarm Wed").assertExists()
+        compose.onNodeWithText("Wed's alarm already rang.").assertExists()
+        compose.onNodeWithText("Next alarm: Thu 6:45 AM").assertExists()
+        compose.onNodeWithText("May ring from", substring = true).assertDoesNotExist()
+        tap("Set one for Wed")
+
+        assertThat(calls).containsExactly("oneOff:$wednesday")
     }
 
     @Test

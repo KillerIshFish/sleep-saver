@@ -264,6 +264,29 @@ private fun AlarmCard(state: TonightUiState.Ready, actions: TonightActions, show
                     TextLinkButton(stringResource(R.string.tonight_action_week_plan), onClick = actions.onOpenWeekPlan)
                 }
             }
+            is AlarmCardModel.Done -> {
+                val thisMorning = alarm.wakeDate == state.today
+                BigLine(
+                    if (thisMorning) {
+                        stringResource(R.string.tonight_alarm_none_today)
+                    } else {
+                        stringResource(R.string.tonight_alarm_no_alarm_day, dayName)
+                    },
+                )
+                Line(
+                    when {
+                        thisMorning && alarm.rang -> stringResource(R.string.tonight_alarm_done_rang_today)
+                        thisMorning -> stringResource(R.string.tonight_alarm_done_ended_today)
+                        alarm.rang -> stringResource(R.string.tonight_alarm_done_rang, dayName)
+                        else -> stringResource(R.string.tonight_alarm_done_ended, dayName)
+                    },
+                )
+                alarm.next?.let { Line(stringResource(R.string.tonight_alarm_next, dayAndTime(it.date, it.time))) }
+                CardActions {
+                    TextLinkButton(stringResource(R.string.tonight_action_set_one, dayName), onClick = { actions.onOneOff(alarm.wakeDate) })
+                    TextLinkButton(stringResource(R.string.tonight_action_week_plan), onClick = actions.onOpenWeekPlan)
+                }
+            }
         }
     }
 }

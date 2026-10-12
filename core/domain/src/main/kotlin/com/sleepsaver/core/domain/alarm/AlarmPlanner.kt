@@ -16,13 +16,15 @@ import java.time.ZonedDateTime
 class AlarmPlanner(private val config: SleepConfig = SleepConfig.DEFAULT) {
 
     /**
-     * Alarms after [now], in time order, from dates today .. today + (week.alarmLookaheadDays − 1) (today = now in [zone]):
+     * Alarms after [now], in time order, from dates today .. today + (week.alarmPlanningDays − 1) (today = now in [zone]):
      * for each date with resolve(date).alarmOn, target = ZonedDateTime.of(date, wakeTime, zone) (gap → forward,
      * overlap → earlier offset), source JUST_ONCE when the override made it, else DAY_PLAN.
      * Kept when target > now and id ∉ [exclude] (stopped, timed-out or in-progress occurrences), and, for a DAY_PLAN
      * alarm, date ∉ [endedDates] (mornings whose alarm already rang out or was missed). Editing the day's time makes a
      * new id, so the date is what stops an edit at 06:40 (06:30 → 07:15, meant for next week) from ringing again this
      * morning; a JUST_ONCE alarm on that date is kept, since the user set it for that very morning. At most [limit].
+     * The two-week horizon means a skipped morning never hides its weekday's next one: Monday-only alarms, Monday's
+     * already rang and the clock went back to Sunday evening → the Monday after, today + 8.
      */
     fun upcoming(
         week: WeekPlan,
@@ -50,7 +52,7 @@ class AlarmPlanner(private val config: SleepConfig = SleepConfig.DEFAULT) {
         endedDates: Set<LocalDate> = emptySet(),
     ): AlarmOccurrence? = upcoming(week, oneOffs, now, zone, exclude, endedDates, limit = 1).firstOrNull()
 
-    /** Ids of every alarmOn date in today − 1 .. today + lookahead − 1, ignoring now and exclusions ("still planned"). */
+    /** Ids of every alarmOn date in today − 1 .. today + alarmPlanningDays − 1, ignoring now and exclusions ("still planned"). */
     fun plannedIds(week: WeekPlan, oneOffs: OneOffs, now: Instant, zone: ZoneId): Set<String> {
         val today = now.atZone(zone).toLocalDate()
         return dates(today, 1).mapNotNullTo(LinkedHashSet()) { date ->
@@ -60,9 +62,9 @@ class AlarmPlanner(private val config: SleepConfig = SleepConfig.DEFAULT) {
         }
     }
 
-    /** today − [daysBack] .. today + alarmLookaheadDays − 1. */
+    /** today − [daysBack] .. today + alarmPlanningDays − 1. */
     private fun dates(today: LocalDate, daysBack: Long): List<LocalDate> =
-        (-daysBack until config.week.alarmLookaheadDays.toLong()).map { today.plusDays(it) }
+        (-daysBack until config.week.alarmPlanningDays.toLong()).map { today.plusDays(it) }
 
     private fun occurrence(day: ResolvedDay, zone: ZoneId): AlarmOccurrence? {
         val time = day.wakeTime

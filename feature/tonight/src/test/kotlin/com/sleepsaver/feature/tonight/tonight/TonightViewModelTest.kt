@@ -5,12 +5,14 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.alarm.HushColor
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.DateOverride
 import com.sleepsaver.core.domain.schedule.OverrideKind
 import com.sleepsaver.core.domain.schedule.PlanPause
 import com.sleepsaver.core.domain.schedule.WeekPlan
+import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.feature.tonight.TonightFakes
 import com.sleepsaver.feature.tonight.TonightPhase
 import com.sleepsaver.feature.tonight.TonightSamples
@@ -75,6 +77,21 @@ class TonightViewModelTest {
         assertThat(state.steps?.steps).hasSize(3)
         assertThat(state.debtPreview).isNotNull()
         assertThat(state.adherence?.countedRecent).isEqualTo(5)
+    }
+
+    @Test
+    fun `tomorrow's alarm that already rang reads as done once its event is in`() = runTest {
+        // Wednesday's 6:45 rang, then the clock went back to Tuesday evening: the planner moved on to Thursday.
+        val now = at(20, 55)
+        val fakes = TonightFakes(now = now)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        fakes.schedule.upcomingState.value = TonightSamples.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
+        val viewModel = viewModel(fakes)
+
+        fakes.nightLog.recordAlarmEvent(rang)
+
+        val next = NextAlarm(wednesday.plusDays(1), LocalTime.of(6, 45))
+        assertThat(viewModel.ready().alarmCard).isEqualTo(AlarmCardModel.Done(wednesday, rang = true, next = next))
     }
 
     @Test

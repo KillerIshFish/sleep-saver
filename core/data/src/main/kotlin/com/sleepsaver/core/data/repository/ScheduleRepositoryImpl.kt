@@ -147,8 +147,8 @@ class ScheduleRepositoryImpl @Inject internal constructor(
         .distinctUntilChanged()
 
     /**
-     * Every alarm of the lookahead (not yet capped at upcomingLimit), recomputed only when an input changes: the plan,
-     * one-offs, settings, nights, anchors, the personal latency, handled events, or the local date and zone.
+     * Every alarm of the planning horizon (not yet capped at upcomingLimit), recomputed only when an input changes:
+     * the plan, one-offs, settings, nights, anchors, the personal latency, handled events, or the local date and zone.
      */
     private val plannedAlarms: Flow<List<PlannedAlarm>> = combine(
         combine(weekPlan, oneOffs, ::Pair),
@@ -169,7 +169,8 @@ class ScheduleRepositoryImpl @Inject internal constructor(
                 zone = day.zone,
                 exclude = handled.ids,
                 endedDates = handled.endedDates,
-                limit = config.week.alarmLookaheadDays,
+                // At most one alarm per date.
+                limit = config.week.alarmPlanningDays,
             )
         }
     }

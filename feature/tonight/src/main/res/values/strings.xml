@@ -51,6 +51,13 @@
     <string name="tonight_alarm_paused_until">Until %1$s</string>
     <string name="tonight_alarm_none">No alarm tomorrow</string>
     <string name="tonight_alarm_none_today">No alarm this morning</string>
+    <!-- That morning's week-plan alarm already ended (the clock or the time zone went back a day), so it won't ring
+         again. %1$s: the short day name, e.g. "Mon". -->
+    <string name="tonight_alarm_done_rang">%1$s\'s alarm already rang.</string>
+    <!-- Same, for an alarm that ended without ringing. %1$s: the short day name. -->
+    <string name="tonight_alarm_done_ended">%1$s\'s alarm already ended.</string>
+    <string name="tonight_alarm_done_rang_today">This morning\'s alarm already rang.</string>
+    <string name="tonight_alarm_done_ended_today">This morning\'s alarm already ended.</string>
     <string name="tonight_action_day_off">Day off</string>
     <string name="tonight_action_just_once">Just this once</string>
     <string name="tonight_action_week_plan">Week plan</string>

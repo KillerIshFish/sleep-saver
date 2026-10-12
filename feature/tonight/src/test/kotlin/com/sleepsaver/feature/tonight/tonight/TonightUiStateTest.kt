@@ -6,6 +6,7 @@ import com.sleepsaver.core.data.hooks.SensingMode
 import com.sleepsaver.core.data.hooks.SensingState
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.schedule.AlarmMode
@@ -18,9 +19,11 @@ import com.sleepsaver.core.testing.PlanSamples.NightVariant
 import com.sleepsaver.feature.tonight.TonightPhase
 import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
+import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import com.sleepsaver.feature.tonight.night.MovementLog
 import com.sleepsaver.feature.tonight.night.NightAlarm
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalTime
 
@@ -118,6 +121,66 @@ class TonightUiStateTest {
 
         assertThat(card.until).isEqualTo(pause.until)
         assertThat(card.next?.date).isEqualTo(s.today.plusDays(6))
+    }
+
+    @Test
+    fun `a morning whose alarm already rang says so and names the next one, instead of claiming an alarm`() {
+        // Wednesday-only 6:45. It rang on Wednesday and was stopped; then the clock went back to Tuesday evening.
+        val wednesdays = s.allOff.withAlarm(DayOfWeek.WEDNESDAY) { it.copy(mode = AlarmMode.SURFACING) }
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        // The planner skips the ended Wednesday and plans the one after (today + 8).
+        val alarms = s.alarms(now, wednesdays, exclude = setOf(rang.occurrenceId!!), endedDates = setOf(wednesday))
+        assertThat(alarms.map { it.occurrence.date }).containsExactly(wednesday.plusDays(7))
+
+        val state = s.ready(s.inputs(now, week = wednesdays, alarms = alarms, tomorrowEvent = rang))
+
+        val card = state.alarmCard as AlarmCardModel.Done
+        assertThat(card.wakeDate).isEqualTo(wednesday)
+        assertThat(card.rang).isTrue()
+        assertThat(card.next).isEqualTo(NextAlarm(wednesday.plusDays(7), LocalTime.of(6, 45)))
+        // Nothing rings Wednesday: not in this week's list, no "Until my window", and the night says no alarm.
+        assertThat(state.week.first()).isEqualTo(WeekStripDay(wednesday, LocalTime.of(6, 45), AlarmMode.OFF, alarmOn = false))
+        assertThat(state.hush.untilWindowAvailable).isFalse()
+        assertThat(state.armed).isTrue()
+        assertThat(s.ready(s.inputs(at(23, 30), week = wednesdays, alarms = alarms, tomorrowEvent = rang)).night?.alarm)
+            .isEqualTo(NightAlarm.None)
+    }
+
+    @Test
+    fun `an alarm that ended without ringing reads as ended`() {
+        val missed = PlanSamples.alarmEvent(RingReason.NEVER_RANG, wakeDate = wednesday)
+        val now = at(20, 55)
+
+        val card = s.ready(s.inputs(now, alarms = s.alarms(now, endedDates = setOf(wednesday)), tomorrowEvent = missed)).alarmCard
+
+        assertThat(card).isEqualTo(AlarmCardModel.Done(wednesday, rang = false, next = NextAlarm(thursday, LocalTime.of(6, 45))))
+    }
+
+    @Test
+    fun `the card shows the alarm as planned, not as the plan reads before the planned alarms catch up`() {
+        val now = at(14, 0)
+        // Wednesday just moved to 7:00; the planned alarms (what is armed) still say 6:45 for a moment.
+        val plan = s.week.day(DayOfWeek.WEDNESDAY)
+        val moved = s.week.with(plan.copy(morning = plan.morning.copy(wakeTime = LocalTime.of(7, 0))))
+
+        val card = s.ready(s.inputs(now, week = moved, alarms = s.alarms(now))).alarmCard as AlarmCardModel.On
+
+        assertThat(card.time).isEqualTo(LocalTime.of(6, 45))
+        assertThat(card.windowStart).isEqualTo(LocalTime.of(6, 15))
+    }
+
+    @Test
+    fun `right after an alarm is turned back on, the card reads that morning's alarm until it is planned`() {
+        val now = at(14, 0)
+        // "Turn back on" cleared Wednesday's Day off; the planned alarms haven't caught up (no Wednesday, no event).
+        val stale = s.alarms(now, oneOffs = PlanSamples.oneOffs(dayOff = wednesday))
+
+        val card = s.ready(s.inputs(now, alarms = stale)).alarmCard as AlarmCardModel.On
+
+        assertThat(card.wakeDate).isEqualTo(wednesday)
+        assertThat(card.time).isEqualTo(LocalTime.of(6, 45))
+        assertThat(card.windowStart).isEqualTo(LocalTime.of(6, 15))
     }
 
     @Test

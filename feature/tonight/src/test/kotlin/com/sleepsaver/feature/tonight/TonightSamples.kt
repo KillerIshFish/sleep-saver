@@ -6,6 +6,7 @@ import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
+import com.sleepsaver.core.domain.alarm.AlarmEvent
 import com.sleepsaver.core.domain.alarm.AlarmPlanner
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -68,15 +69,25 @@ internal object TonightSamples {
     fun debtInputs(week: WeekPlan = this.week, nights: List<Night> = this.nights): DebtPreviewInputs =
         DebtPreviewInputs(nights, sleepSettings.copy(week = week), zone)
 
-    /** The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them. */
-    fun alarms(now: Instant, week: WeekPlan = this.week, oneOffs: OneOffs = OneOffs()): List<PlannedAlarm> =
-        AlarmPlanner(config).upcoming(week, oneOffs, now, zone).map { occurrence ->
-            PlanSamples.plannedAlarm(
+    /**
+     * The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them; [exclude] and [endedDates]
+     * as the handled events make them.
+     */
+    fun alarms(
+        now: Instant,
+        week: WeekPlan = this.week,
+        oneOffs: OneOffs = OneOffs(),
+        exclude: Set<String> = emptySet(),
+        endedDates: Set<LocalDate> = emptySet(),
+    ): List<PlannedAlarm> =
+        AlarmPlanner(config).upcoming(week, oneOffs, now, zone, exclude, endedDates).map { occurrence ->
+            val planned = PlanSamples.plannedAlarm(
                 date = occurrence.date,
                 time = occurrence.localTime,
                 mode = occurrence.settings.mode,
                 window = occurrence.settings.window,
             )
+            planned.copy(occurrence = planned.occurrence.copy(source = occurrence.source))
         }
 
     fun local(
@@ -102,6 +113,8 @@ internal object TonightSamples {
         lastNightList: TomorrowList? = null,
         local: TonightLocal = local(),
         alarms: List<PlannedAlarm> = alarms(now, week, oneOffs),
+        todayEvent: AlarmEvent? = null,
+        tomorrowEvent: AlarmEvent? = null,
     ): TonightInputs {
         val state = insights ?: insights(now, week, oneOffs)
         val evening = (state as? InsightsState.Ready)?.insights?.schedule?.date ?: today
@@ -119,7 +132,8 @@ internal object TonightSamples {
             adherence = PlanSamples.adherence(evening),
             marks = marks,
             lastNightList = lastNightList,
-            todayEvent = null,
+            todayEvent = todayEvent,
+            tomorrowEvent = tomorrowEvent,
             local = local,
         )
     }
