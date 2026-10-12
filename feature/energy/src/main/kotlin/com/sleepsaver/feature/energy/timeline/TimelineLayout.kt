@@ -2,6 +2,7 @@ package com.sleepsaver.feature.energy.timeline
 
 import androidx.compose.ui.geometry.Offset
 import com.sleepsaver.core.domain.model.AwakePeriod
+import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.Phase
 import com.sleepsaver.core.domain.model.PhaseType
 import com.sleepsaver.core.domain.model.ScheduledHabit
@@ -11,6 +12,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import kotlin.math.ceil
 
 /** Pixel measurements of the timeline's columns and labels (left to right). */
@@ -44,6 +46,14 @@ data class TimelineSpec(
     val gridLeft: Float = 0f,
     /** Room to the right of the curve; the end of the grid lines. */
     val contentRight: Float = width,
+    /**
+     * For sharing label rows: each habit's short title width, the widest clock time, and a habit's width besides its
+     * text (padding, icon, gaps). One habit takes chrome + max(title, time); habits at the same minute share a row
+     * while they fit side by side in the label column. A type missing here counts as 0 wide.
+     */
+    val habitTitleWidths: Map<HabitType, Float> = emptyMap(),
+    val habitTimeWidth: Float = 0f,
+    val habitChromeWidth: Float = 0f,
 )
 
 enum class TimelineBlockKind {
@@ -96,13 +106,20 @@ data class PhaseMark(
     val showsShift: Boolean,
 )
 
+/**
+ * One label row of habits: a single habit, or several at the same minute side by side ("Dim the lights" and "Night
+ * steps" at the wind-down's start), in time order, all pointing at the same time.
+ */
 data class HabitMark(
-    val habit: ScheduledHabit,
+    val habits: List<ScheduledHabit>,
     /** On the curve at the habit's time (or the curve's baseline outside the curve). */
     val anchorX: Float,
     val anchorY: Float,
     val labelTop: Float,
-)
+) {
+    /** The row's first habit; every habit in it has the same time. */
+    val habit: ScheduledHabit get() = habits.first()
+}
 
 data class NowMark(val time: Instant, val y: Float, val dotX: Float?, val labelTop: Float)
 
@@ -139,7 +156,6 @@ private val OverrunStep: Duration = Duration.ofMinutes(30)
 fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): TimelineLayout {
     val schedule = state.schedule
     val baseRange = TimelineRange.of(schedule, state.lastNight, state.sleepNeed, state.now)
-    val habits = state.timelineHabits.filter { baseRange.contains(it.time) }
     val nowInRange = baseRange.contains(state.now)
 
     // Phases: slim bars in lanes beside the axis.
@@ -148,6 +164,7 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
     val laneCount = (lanes.maxOrNull() ?: 0) + 1
     val lanesRight = spec.barsLeft + laneCount * (spec.barWidth + spec.barGap) - spec.barGap
     val labelLeft = lanesRight + spec.labelInset
+    val habitRows = habitRows(state.timelineHabits.filter { baseRange.contains(it.time) }, spec, spec.contentRight - labelLeft)
 
     // Labels: phase pills and habit markers share one column, around the fixed now pill and the night blocks.
     // Phases come first, so a habit at the same minute as a phase start sits under its pill.
@@ -157,8 +174,8 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
             val height = spec.pillHeight + if (phase.hasShift()) spec.captionHeight else 0f
             add(LabelSlot(anchor - spec.pillHeight / 2, height, anchor = anchor))
         }
-        habits.forEach {
-            val anchor = geometry.yOf(it.time)
+        habitRows.forEach { row ->
+            val anchor = geometry.yOf(row.first().time)
             add(LabelSlot(anchor - spec.habitHeight / 2, spec.habitHeight, anchor = anchor))
         }
         if (nowInRange) {
@@ -168,8 +185,8 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
         blocks.filter { it.kind != TimelineBlockKind.NAP }.forEach { add(LabelSlot(it.top, it.height, fixed = true, anchor = it.top)) }
     }
 
-    // Labels never move above their time to fit, so when the evening is crowded the range runs a little longer
-    // (in half hours, up to MaxLabelOverrun) instead.
+    // Labels can't run past the bottom edge, so when the evening is crowded the range runs a little longer (in half
+    // hours, up to MaxLabelOverrun) for the last ones to stay near their times.
     var range = baseRange
     var geometry: TimelineGeometry
     var blocks: List<TimelineBlock>
@@ -179,8 +196,8 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
         geometry = TimelineGeometry(range, spec.pxPerHour, spec.topInset, spec.bottomInset)
         blocks = buildBlocks(state, range, geometry, spec)
         slots = slotsFor(geometry, blocks)
-        val pushedDown = placeLabels(slots, minTop = 0f, maxBottom = Float.POSITIVE_INFINITY, gap = spec.labelGap)
-        val lowest = slots.indices.filter { !slots[it].fixed }.maxOfOrNull { pushedDown[it] + slots[it].height } ?: 0f
+        val unbounded = placeLabels(slots, minTop = 0f, maxBottom = Float.POSITIVE_INFINITY, gap = spec.labelGap)
+        val lowest = slots.indices.filter { !slots[it].fixed }.maxOfOrNull { unbounded[it] + slots[it].height } ?: 0f
         val overrun = lowest - geometry.height
         fits = overrun <= 0f || Duration.between(baseRange.end, range.end) >= MaxLabelOverrun
         if (!fits) {
@@ -210,11 +227,12 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
             showsShift = phase.hasShift(),
         )
     }
-    val habitMarks = habits.mapIndexed { i, habit ->
+    val habitMarks = habitRows.mapIndexed { i, row ->
+        val time = row.first().time
         HabitMark(
-            habit = habit,
-            anchorX = schedule.curve.valueAt(habit.time)?.let(scale::xOf) ?: scale.left,
-            anchorY = geometry.yOf(habit.time),
+            habits = row,
+            anchorX = schedule.curve.valueAt(time)?.let(scale::xOf) ?: scale.left,
+            anchorY = geometry.yOf(time),
             labelTop = tops[phases.size + i],
         )
     }
@@ -223,7 +241,7 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
             time = state.now,
             y = geometry.yOf(state.now),
             dotX = schedule.curve.valueAt(state.now)?.let(scale::xOf),
-            labelTop = tops[phases.size + habits.size],
+            labelTop = tops[phases.size + habitRows.size],
         )
     } else {
         null
@@ -248,6 +266,32 @@ fun buildTimelineLayout(state: EnergyUiState.Ready, spec: TimelineSpec): Timelin
         labelLeft = labelLeft,
         lanesRight = lanesRight,
     )
+}
+
+/**
+ * The habit label rows: habits at the same clock minute share a row, side by side, while they fit in [width] (one
+ * label and one connector instead of a stack that pushes later labels away from their times); the rest start another
+ * row at that minute. [habits] and the result are in time order. Example: "Dim the lights" and "Night steps", both at
+ * the wind-down's 9:32 PM start, become one row.
+ */
+internal fun habitRows(habits: List<ScheduledHabit>, spec: TimelineSpec, width: Float): List<List<ScheduledHabit>> {
+    fun widthOf(habit: ScheduledHabit): Float =
+        spec.habitChromeWidth + maxOf(spec.habitTitleWidths[habit.type] ?: 0f, spec.habitTimeWidth)
+    val rows = mutableListOf<MutableList<ScheduledHabit>>()
+    var rowWidth = 0f
+    habits.forEach { habit ->
+        val row = rows.lastOrNull()
+        if (row != null && row.first().time.truncatedTo(ChronoUnit.MINUTES) == habit.time.truncatedTo(ChronoUnit.MINUTES) &&
+            rowWidth + widthOf(habit) <= width
+        ) {
+            row += habit
+            rowWidth += widthOf(habit)
+        } else {
+            rows += mutableListOf(habit)
+            rowWidth = widthOf(habit)
+        }
+    }
+    return rows
 }
 
 private fun buildBlocks(

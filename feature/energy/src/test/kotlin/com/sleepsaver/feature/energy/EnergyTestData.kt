@@ -43,6 +43,17 @@ internal object EnergyTestData {
     fun nightMode(): EnergyUiState.Ready =
         ready(now = at(23, 30), alarms = listOf(PlanSamples.plannedAlarm()), anchoredAt = at(22, 55))
 
+    /** Sunday 2026-10-04 in SampleData: weekend lie-ins behind it, a weekday morning ahead. */
+    val sunday: LocalDate = SampleData.today.minusDays(2)
+
+    /**
+     * Sunday evening, 8:20 PM: tonight's bedtime is a weekday one, over an hour earlier than last night's weekend one,
+     * so wind-down and the melatonin window carry "earlier" captions, and the evening peak, wind-down, Dim the lights
+     * and Night steps (both at the wind-down's start), the melatonin window and Bedtime all fall within about three
+     * hours: the crowded evening of the E2E run.
+     */
+    fun sundayEvening(now: Instant = at(sunday, 20, 20)): EnergyUiState.Ready = ready(now = now)
+
     /** Last night hasn't synced: nights end yesterday. */
     fun waiting(now: Instant = at(8, 40)): EnergyUiState.Ready =
         ready(now = now, nights = SampleData.nights(includeLastNight = false))

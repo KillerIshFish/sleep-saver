@@ -166,4 +166,22 @@ class EnergyScreenshotTest : ScreenshotTest() {
     fun eveningWindDown24h() = captureScreen("energy_evening_24h") {
         CompositionLocalProvider(LocalUse24HourClock provides true) { Screen(EnergyTestData.ready(now = at(21, 10))) }
     }
+
+    // The E2E run's crowded Sunday evening: co-timed habits share a row and each label stays near its time.
+
+    @Test
+    fun denseEvening() = captureScreen("energy_dense_evening") { Screen(EnergyTestData.sundayEvening()) }
+
+    @Test
+    fun denseEvening24h() = captureScreen("energy_dense_evening_24h") {
+        CompositionLocalProvider(LocalUse24HourClock provides true) { Screen(EnergyTestData.sundayEvening()) }
+    }
+
+    /** Too wide to share a row at this size: the co-timed habits keep their own rows. */
+    @Test
+    fun denseEveningLargeFont() = captureScreen("energy_dense_evening_large_font") {
+        CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 1.6f)) {
+            Screen(EnergyTestData.sundayEvening(), focusTime = at(EnergyTestData.sunday, 21, 40))
+        }
+    }
 }

@@ -143,6 +143,16 @@ class EnergyContentTest {
     }
 
     @Test
+    fun `habits sharing a row each open their own habit`() {
+        show(EnergyTestData.sundayEvening())
+
+        compose.onNodeWithContentDescription("Dim the lights at", substring = true).performClick()
+        compose.onNodeWithContentDescription("Night steps at", substring = true).performClick()
+
+        assertThat(openedHabits).containsExactly(HabitType.DIM_LIGHTS, HabitType.EVENING_ROUTINE).inOrder()
+    }
+
+    @Test
     fun `the habits sheet adds, opens and toggles reminders`() {
         show(EnergyTestData.ready(), sheet = SheetValue.Expanded)
 

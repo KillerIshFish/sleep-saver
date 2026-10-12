@@ -1,7 +1,10 @@
 package com.sleepsaver.feature.energy.timeline
 
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.domain.model.HabitType
 import com.sleepsaver.core.domain.model.PhaseType
+import com.sleepsaver.core.domain.model.ReminderCategory
+import com.sleepsaver.core.domain.model.ScheduledHabit
 import com.sleepsaver.core.testing.SampleData
 import com.sleepsaver.feature.energy.EnergyTestData
 import com.sleepsaver.feature.energy.EnergyTestData.at
@@ -10,6 +13,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.math.abs
 import kotlin.random.Random
 
 class TimelineGeometryTest {
@@ -211,14 +215,51 @@ class TimelineGeometryTest {
     }
 
     @Test
-    fun `labels at the same time stack downward in input order`() {
+    fun `labels at the same time spread evenly around it in input order`() {
         val tops = placeLabels(
-            listOf(LabelSlot(100f, 20f, anchor = 100f), LabelSlot(100f, 30f, anchor = 100f), LabelSlot(100f, 20f, anchor = 100f)),
+            listOf(LabelSlot(100f, 20f, anchor = 110f), LabelSlot(100f, 20f, anchor = 110f), LabelSlot(100f, 20f, anchor = 110f)),
             minTop = 0f,
             maxBottom = 1000f,
             gap = 5f,
         )
-        assertThat(tops).containsExactly(100f, 125f, 160f).inOrder()
+        assertThat(tops).containsExactly(75f, 100f, 125f).inOrder()
+    }
+
+    @Test
+    fun `a crowded evening keeps every label near its time instead of piling them below the first`() {
+        // Wind-down (28-px pill + 18-px caption) and a habit at 500, the melatonin window at 576, bedtime at 614.
+        val anchors = listOf(500f, 500f, 576f, 614f)
+        val slots = listOf(
+            LabelSlot(500f - 14f, 46f, anchor = 500f),
+            LabelSlot(500f - 19f, 38f, anchor = 500f),
+            LabelSlot(576f - 14f, 46f, anchor = 576f),
+            LabelSlot(614f - 19f, 38f, anchor = 614f),
+        )
+        val centres = listOf(14f, 19f, 14f, 19f)
+
+        val tops = placeLabels(slots, minTop = 0f, maxBottom = 2000f, gap = 6f)
+
+        // Pushing each one below the last would leave the habit 57 px under its time; spread, none is 30 px off.
+        assertThat(tops).containsExactly(457f, 509f, 553f, 605f).inOrder()
+        tops.indices.forEach { assertThat(abs(tops[it] + centres[it] - anchors[it])).isAtMost(30f) }
+        tops.indices.toList().zipWithNext().forEach { (a, b) -> assertThat(tops[a] + slots[a].height + 6f).isAtMost(tops[b]) }
+    }
+
+    @Test
+    fun `a crowd never moves above the fixed slot before it`() {
+        // The now pill at 400..426; three labels want to centre on 440, just after it.
+        val tops = placeLabels(
+            listOf(
+                LabelSlot(400f, 26f, fixed = true, anchor = 413f),
+                LabelSlot(430f, 20f, anchor = 440f),
+                LabelSlot(430f, 20f, anchor = 440f),
+                LabelSlot(430f, 20f, anchor = 440f),
+            ),
+            minTop = 0f,
+            maxBottom = 1000f,
+            gap = 6f,
+        )
+        assertThat(tops.drop(1)).containsExactly(432f, 458f, 484f).inOrder()
     }
 
     @Test
@@ -317,9 +358,55 @@ class TimelineGeometryTest {
         val layout = buildTimelineLayout(EnergyTestData.ready(), testSpec())
 
         val windDown = layout.phases.single { it.phase.type == PhaseType.WIND_DOWN }
-        val dim = layout.habits.single { it.habit.type == com.sleepsaver.core.domain.model.HabitType.DIM_LIGHTS }
+        val dim = layout.habits.single { row -> row.habits.any { it.type == HabitType.DIM_LIGHTS } }
         assertThat(dim.habit.time).isEqualTo(windDown.phase.start)
         assertThat(windDown.labelTop + windDown.labelHeight).isAtMost(dim.labelTop)
+    }
+
+    @Test
+    fun `habits at the same minute share a row while they fit side by side`() {
+        val t = Instant.parse("2026-10-05T01:15:00Z")
+        fun habit(type: HabitType, at: Instant) = ScheduledHabit(type, at, null, enabled = true, reminderEnabled = true, category = ReminderCategory.WIND_DOWN)
+        val dim = habit(HabitType.DIM_LIGHTS, t)
+        val steps = habit(HabitType.EVENING_ROUTINE, t + Duration.ofSeconds(20))
+        val bedtime = habit(HabitType.BEDTIME, t + Duration.ofMinutes(90))
+        // Dim the lights takes 130 + 250 px, Night steps 130 + 200 px: 710 px side by side.
+        val spec = testSpec().copy(
+            habitTitleWidths = mapOf(HabitType.DIM_LIGHTS to 250f, HabitType.EVENING_ROUTINE to 200f),
+            habitTimeWidth = 140f,
+            habitChromeWidth = 130f,
+        )
+
+        assertThat(habitRows(listOf(dim, steps, bedtime), spec, width = 760f))
+            .containsExactly(listOf(dim, steps), listOf(bedtime)).inOrder()
+        // Too narrow (large text): each keeps its own row at that minute.
+        assertThat(habitRows(listOf(dim, steps, bedtime), spec, width = 700f))
+            .containsExactly(listOf(dim), listOf(steps), listOf(bedtime)).inOrder()
+    }
+
+    @Test
+    fun `on a dense evening the co-timed habits share a row and every label stays near its time`() {
+        // Sunday 8:20 PM: wind-down, Dim the lights and Night steps at one minute, then the melatonin window and
+        // bedtime, within two hours; wind-down and melatonin window carry "earlier" captions.
+        val state = EnergyTestData.sundayEvening()
+        val layout = buildTimelineLayout(state, testSpec())
+        val windDown = layout.phases.single { it.phase.type == PhaseType.WIND_DOWN }
+
+        val shared = layout.habits.single { row -> row.habits.any { it.type == HabitType.DIM_LIGHTS } }
+        assertThat(shared.habits.map { it.type }).containsExactly(HabitType.DIM_LIGHTS, HabitType.EVENING_ROUTINE).inOrder()
+        assertThat(shared.habit.time).isEqualTo(windDown.phase.start)
+        assertThat(windDown.showsShift).isTrue()
+        val bedtime = layout.habits.single { it.habit.type == HabitType.BEDTIME }
+        assertThat(bedtime.habit.time).isEqualTo(state.schedule.targetBedtime)
+        // testSpec draws 200 px an hour: no evening label ends up more than 30 min from its time.
+        val evening = state.schedule.phase(PhaseType.EVENING_PEAK)!!.start
+        layout.phases.filter { it.phase.start >= evening }.forEach {
+            assertThat(abs(it.labelTop + testSpec().pillHeight / 2 - it.anchorY)).isAtMost(100f)
+        }
+        layout.habits.filter { it.habit.time >= evening }.forEach {
+            assertThat(abs(it.labelTop + testSpec().habitHeight / 2 - it.anchorY)).isAtMost(100f)
+        }
+        assertNoLabelOverlap(layout)
     }
 
     @Test
@@ -348,6 +435,8 @@ class TimelineGeometryTest {
             EnergyTestData.waiting(now = at(15, 0)),
             EnergyTestData.ready(now = at(17, 30), settings = EnergyTestData.longNeedSettings),
             EnergyTestData.ready(settings = EnergyTestData.longNeedSettings),
+            EnergyTestData.sundayEvening(),
+            EnergyTestData.sundayEvening(now = at(EnergyTestData.sunday, 21, 40)),
         ).forEach { assertNoLabelOverlap(buildTimelineLayout(it, testSpec())) }
     }
 
@@ -428,8 +517,11 @@ class TimelineGeometryTest {
         val state = EnergyTestData.ready()
         val layout = buildTimelineLayout(state, testSpec())
 
-        assertThat(layout.habits.map { it.habit.type }).containsExactlyElementsIn(state.habits.filter { it.enabled }.map { it.type })
-        layout.habits.forEach { assertThat(it.anchorY).isWithin(0.01f).of(layout.geometry.yOf(it.habit.time)) }
+        assertThat(layout.habits.flatMap { row -> row.habits.map { it.type } })
+            .containsExactlyElementsIn(state.habits.filter { it.enabled }.map { it.type })
+        layout.habits.forEach { row ->
+            row.habits.forEach { assertThat(layout.geometry.yOf(it.time)).isWithin(0.01f).of(row.anchorY) }
+        }
     }
 
     @Test
