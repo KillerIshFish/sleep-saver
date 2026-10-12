@@ -10,6 +10,7 @@ import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.alarm.AlarmActions
 import com.sleepsaver.core.alarm.AlarmChannels
 import com.sleepsaver.core.alarm.AlarmPendingIntents
+import com.sleepsaver.core.alarm.AlarmPlatform
 import com.sleepsaver.core.alarm.mirror.ExtraTrigger
 import com.sleepsaver.core.alarm.mirror.MirroredCatnap
 import com.sleepsaver.core.alarm.mirror.MirroredExtra
@@ -29,6 +30,8 @@ import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ServiceController
 import org.robolectric.shadows.ShadowAlarmManager
+import org.robolectric.shadows.ShadowPowerManager
+import org.robolectric.util.ReflectionHelpers
 import java.time.Duration
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
@@ -162,10 +165,52 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         assertThat(graph.nightController.state.value.ringing).isNotNull()
         advance(Duration.ofSeconds(31))
         assertThat(graph.ringOutputs.vibrations.single().on).isTrue()
+        Robolectric.buildActivity(Activity::class.java).setup() // the ringing screen: asking for focus fails as well
         advance(Duration.ofMinutes(10))
         assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
+        assertThat(graph.ringOutputs.vibrations.single().on).isFalse() // the player's failed stop didn't keep it going
         assertThat(events.single().outcome).isEqualTo(RingOutcome.TIMED_OUT)
         assertThat(checkNotNull(m.extra).extraTrigger).isEqualTo(ExtraTrigger.BACKUP)
+    }
+
+    @Test
+    fun `a player that fails to stop still lets Stop end the ring, with the vibration and the wake lock`() {
+        graph.ringOutputs.failingSound = true
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+        val wakeLock = ShadowPowerManager.getLatestWakeLock()
+        assertThat(shadowOf(wakeLock).tag).isEqualTo(AlarmPlatform.RING_WAKE_LOCK_TAG)
+        advance(Duration.ofSeconds(31))
+        assertThat(graph.ringOutputs.vibrations.single().on).isTrue()
+
+        ring.send(ringAction(AlarmActions.ACTION_STOP))
+
+        assertThat(graph.ringOutputs.vibrations.single().on).isFalse()
+        assertThat(wakeLock.isHeld).isFalse()
+        assertThat(events.single().outcome).isEqualTo(RingOutcome.STOPPED)
+        assertThat(m.ringing).isNull()
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
+    }
+
+    @Test
+    fun `a vibrator that fails to stop still lets Snooze end the ring, with the sound and the wake lock`() {
+        graph.ringOutputs.failingVibration = true
+        armAndReachWakeTime()
+        val ring = startRing(AlarmActions.KIND_PLAN, id)
+        val wakeLock = ShadowPowerManager.getLatestWakeLock()
+        assertThat(shadowOf(wakeLock).tag).isEqualTo(AlarmPlatform.RING_WAKE_LOCK_TAG)
+        advance(Duration.ofSeconds(31)) // its start fails as well: the sound goes on
+        assertThat(sounds.single().started).isTrue()
+
+        ring.send(ringAction(AlarmActions.ACTION_SNOOZE))
+
+        assertThat(sounds.single().stopped).isTrue()
+        assertThat(wakeLock.isHeld).isFalse()
+        assertThat(m.extra?.extraTrigger).isEqualTo(ExtraTrigger.SNOOZE)
+        assertThat(notifications.getNotification(AlarmActions.ID_SNOOZED)).isNotNull()
+        assertThat(graph.nightController.state.value.ringing).isNull()
+        assertThat(shadowOf(ring.get()).isStoppedBySelf).isTrue()
     }
 
     @Test
@@ -174,16 +219,23 @@ internal class AlarmRingServiceTest : AlarmRobolectricTest() {
         val ring = startRing(AlarmActions.KIND_PLAN, id)
         val sound = sounds.single()
         assertThat(sound.focusReclaims).isEqualTo(0)
+        assertThat(ringServiceCallbacks()).hasSize(1)
 
         Robolectric.buildActivity(Activity::class.java).setup() // the ringing screen, shown by the full-screen intent
         assertThat(sound.focusReclaims).isEqualTo(1)
 
         ring.get().stop()
         Robolectric.buildActivity(Activity::class.java).setup() // nothing sounds any more
-        ring.destroy()
-        Robolectric.buildActivity(Activity::class.java).setup() // the service is gone, and so is its callback
         assertThat(sound.focusReclaims).isEqualTo(1)
+
+        ring.destroy()
+        assertThat(ringServiceCallbacks()).isEmpty() // the Application doesn't keep the service alive through it
     }
+
+    /** The ring service's activity callbacks the Application holds (the platform has no getter for them). */
+    private fun ringServiceCallbacks(): List<Any> =
+        ReflectionHelpers.getField<List<Any>>(context, "mActivityLifecycleCallbacks")
+            .filter { it.javaClass.enclosingClass == AlarmRingService::class.java }
 
     @Test
     fun `the snooze label is posted again when its minute changes, not on every tick`() {

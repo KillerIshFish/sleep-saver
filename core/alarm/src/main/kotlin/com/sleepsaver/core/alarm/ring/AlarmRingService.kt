@@ -235,7 +235,7 @@ internal class AlarmRingService : Service() {
         }
     }
 
-    /** Runs one call into the ring's player or vibrator; a failure is logged, never thrown into the ring. */
+    /** Runs one call into the ring's player or vibrator; a failure is logged, never thrown into the ring or its end. */
     private inline fun output(what: String, call: () -> Unit) {
         try {
             call()
@@ -339,10 +339,14 @@ internal class AlarmRingService : Service() {
         stopSelf()
     }
 
+    /**
+     * Ends a ring's outputs. Stop, Snooze, the timeout and onDestroy all come through here, so a player or vibrator that
+     * fails to stop never keeps the other one going, holds the wake lock or keeps the caller's transition from running.
+     */
     private fun silence(active: Sounding) {
         active.job?.cancel()
-        active.sound.stop()
-        active.vibration.stop()
+        output("sound stop") { active.sound.stop() }
+        output("vibration stop") { active.vibration.stop() }
         active.wakeLock?.let { if (it.isHeld) it.release() }
     }
 
