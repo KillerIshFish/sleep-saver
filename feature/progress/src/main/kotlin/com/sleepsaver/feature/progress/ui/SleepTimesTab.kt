@@ -293,14 +293,15 @@ private fun NightColumnView(
     }
 }
 
+/** "Saturday night, Oct 10, 7h 52m asleep" or "Wednesday night, Sep 30, no data" (see [columnNightLabel]). */
 @Composable
 private fun nightDescription(column: SleepTimesColumn, today: LocalDate): String {
-    val night = formatNightLabel(column.wakeDate, today)
+    val night = columnNightLabel(column.wakeDate, today)
     val total = column.total
     return if (column.isMissing || total == null) {
         stringResource(R.string.progress_missing_night_description, night)
     } else {
-        stringResource(R.string.progress_night_description, night, monthDay(column.nightOf), formatDuration(total))
+        stringResource(R.string.progress_night_description, night, formatDuration(total))
     }
 }
 

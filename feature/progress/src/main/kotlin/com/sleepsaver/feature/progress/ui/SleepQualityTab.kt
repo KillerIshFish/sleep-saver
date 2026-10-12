@@ -41,12 +41,13 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.ui.components.SleepSaverCard
 import com.sleepsaver.core.ui.components.TextLinkButton
 import com.sleepsaver.core.ui.format.formatDuration
-import com.sleepsaver.core.ui.format.formatNightLabel
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.progress.ProgressUiState
@@ -162,7 +163,7 @@ private fun StagePlot(
                 chart.bars.forEachIndexed { index, bar ->
                     val description = stageDescription(bar, today)
                     val columnModifier = if (bar.isMissing) {
-                        Modifier.semantics(mergeDescendants = true) {}
+                        Modifier.clearAndSetSemantics { contentDescription = description }
                     } else {
                         Modifier.chartColumnClick(description, stringResource(R.string.progress_open_night)) { onOpenNight(bar.wakeDate) }
                     }
@@ -199,10 +200,16 @@ private fun StagePlot(
     }
 }
 
+/**
+ * "Saturday night, Oct 10, Deep 1h 20m, Light …", "…, No stages" or "Wednesday night, Sep 30, no data"
+ * (see [columnNightLabel]).
+ */
 @Composable
 private fun stageDescription(bar: StageBar, today: LocalDate): String {
-    val night = formatNightLabel(bar.wakeDate, today)
-    return if (bar.hasStages) {
+    val night = columnNightLabel(bar.wakeDate, today)
+    return if (bar.isMissing) {
+        stringResource(R.string.progress_missing_night_description, night)
+    } else if (bar.hasStages) {
         listOf(
             night,
             "${stringResource(R.string.progress_stage_deep)} ${formatDuration(bar.deep)}",

@@ -107,6 +107,7 @@ object ProgressFixtures {
         keel: KeelResult? = null,
         socialJetlag: SocialJetlag? = null,
         markEffects: List<MarkEffect> = emptyList(),
+        today: LocalDate = this.today,
     ): ProgressUiState.Ready {
         val window = ProgressWindow.of(today, windowsBack, oldestNight = null)
         return ProgressStateBuilder.build(

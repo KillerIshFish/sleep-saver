@@ -1,8 +1,11 @@
 package com.sleepsaver.feature.progress.ui
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -17,11 +20,13 @@ import com.sleepsaver.core.domain.patterns.KeelResult
 import com.sleepsaver.core.domain.patterns.SocialJetlag
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.SampleData
+import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.testing.PHONE_PORTRAIT_DARK
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.feature.progress.NoNightsReason
 import com.sleepsaver.feature.progress.ProgressFixtures
 import com.sleepsaver.feature.progress.ProgressUiState
+import com.sleepsaver.feature.progress.ProgressWindow
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,7 +74,7 @@ class ProgressContentTest {
 
         compose.onNodeWithText("Progress").assertIsDisplayed()
         // Sleep times: the nights of Tue Sep 22 – Mon Oct 5, the first and last columns ("TUE" … "MON").
-        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
+        compose.onNodeWithText(NIGHTS_HEADER).assertIsDisplayed()
         compose.onNodeWithContentDescription("Next two weeks").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Previous two weeks").assertIsEnabled().performClick()
         compose.onNodeWithContentDescription("Settings").performClick()
@@ -82,24 +87,71 @@ class ProgressContentTest {
     fun `the header names the nights on the night tabs and the days on Sleep debt`() {
         show(ProgressFixtures.ready())
 
-        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
+        compose.onNodeWithText(NIGHTS_HEADER).assertIsDisplayed()
         compose.onNodeWithText("Sleep debt").performClick()
-        compose.onNodeWithText("Sep 23 – Oct 6").assertIsDisplayed()
-        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertDoesNotExist()
+        compose.onNodeWithText(DAYS_HEADER).assertIsDisplayed()
+        compose.onNodeWithText(NIGHTS_HEADER).assertDoesNotExist()
         compose.onNodeWithText("Sleep quality").performClick()
-        compose.onNodeWithText("Nights of Sep 22 – Oct 5").assertIsDisplayed()
+        compose.onNodeWithText(NIGHTS_HEADER).assertIsDisplayed()
     }
 
     @Test
     fun `tapping a bar opens that night, a placeholder adds it`() {
         show(ProgressFixtures.ready(ProgressFixtures.eventfulNights()))
 
-        compose.onNodeWithContentDescription("Last night", substring = true).performClick()
-        compose.onNodeWithContentDescription("Wednesday night, no data").performClick()
+        compose.onNodeWithContentDescription("Monday night, Oct 5, ", substring = true).performClick()
+        compose.onNodeWithContentDescription("Wednesday night, Sep 30, no data").performClick()
 
         assertThat(opened).containsExactly(today)
         assertThat(added).containsExactly(today.minusDays(5))
     }
+
+    @Test
+    fun `every bar names its night once, the same way old or new`() {
+        val state = ProgressFixtures.ready(ProgressFixtures.eventfulNights())
+        show(state)
+        val oldest = state.sleepTimes.columns.first()
+
+        // Two weeks back and last night read alike: weekday night, date, then what's in it.
+        compose.onNodeWithContentDescription("Tuesday night, Sep 22, ${formatDuration(oldest.total!!)} asleep").assertExists()
+        compose.onNodeWithContentDescription("Monday night, Oct 5, ", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Wednesday night, Sep 30, no data").assertExists()
+        compose.onNodeWithContentDescription("Last night", substring = true).assertDoesNotExist()
+
+        val descriptions = barDescriptions()
+        assertThat(descriptions).hasSize(ProgressWindow.LENGTH_DAYS)
+        descriptions.forEach { description ->
+            assertThat(description).matches(BAR_DESCRIPTION)
+            // "Sun, Sep 27, Sep 27, …" said the date twice.
+            assertThat(MONTH_DAY.findAll(description).count()).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `a night from another year names its year`() {
+        val newYear = LocalDate.of(2027, 1, 4)
+        show(ProgressFixtures.ready(SampleData.nights(today = newYear), today = newYear))
+
+        compose.onNodeWithContentDescription("Thursday night, Dec 31, 2026, ", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Sunday night, Jan 3, ", substring = true).assertExists()
+    }
+
+    @Test
+    fun `quality bars name their night the same way, missing ones too`() {
+        show(ProgressFixtures.ready(ProgressFixtures.eventfulNights()))
+
+        compose.onNodeWithText("Sleep quality").performClick()
+
+        compose.onNodeWithContentDescription("Monday night, Oct 5, Deep ", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Wednesday night, Sep 30, no data").assertExists()
+        compose.onNodeWithContentDescription("Last night", substring = true).assertDoesNotExist()
+    }
+
+    /** The content descriptions of the chart's columns (each a "… night, …" button). */
+    private fun barDescriptions(): List<String> =
+        compose.onAllNodes(hasClickAction()).fetchSemanticsNodes()
+            .mapNotNull { node -> node.config.getOrNull(SemanticsProperties.ContentDescription)?.singleOrNull() }
+            .filter { " night, " in it }
 
     @Test
     fun `list rows open nights and add missing ones`() {
@@ -322,3 +374,16 @@ class ProgressContentTest {
         compose.onNodeWithText("This shows what went together, not what caused it.").assertDoesNotExist()
     }
 }
+
+/**
+ * The header on the night tabs and on Sleep debt for SampleData's window (wake dates Sep 23 – Oct 6), with the
+ * no-break spaces that keep "Sep 22" whole and the dash off the start of a wrapped line.
+ */
+private const val NIGHTS_HEADER = "Nights of Sep 22 – Oct 5"
+private const val DAYS_HEADER = "Sep 23 – Oct 6"
+
+/** A chart column's description: "Tuesday night, Sep 22, 7h 12m asleep" or "Wednesday night, Sep 30, no data". */
+private const val BAR_DESCRIPTION = """[A-Z][a-z]+day night, [A-Z][a-z]{2} \d{1,2}, (\d+h( \d+m)?|\d+m) asleep|[A-Z][a-z]+day night, [A-Z][a-z]{2} \d{1,2}, no data"""
+
+/** "Sep 22" */
+private val MONTH_DAY = Regex("""[A-Z][a-z]{2} \d{1,2}""")

@@ -231,10 +231,19 @@ private fun ProgressHeader(
  */
 @Composable
 private fun windowSubtitle(window: ProgressWindow, tab: ProgressTab): String = when (tab) {
-    ProgressTab.SLEEP_DEBT -> formatWindowHeader(window.from, window.to)
+    ProgressTab.SLEEP_DEBT -> formatWindowHeader(window.from, window.to).keepDatesTogether()
     ProgressTab.SLEEP_TIMES, ProgressTab.SLEEP_QUALITY ->
-        stringResource(R.string.progress_window_nights, formatWindowHeader(window.firstNight, window.lastNight))
+        stringResource(R.string.progress_window_nights, formatWindowHeader(window.firstNight, window.lastNight).keepDatesTogether())
 }
+
+/**
+ * Lets a wrapped date range break only after its dash or a year's comma: "Nights of Sep 22 –" / "Oct 5" at large
+ * font sizes, never "Sep" / "22" or a line that starts with "– Oct 5".
+ */
+private fun String.keepDatesTogether(): String = replace(" – ", " – ").replace(MonthDaySpace, "$1 $2")
+
+/** The space in "Sep 22". */
+private val MonthDaySpace = Regex("""([A-Z][a-z]{2}) (\d)""")
 
 /**
  * "Sleep times | Sleep debt | Sleep quality", or "Times | Debt | Quality" when the full names don't fit their
