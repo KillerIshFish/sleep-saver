@@ -114,16 +114,20 @@ internal class DeviceHushOutputs @Inject constructor() : HushOutputs {
 /**
  * Generated noise (SPEC_V2 §4.6, §4.8): a seamless loop from [NoiseSynth] streamed through an AudioTrack (PCM float,
  * 48 kHz mono, USAGE_MEDIA / CONTENT_TYPE_MUSIC, power-saving mode), with the slow [NoiseDrift] on top of the gain.
+ *
+ * The stream thread sets the track's volume before every chunk from [playerGain], which [setGain] keeps changing (the
+ * fade-in starts from 0). The field is named apart from the `gain` parameters on purpose: a thread started in [start]
+ * that read `gain` would capture start's argument, and Hush would stay at that first, silent level for good.
  */
 internal class NoisePlayer(private val color: HushColor) : HushSound {
     private val hush = SleepConfig.DEFAULT.hush
     @Volatile private var streaming = false
-    @Volatile private var gain = 0f
+    @Volatile private var playerGain = 0f
     private var track: AudioTrack? = null
     private var thread: Thread? = null
 
     override fun start(gain: Float) {
-        this.gain = gain
+        playerGain = gain
         val minBuffer = AudioTrack.getMinBufferSize(hush.sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
         val audio = try {
             AudioTrack.Builder()
@@ -156,7 +160,7 @@ internal class NoisePlayer(private val color: HushColor) : HushSound {
             try {
                 audio.play()
                 while (streaming) {
-                    audio.setVolume((gain * drift.gain(SystemClock.elapsedRealtime() - startedAt)).coerceIn(0f, 1f))
+                    audio.setVolume(volume(drift, SystemClock.elapsedRealtime() - startedAt))
                     val count = minOf(CHUNK, loop.size - position)
                     if (audio.write(loop, position, count, AudioTrack.WRITE_BLOCKING) < 0) break
                     position = (position + count) % loop.size
@@ -168,8 +172,11 @@ internal class NoisePlayer(private val color: HushColor) : HushSound {
     }
 
     override fun setGain(gain: Float) {
-        this.gain = gain
+        playerGain = gain
     }
+
+    /** The track volume for the next chunk: the player gain as it is now, times the drift [elapsedMs] in. */
+    private fun volume(drift: NoiseDrift, elapsedMs: Long): Float = (playerGain * drift.gain(elapsedMs)).coerceIn(0f, 1f)
 
     override fun pause() {
         runCatching { track?.pause() }
