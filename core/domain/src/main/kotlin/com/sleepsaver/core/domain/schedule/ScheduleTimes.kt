@@ -18,6 +18,11 @@ import java.time.ZonedDateTime
  * W and B as the schedule uses them, plan-aware and "usual" (plan ignored). One home for the logic the energy
  * schedule, the alarm planner's bedtime, Settings rows, the debt preview and planned keel all share.
  *
+ * [bedtime] is the only bedtime the app shows for an evening (docs/PLAN.md §3.5): the energy schedule's
+ * targetBedtime, the Bedtime habit and its reminder, Tonight, Night steps (with [windDownStart]), the week plan and the
+ * alarm's planned bedtime all come from it, with the same nights, need and timing (week plan, one-offs and personal
+ * latency merged). "Asleep by" in the debt preview is B + latency; Settings rows show [usualBedtime].
+ *
  * Example: with Tuesday's morning set to 05:30, `wake(tuesday)` is (05:30, WEEK_PLAN) while `usualWake(tuesday)` stays
  * the learned 06:50 (LEARNED); with BedtimeMode.SLEEP_NEED, `bedtime(monday)` moves earlier with it and
  * `usualBedtime(monday)` doesn't.
@@ -83,6 +88,15 @@ class ScheduleTimes(private val config: SleepConfig = SleepConfig.DEFAULT) {
                 ?: (eveningOf(date, timing.bedtime, zone) to TimingSource.NOT_ENOUGH_DATA)
         }
     }
+
+    /**
+     * Where an evening's wind-down phase, and so its Night steps, starts for the bedtime B that [bedtime] returned:
+     * B − melatoninHalfWidth − the evening's wind-down length clamped to `week.windDownMinLength`..
+     * `week.windDownMaxLength`. Example: B = 23:00 with the default 60-min wind-down → 21:30 (Night steps 21:30–23:00).
+     */
+    fun windDownStart(bedtime: Instant, evening: EveningPlan): Instant =
+        bedtime - config.melatoninHalfWidth -
+            evening.windDownLength.coerceIn(config.week.windDownMinLength, config.week.windDownMaxLength)
 
     /**
      * [time] on the evening of [date]; before noon = the next calendar day (01:30 on Monday evening is Tuesday 01:30).

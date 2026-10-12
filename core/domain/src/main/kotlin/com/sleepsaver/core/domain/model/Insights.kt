@@ -281,7 +281,7 @@ enum class HabitType {
 }
 
 /** What a habit's time is measured from. */
-enum class HabitAnchor { TYPICAL_WAKE, TARGET_BEDTIME, WIND_DOWN_START, MELATONIN_START, AFTERNOON_DIP_START }
+enum class HabitAnchor { TYPICAL_WAKE, TARGET_BEDTIME, WIND_DOWN_START, AFTERNOON_DIP_START }
 
 /** Notification channel groups. */
 enum class ReminderCategory { MORNING_LIGHT, CUTOFFS, WIND_DOWN, BEDTIME, NAPS }

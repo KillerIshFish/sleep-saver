@@ -271,7 +271,7 @@ class InsightsEngineTest {
         val bedtime = compute(nights, at("02:00"))
         assertThat(bedtime.currentPhase).isEqualTo(expected.phase(PhaseType.MELATONIN_WINDOW))
         assertThat(bedtime.nextHabit?.type).isEqualTo(HabitType.BEDTIME)
-        assertThat(bedtime.nextHabit?.time).isEqualTo(at("01:45"))
+        assertThat(bedtime.nextHabit?.time).isEqualTo(at("02:15"))
     }
 
     @Test
@@ -285,7 +285,7 @@ class InsightsEngineTest {
         assertThat(insights.currentPhase?.type).isEqualTo(PhaseType.MELATONIN_WINDOW)
         assertThat(insights.currentPhase).isEqualTo(insights.schedule.phase(PhaseType.MELATONIN_WINDOW))
         assertThat(insights.nextHabit?.type).isEqualTo(HabitType.BEDTIME)
-        assertThat(insights.nextHabit?.time).isEqualTo(at("00:15"))
+        assertThat(insights.nextHabit?.time).isEqualTo(at("00:45"))
     }
 
     @Test

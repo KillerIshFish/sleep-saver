@@ -56,7 +56,8 @@ class HabitSchedulerTest {
         assertThat(habits.of(HabitType.DIM_LIGHTS).time).isEqualTo(at("21:15"))
         assertThat(habits.of(HabitType.DIM_LIGHTS).windowEnd).isEqualTo(at("22:15"))
         assertThat(habits.of(HabitType.EVENING_ROUTINE).time).isEqualTo(at("21:15"))
-        assertThat(habits.of(HabitType.BEDTIME).time).isEqualTo(at("22:15"))
+        // Bedtime is B itself (the bedtime every screen shows), until the melatonin window ends.
+        assertThat(habits.of(HabitType.BEDTIME).time).isEqualTo(bedtime)
         assertThat(habits.of(HabitType.BEDTIME).windowEnd).isEqualTo(at("23:15"))
         assertThat(habits.of(HabitType.NAP_WINDOW).time).isEqualTo(dipStart)
         assertThat(habits.of(HabitType.NAP_WINDOW).windowEnd).isEqualTo(dipStart.plus(Duration.ofMinutes(30)))

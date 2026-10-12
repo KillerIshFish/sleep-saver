@@ -289,6 +289,21 @@ class ReminderPlannerImplTest {
         val launched = shadowOf(notification.contentIntent).savedIntent
         assertThat(launched.dataString).isEqualTo("sleepsaver://energy")
         assertThat(launched.`package`).isEqualTo(context.packageName)
+        assertThat(notification.extras.getBoolean(Notification.EXTRA_SHOW_WHEN)).isTrue()
+    }
+
+    @Test
+    fun `the bedtime reminder opens the no-clock night, so it shows no time`() = runTest {
+        time.now = at(TODAY, "22:14")
+        planner.replan()
+        time.now = at(TODAY, "22:15:05")
+
+        planner.onAlarm()
+
+        val notification = notifications.getNotification(NotificationIds.habit(HabitType.BEDTIME))
+        assertThat(notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+            .isEqualTo(context.getString(R.string.reminder_bedtime_title))
+        assertThat(notification.extras.getBoolean(Notification.EXTRA_SHOW_WHEN)).isFalse()
     }
 
     @Test

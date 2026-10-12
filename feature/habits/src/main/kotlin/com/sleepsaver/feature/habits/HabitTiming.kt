@@ -17,7 +17,7 @@ internal enum class TimingKind {
     /** Morning light: minutes after the typical wake-up. */
     AFTER_WAKE,
 
-    /** Wind-down habits, bedtime, nap window: a signed shift from their phase (negative = earlier). */
+    /** Wind-down habits, bedtime, nap window: a signed shift from their anchor (negative = earlier). */
     SHIFT,
 }
 
@@ -64,7 +64,6 @@ internal fun anchorTime(schedule: EnergySchedule, anchor: HabitAnchor): Instant?
     HabitAnchor.TYPICAL_WAKE -> schedule.typicalWake.toInstant()
     HabitAnchor.TARGET_BEDTIME -> schedule.targetBedtime
     HabitAnchor.WIND_DOWN_START -> schedule.phase(PhaseType.WIND_DOWN)?.start
-    HabitAnchor.MELATONIN_START -> schedule.phase(PhaseType.MELATONIN_WINDOW)?.start
     HabitAnchor.AFTERNOON_DIP_START -> schedule.phase(PhaseType.AFTERNOON_DIP)?.start
 }
 

@@ -191,7 +191,9 @@ class HabitDetailViewModelTest {
 
         assertThat(storedOffset(HabitType.DIM_LIGHTS)).isEqualTo(Duration.ofMinutes(-60))
         assertThat(storedOffset(HabitType.BEDTIME)).isEqualTo(Duration.ofMinutes(60))
-        assertThat(bedtime.ready().time).isEqualTo(insights.schedule.phase(PhaseType.MELATONIN_WINDOW)!!.start.plusSeconds(3600))
+        // Bedtime shifts from the target bedtime itself, the one every screen shows.
+        assertThat(bedtime.ready().anchor).isEqualTo(HabitAnchor.TARGET_BEDTIME)
+        assertThat(bedtime.ready().time).isEqualTo(insights.schedule.targetBedtime.plusSeconds(3600))
     }
 
     @Test

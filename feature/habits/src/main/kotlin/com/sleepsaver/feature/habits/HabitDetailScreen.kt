@@ -431,7 +431,7 @@ private fun timingCaption(kind: TimingKind, anchor: HabitAnchor): String = strin
         TimingKind.BEFORE_BEDTIME -> R.string.habits_timing_before_bedtime
         TimingKind.AFTER_WAKE -> R.string.habits_timing_after_wake
         TimingKind.SHIFT -> when (anchor) {
-            HabitAnchor.MELATONIN_START -> R.string.habits_timing_shift_sleep_window
+            HabitAnchor.TARGET_BEDTIME -> R.string.habits_timing_shift_bedtime
             HabitAnchor.AFTERNOON_DIP_START -> R.string.habits_timing_shift_dip
             else -> R.string.habits_timing_shift_wind_down
         }
@@ -455,9 +455,6 @@ private fun anchorText(state: HabitDetailUiState.Ready): String? {
         )
         HabitAnchor.WIND_DOWN_START -> Triple(
             R.string.habits_anchor_wind_down_before, R.string.habits_anchor_wind_down_after, R.string.habits_anchor_wind_down_at,
-        )
-        HabitAnchor.MELATONIN_START -> Triple(
-            R.string.habits_anchor_sleep_window_before, R.string.habits_anchor_sleep_window_after, R.string.habits_anchor_sleep_window_at,
         )
         HabitAnchor.AFTERNOON_DIP_START -> Triple(
             R.string.habits_anchor_dip_before, R.string.habits_anchor_dip_after, R.string.habits_anchor_dip_at,

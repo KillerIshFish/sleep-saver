@@ -12,7 +12,13 @@ import com.sleepsaver.core.domain.model.ScheduledHabit
 import java.time.Duration
 import java.time.Instant
 
-/** Default habit definitions (docs/PLAN.md §3.8). Offsets are signed: negative = before the anchor. */
+/**
+ * Default habit definitions (docs/PLAN.md §3.8). Offsets are signed: negative = before the anchor.
+ *
+ * Bedtime is the schedule's target bedtime B itself, the one bedtime every screen shows (Energy, Tonight, Night
+ * steps, the week plan), and its window runs to the end of the melatonin window: with B = 23:00 the habit and its
+ * reminder are at 23:00 and it stays "next" until 23:30.
+ */
 class HabitCatalog(config: SleepConfig = SleepConfig.DEFAULT) {
     val all: List<HabitDefinition> = listOf(
         HabitDefinition(HabitType.MORNING_LIGHT, HabitAnchor.TYPICAL_WAKE, config.morningLightOffset, Duration.ofMinutes(30), true, true, ReminderCategory.MORNING_LIGHT),
@@ -22,7 +28,7 @@ class HabitCatalog(config: SleepConfig = SleepConfig.DEFAULT) {
         HabitDefinition(HabitType.EXERCISE_CUTOFF, HabitAnchor.TARGET_BEDTIME, config.exerciseCutoffBeforeBed.negated(), null, false, false, ReminderCategory.CUTOFFS),
         HabitDefinition(HabitType.DIM_LIGHTS, HabitAnchor.WIND_DOWN_START, Duration.ZERO, config.windDownLength, true, true, ReminderCategory.WIND_DOWN),
         HabitDefinition(HabitType.EVENING_ROUTINE, HabitAnchor.WIND_DOWN_START, Duration.ZERO, config.windDownLength, true, true, ReminderCategory.WIND_DOWN),
-        HabitDefinition(HabitType.BEDTIME, HabitAnchor.MELATONIN_START, Duration.ZERO, config.melatoninHalfWidth.multipliedBy(2), true, true, ReminderCategory.BEDTIME),
+        HabitDefinition(HabitType.BEDTIME, HabitAnchor.TARGET_BEDTIME, Duration.ZERO, config.melatoninHalfWidth, true, true, ReminderCategory.BEDTIME),
         HabitDefinition(HabitType.NAP_WINDOW, HabitAnchor.AFTERNOON_DIP_START, Duration.ZERO, config.napMaxLength, false, false, ReminderCategory.NAPS),
     )
 
@@ -40,7 +46,7 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
      * time = anchor instant + offset; windowEnd = time + definition.window (if any), except for WIND_DOWN_START habits
      * (dim lights, evening routine): time + the wind-down phase's length, which follows the evening plan.
      * Anchors: TYPICAL_WAKE = schedule.typicalWake, TARGET_BEDTIME = schedule.targetBedtime,
-     * WIND_DOWN_START / MELATONIN_START / AFTERNOON_DIP_START = that phase's start.
+     * WIND_DOWN_START / AFTERNOON_DIP_START = that phase's start.
      * EVENING_ROUTINE is still listed when the evening's Night steps are off, without a reminder.
      */
     fun schedule(schedule: EnergySchedule, settings: List<HabitSettings>): List<ScheduledHabit> {
@@ -71,7 +77,6 @@ class HabitScheduler(private val catalog: HabitCatalog = HabitCatalog()) {
         HabitAnchor.TYPICAL_WAKE -> schedule.typicalWake.toInstant()
         HabitAnchor.TARGET_BEDTIME -> schedule.targetBedtime
         HabitAnchor.WIND_DOWN_START -> schedule.phase(PhaseType.WIND_DOWN)?.start
-        HabitAnchor.MELATONIN_START -> schedule.phase(PhaseType.MELATONIN_WINDOW)?.start
         HabitAnchor.AFTERNOON_DIP_START -> schedule.phase(PhaseType.AFTERNOON_DIP)?.start
     }
 }

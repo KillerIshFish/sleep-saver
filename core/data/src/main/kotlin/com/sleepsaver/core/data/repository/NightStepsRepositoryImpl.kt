@@ -24,7 +24,7 @@ import com.sleepsaver.core.domain.nightsteps.StepSuggestionEngine
 import com.sleepsaver.core.domain.nightsteps.Technique
 import com.sleepsaver.core.domain.nightsteps.routineFor
 import com.sleepsaver.core.domain.nightsteps.stepAdherence
-import com.sleepsaver.core.domain.schedule.EveningPlan
+import com.sleepsaver.core.domain.patterns.PersonalLatency
 import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.OneOffs
 import com.sleepsaver.core.domain.schedule.ScheduleTimes
@@ -52,7 +52,8 @@ import javax.inject.Singleton
  *
  * Tonight is the evening of the home screen's schedule (DailyInsights.schedule.date): its steps sit before that
  * schedule's bedtime B and the window starts at its wind-down phase. Without nights (first run, no Health Connect) the
- * evening, B and the window come from the evening plan's bedtime or Settings' bedtime instead (fromSettingsOnly).
+ * evening, B and the window come from [ScheduleTimes] over the plan and Settings instead (the evening plan's set
+ * bedtime, else the Settings rule; fromSettingsOnly), so Night steps never show a bedtime the week plan doesn't.
  * Example: B = 23:00 with a 90-min wind-down → "Night steps 21:00–23:00", Slow tide (lead 30, 10 min) at 22:30–22:40.
  *
  * Every first write to routine_activities goes through [RoutineActivityStore], so the seven defaults are seeded first.
@@ -87,12 +88,17 @@ class NightStepsRepositoryImpl @Inject internal constructor(
         scheduleRepository.oneOffs.orFallback(TAG, "One-offs") { OneOffs() },
         ::Pair,
     )
-    private val sleepSettings: Flow<UserSleepSettings> = settingsRepository.settings
-        .orFallback(TAG, "Settings") { AppSettings() }
-        .map { it.sleep }
-        .distinctUntilChanged()
     private val nights: Flow<List<Night>> = sleepRepository.nights.orFallback(TAG, "Nights") { emptyList() }
     private val ticks: Flow<Instant> = timeProvider.minuteTicks.orFallback(TAG, "Minute ticks") { timeProvider.now() }
+
+    /** What B needs without a schedule: Settings with the personal latency (once active) merged in, and the nights. */
+    private val fallbackInputs: Flow<FallbackInputs> = combine(
+        settingsRepository.settings.orFallback(TAG, "Settings") { AppSettings() }.map { it.sleep },
+        latencySource.latency.orFallback(TAG, "Personal latency") { PersonalLatency(values = 0, median = null, active = false) },
+        nights,
+    ) { sleep, latency, nights ->
+        FallbackInputs(sleep.copy(personalLatency = latency.median?.takeIf { latency.active }), nights)
+    }.distinctUntilChanged()
 
     /** Seeded on first read (HabitsRepository); falls back to none when unreadable. */
     override val activities: Flow<List<RoutineActivity>> = habitsRepository.routineActivities
@@ -102,15 +108,15 @@ class NightStepsRepositoryImpl @Inject internal constructor(
         insightsRepository.state.filter { it !is InsightsState.Loading },
         weekAndOneOffs,
         activities,
-        sleepSettings,
+        fallbackInputs,
         ticks,
-    ) { state, (week, oneOffs), activities, settings, now ->
+    ) { state, (week, oneOffs), activities, inputs, now ->
         guarded(TAG, "Tonight's evening") {
             val schedule = (state as? InsightsState.Ready)?.insights?.schedule
             if (schedule != null) {
                 eveningOf(schedule, week, oneOffs, activities)
             } else {
-                fallbackEvening(nightOf = null, now, timeProvider.zone(), week, oneOffs, settings, activities)
+                fallbackEvening(nightOf = null, now, timeProvider.zone(), week, oneOffs, inputs, activities)
             }
         }
     }
@@ -120,12 +126,12 @@ class NightStepsRepositoryImpl @Inject internal constructor(
     override val tonight: Flow<NightStepsSession?> = sessionOf(tonightEvening)
 
     override fun session(nightOf: LocalDate): Flow<NightStepsSession?> = sessionOf(
-        combine(insightsRepository.schedule(nightOf), weekAndOneOffs, activities, sleepSettings) { schedule, (week, oneOffs), activities, settings ->
+        combine(insightsRepository.schedule(nightOf), weekAndOneOffs, activities, fallbackInputs) { schedule, (week, oneOffs), activities, inputs ->
             guarded(TAG, "Evening of $nightOf") {
                 if (schedule != null) {
                     eveningOf(schedule, week, oneOffs, activities)
                 } else {
-                    fallbackEvening(nightOf, timeProvider.now(), timeProvider.zone(), week, oneOffs, settings, activities)
+                    fallbackEvening(nightOf, timeProvider.now(), timeProvider.zone(), week, oneOffs, inputs, activities)
                 }
             }
         }
@@ -303,7 +309,7 @@ class NightStepsRepositoryImpl @Inject internal constructor(
         val bedtime = schedule.targetBedtime
         return Evening(
             nightOf = schedule.date,
-            windowStart = schedule.phase(PhaseType.WIND_DOWN)?.start ?: windowStart(bedtime, plan),
+            windowStart = schedule.phase(PhaseType.WIND_DOWN)?.start ?: times.windDownStart(bedtime, plan),
             bedtime = bedtime,
             enabled = schedule.nightStepsOn,
             fromSettingsOnly = false,
@@ -312,9 +318,11 @@ class NightStepsRepositoryImpl @Inject internal constructor(
     }
 
     /**
-     * Without a schedule: B = the evening plan's bedtime, else Settings' bedtime, on the evening [nightOf] (tonight =
-     * NightRules.eveningFor, so a night owl's evening runs past midnight); the window starts a wind-down length before
-     * the melatonin window.
+     * Without a schedule: B = [ScheduleTimes.bedtime] over the week plan, the one-offs, Settings and the personal
+     * latency (the same B the week plan, Tonight and the alarm read), on the evening [nightOf] (tonight =
+     * NightRules.eveningFor, so a night owl's evening runs past midnight); the window starts at
+     * [ScheduleTimes.windDownStart]. Example: no nights yet, "To meet my sleep need" with 8 h and a 06:30 wake → B 22:15,
+     * not Settings' own 23:00.
      */
     private fun fallbackEvening(
         nightOf: LocalDate?,
@@ -322,18 +330,17 @@ class NightStepsRepositoryImpl @Inject internal constructor(
         zone: ZoneId,
         week: WeekPlan,
         oneOffs: OneOffs,
-        settings: UserSleepSettings,
+        inputs: FallbackInputs,
         activities: List<RoutineActivity>,
     ): Evening {
-        val bedtimeOn = { date: LocalDate ->
-            times.eveningOf(date, week.resolve(date, oneOffs).evening.bedtime ?: settings.bedtime, zone)
-        }
+        val settings = inputs.settings.copy(week = week, oneOffs = oneOffs)
+        val bedtimeOn = { date: LocalDate -> times.bedtime(date, zone, inputs.nights, settings.sleepNeed, settings.timing).first }
         val evening = nightOf ?: NightRules.eveningFor(now, zone, bedtimeOn, config)
         val plan = week.resolve(evening, oneOffs).evening
         val bedtime = bedtimeOn(evening)
         return Evening(
             nightOf = evening,
-            windowStart = windowStart(bedtime, plan),
+            windowStart = times.windDownStart(bedtime, plan),
             bedtime = bedtime,
             enabled = plan.nightStepsOn,
             fromSettingsOnly = true,
@@ -341,9 +348,8 @@ class NightStepsRepositoryImpl @Inject internal constructor(
         )
     }
 
-    /** The wind-down phase start: B − melatoninHalfWidth − the evening's wind-down length (clamped). */
-    private fun windowStart(bedtime: Instant, plan: EveningPlan): Instant =
-        bedtime - config.melatoninHalfWidth - plan.windDownLength.coerceIn(config.week.windDownMinLength, config.week.windDownMaxLength)
+    /** Settings with the personal latency merged in (week plan and one-offs still default), and the nights. */
+    private data class FallbackInputs(val settings: UserSleepSettings, val nights: List<Night>)
 
     private companion object {
         const val TAG = "NightStepsRepository"
