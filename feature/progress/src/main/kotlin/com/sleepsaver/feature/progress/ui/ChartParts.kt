@@ -3,7 +3,6 @@ package com.sleepsaver.feature.progress.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -23,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
+import com.sleepsaver.feature.progress.R
 import java.time.LocalDate
 import java.time.format.TextStyle as DateTextStyle
 import java.util.Locale
@@ -71,6 +72,19 @@ internal fun weekdayFull(date: LocalDate): String = date.dayOfWeek.getDisplayNam
 
 /** "Oct 6" */
 internal fun monthDay(date: LocalDate): String = "${date.month.getDisplayName(DateTextStyle.SHORT, English)} ${date.dayOfMonth}"
+
+/**
+ * How screen readers name a chart column's night: "Saturday night, Oct 10", by the evening it began, with the year
+ * when that isn't [today]'s ("Wednesday night, Dec 31, 2025"). Every column reads the same way, the newest and the
+ * oldest alike, so swiping across a chart never hears "Last night" next to a bare date, or a date twice.
+ */
+@Composable
+@ReadOnlyComposable
+internal fun columnNightLabel(wakeDate: LocalDate, today: LocalDate): String {
+    val nightOf = wakeDate.minusDays(1)
+    val date = if (nightOf.year == today.year) monthDay(nightOf) else "${monthDay(nightOf)}, ${nightOf.year}"
+    return stringResource(R.string.progress_column_night, weekdayFull(nightOf), date)
+}
 
 /** Small chart labels: tighter than labelSmall so "WED" and "12.4" fit a 14-column chart on a phone. */
 internal val chartLabelStyle: TextStyle
@@ -171,9 +185,3 @@ internal fun Modifier.chartColumnClick(description: String, actionLabel: String,
                 true
             }
         }
-
-/** An empty, fixed-height spacer row that keeps columns aligned when only some have a pill. */
-@Composable
-internal fun FixedRow(height: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit = {}) {
-    Box(modifier.height(height), contentAlignment = Alignment.Center) { content() }
-}

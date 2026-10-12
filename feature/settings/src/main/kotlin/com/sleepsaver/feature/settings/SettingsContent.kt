@@ -277,7 +277,12 @@ private fun SleepGroup(
                     formatDuration(suggestion.need),
                     stringResource(suggestion.confidence.textRes),
                 ),
-                body = pluralStringResource(R.plurals.settings_need_suggestion_body, suggestion.nightsUsed, suggestion.nightsUsed),
+                body = pluralStringResource(
+                    R.plurals.settings_need_suggestion_body,
+                    suggestion.nightsUsed,
+                    suggestion.nightsUsed,
+                    suggestion.wakeDelay.toMinutes().toInt(),
+                ),
                 inlineAction = true,
                 action = { TextLinkButton(stringResource(R.string.settings_use), onClick = actions::onUseSuggestedNeed) },
             )

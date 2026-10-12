@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,10 +39,14 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.sleepsaver.core.ui.components.SectionHeader
 import com.sleepsaver.core.ui.components.SleepSaverCard
@@ -56,14 +62,30 @@ import com.sleepsaver.feature.progress.NightRow
 import com.sleepsaver.feature.progress.ProgressUiState
 import com.sleepsaver.feature.progress.R
 import com.sleepsaver.feature.progress.chart.BarSegment
+import com.sleepsaver.feature.progress.chart.PillSlot
 import com.sleepsaver.feature.progress.chart.SegmentKind
 import com.sleepsaver.feature.progress.chart.SleepTimesChart
 import com.sleepsaver.feature.progress.chart.SleepTimesColumn
+import com.sleepsaver.feature.progress.chart.pillLaneCount
+import com.sleepsaver.feature.progress.chart.pillSlots
 import java.time.LocalDate
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 private val PlotHeight = 280.dp
+
+/** A nap pill's padding around its text, and the clearance kept between two pills in a lane. */
+private val PillPaddingH = 5.dp
+private val PillPaddingV = 2.dp
+private val PillGap = Spacing.xs
+
+/**
+ * The pill row under the plot: one lane is [PillRowHeight] tall with its pill (~16 dp) [PillTop] from the top, and
+ * each further lane adds [PillLaneStep].
+ */
 private val PillRowHeight = 26.dp
+private val PillTop = 5.dp
+private val PillLaneStep = 20.dp
 private val FadeLength = 18.dp
 private val MinSegment = 2.dp
 
@@ -112,17 +134,42 @@ internal fun SleepTimesChartView(
     val use24h = LocalUse24HourClock.current
     ChartTextScale {
         BoxWithConstraints(modifier.fillMaxWidth()) {
-            val columnWidth = (maxWidth - AxisWidth) / chart.columns.size.coerceAtLeast(1)
+            val plotWidth = maxWidth - AxisWidth
+            val columnWidth = plotWidth / chart.columns.size.coerceAtLeast(1)
             val days = weekdayLabels(chart.columns.map { it.nightOf }, columnWidth)
-            SleepTimesPlot(chart, days, today, grid, use24h, onOpenNight, onAddMissingNight)
+            val pills = napPillSlots(chart, plotWidth)
+            SleepTimesPlot(chart, days, pills, today, grid, use24h, onOpenNight, onAddMissingNight)
         }
     }
 }
+
+/**
+ * Each column's nap pill slot (null without one), measured with the chart's own text style so neighbouring pills
+ * stagger into lanes instead of touching (see [pillSlots]).
+ */
+@Composable
+private fun napPillSlots(chart: SleepTimesChart, plotWidth: Dp): List<PillSlot?> {
+    val measurer = rememberTextMeasurer()
+    val style = chartLabelStyle
+    val density = LocalDensity.current
+    return remember(chart, measurer, style, density, plotWidth) {
+        with(density) {
+            val padding = (PillPaddingH * 2).toPx()
+            val widths = chart.columns.map { column ->
+                if (column.offAxis.isEmpty()) null else measurer.measure(napPillText(column), style).size.width + padding
+            }
+            pillSlots(widths, plotWidth.toPx(), PillGap.toPx())
+        }
+    }
+}
+
+private fun napPillText(column: SleepTimesColumn): String = formatDuration(column.offAxisTotal)
 
 @Composable
 private fun SleepTimesPlot(
     chart: SleepTimesChart,
     days: List<String>,
+    pills: List<PillSlot?>,
     today: LocalDate,
     grid: Color,
     use24h: Boolean,
@@ -141,12 +188,15 @@ private fun SleepTimesPlot(
                     drawLine(grid, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
             }
+            val pillLanes = pillLaneCount(pills)
             Row(Modifier.fillMaxWidth()) {
                 chart.columns.forEachIndexed { index, column ->
                     NightColumnView(
                         column = column,
                         chart = chart,
                         day = days[index],
+                        pill = pills[index],
+                        pillLanes = pillLanes,
                         today = today,
                         isLatest = column.wakeDate == today,
                         onClick = { if (column.isMissing) onAddMissingNight(column.wakeDate) else onOpenNight(column.wakeDate) },
@@ -164,6 +214,10 @@ private fun NightColumnView(
     column: SleepTimesColumn,
     chart: SleepTimesChart,
     day: String,
+    /** Where this column's nap pill goes (null: no pill). */
+    pill: PillSlot?,
+    /** Lanes in the chart's pill row (0: no row), the same for every column so the labels line up. */
+    pillLanes: Int,
     today: LocalDate,
     /** Last night: its label is highlighted. */
     isLatest: Boolean,
@@ -202,9 +256,19 @@ private fun NightColumnView(
                 drawCircle(onSurface.copy(alpha = 0.9f), radius = 2.5.dp.toPx(), center = Offset(size.width / 2, y))
             }
         }
-        if (chart.hasOffAxis) {
-            FixedRow(PillRowHeight) {
-                if (column.offAxis.isNotEmpty()) NapPill(formatDuration(column.offAxisTotal))
+        if (pillLanes > 0) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(PillRowHeight + PillLaneStep * (pillLanes - 1)),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                if (pill != null) {
+                    NapPill(
+                        text = napPillText(column),
+                        modifier = Modifier.offset { IntOffset(pill.shift.roundToInt(), (PillTop + PillLaneStep * pill.lane).roundToPx()) },
+                    )
+                }
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -229,25 +293,26 @@ private fun NightColumnView(
     }
 }
 
+/** "Saturday night, Oct 10, 7h 52m asleep" or "Wednesday night, Sep 30, no data" (see [columnNightLabel]). */
 @Composable
 private fun nightDescription(column: SleepTimesColumn, today: LocalDate): String {
-    val night = formatNightLabel(column.wakeDate, today)
+    val night = columnNightLabel(column.wakeDate, today)
     val total = column.total
     return if (column.isMissing || total == null) {
         stringResource(R.string.progress_missing_night_description, night)
     } else {
-        stringResource(R.string.progress_night_description, night, monthDay(column.nightOf), formatDuration(total))
+        stringResource(R.string.progress_night_description, night, formatDuration(total))
     }
 }
 
 @Composable
-private fun NapPill(text: String) {
+private fun NapPill(text: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .wrapContentWidth(unbounded = true)
             .clip(CircleShape)
             .background(SleepSaverTheme.colors.napBlock)
-            .padding(horizontal = 5.dp, vertical = 2.dp),
+            .padding(horizontal = PillPaddingH, vertical = PillPaddingV),
     ) {
         Text(text, style = chartLabelStyle, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, softWrap = false)
     }

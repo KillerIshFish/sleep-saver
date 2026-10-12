@@ -463,7 +463,12 @@ private fun NeedSuggestionCard(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = pluralStringResource(R.plurals.sleep_need_basis, suggestion.freeNights, suggestion.freeNights) +
+            text = pluralStringResource(
+                R.plurals.sleep_need_basis,
+                suggestion.freeNights,
+                suggestion.freeNights,
+                suggestion.wakeDelay.toMinutes().toInt(),
+            ) +
                 " " + stringResource(suggestion.confidence.wordingRes),
             style = MaterialTheme.typography.bodyMedium,
             color = SleepSaverTheme.colors.textSecondary,

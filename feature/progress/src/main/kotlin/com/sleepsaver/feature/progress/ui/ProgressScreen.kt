@@ -144,7 +144,7 @@ internal fun ProgressContent(
                     contentPadding = ScreenPadding,
                 ) {
                     item(key = "header") {
-                        ProgressHeader(state.window, onPreviousWindow, onNextWindow, onOpenSettings)
+                        ProgressHeader(state.window, onPreviousWindow, onNextWindow, onOpenSettings, tab)
                     }
                     item(key = "tabs") {
                         ProgressTabs(
@@ -184,17 +184,24 @@ private val ScreenPadding = PaddingValues(
     bottom = Spacing.xl,
 )
 
+/**
+ * The title, the dates [tab] shows (see [windowSubtitle]), the two-week pager and Settings. The dates keep the height
+ * of the tallest tab's, so the tabs below stay put under the finger when "Nights of …" wraps and the days don't.
+ */
 @Composable
 private fun ProgressHeader(
     window: ProgressWindow?,
     onPreviousWindow: () -> Unit,
     onNextWindow: () -> Unit,
     onOpenSettings: () -> Unit,
+    tab: ProgressTab = ProgressTab.SLEEP_TIMES,
 ) {
     val colors = SleepSaverTheme.colors
+    val subtitles = window?.let { w -> ProgressTab.entries.associateWith { windowSubtitle(w, it) } }
     ScreenHeader(
         title = stringResource(R.string.progress_title),
-        subtitle = window?.let { formatWindowHeader(it.from, it.to) },
+        subtitle = subtitles?.getValue(tab),
+        subtitleAlternatives = subtitles?.values?.toList().orEmpty(),
     ) {
         if (window != null) {
             Row(
@@ -222,6 +229,26 @@ private fun ProgressHeader(
         }
     }
 }
+
+/**
+ * The dates under the title, matching the columns of [tab]: "Sep 28 – Oct 11" for the days of Sleep debt, "Nights of
+ * Sep 27 – Oct 10" for the night tabs, whose columns are labelled by the evening each night began.
+ */
+@Composable
+private fun windowSubtitle(window: ProgressWindow, tab: ProgressTab): String = when (tab) {
+    ProgressTab.SLEEP_DEBT -> formatWindowHeader(window.from, window.to).keepDatesTogether()
+    ProgressTab.SLEEP_TIMES, ProgressTab.SLEEP_QUALITY ->
+        stringResource(R.string.progress_window_nights, formatWindowHeader(window.firstNight, window.lastNight).keepDatesTogether())
+}
+
+/**
+ * Lets a wrapped date range break only after its dash or a year's comma: "Nights of Sep 22 –" / "Oct 5" at large
+ * font sizes, never "Sep" / "22" or a line that starts with "– Oct 5".
+ */
+private fun String.keepDatesTogether(): String = replace(" – ", " – ").replace(MonthDaySpace, "$1 $2")
+
+/** The space in "Sep 22". */
+private val MonthDaySpace = Regex("""([A-Z][a-z]{2}) (\d)""")
 
 /**
  * "Sleep times | Sleep debt | Sleep quality", or "Times | Debt | Quality" when the full names don't fit their

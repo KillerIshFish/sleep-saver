@@ -147,14 +147,20 @@ private fun SuggestionCard(suggestion: NeedSuggestion, inUse: Boolean, onUse: ()
                 Text(
                     text = stringResource(
                         R.string.onboarding_need_suggestion,
-                        formatDuration(Duration.ofMinutes(suggestion.minutes.toLong())),
+                        // "8h 35m" stays on one line when "In use" narrows the card.
+                        formatDuration(Duration.ofMinutes(suggestion.minutes.toLong())).replace(' ', ' '),
                         confidence,
                     ),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = pluralStringResource(R.plurals.onboarding_need_suggestion_nights, suggestion.freeNights, suggestion.freeNights),
+                    text = pluralStringResource(
+                        R.plurals.onboarding_need_suggestion_nights,
+                        suggestion.freeNights,
+                        suggestion.freeNights,
+                        suggestion.wakeDelayMinutes,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = SleepSaverTheme.colors.textSecondary,
                     modifier = Modifier.padding(top = 2.dp),

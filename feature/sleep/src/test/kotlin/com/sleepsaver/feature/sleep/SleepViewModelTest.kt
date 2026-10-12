@@ -340,6 +340,7 @@ class SleepViewModelTest {
                     interquartileRange = Duration.ofMinutes(30),
                     confidence = Confidence.HIGH,
                     typicalWeekdayWake = LocalTime.of(6, 50),
+                    freeNightWakeDelay = Duration.ofMinutes(60),
                 ),
             ),
         )
@@ -350,7 +351,8 @@ class SleepViewModelTest {
 
         val suggestion = started().ready().needSuggestion
 
-        assertThat(suggestion).isEqualTo(NeedSuggestion(Duration.ofMinutes(515), Confidence.HIGH, 9))
+        // The estimate's own free-night rule (woke ≥ 60 min later than on a usual weekday) goes with it.
+        assertThat(suggestion).isEqualTo(NeedSuggestion(Duration.ofMinutes(515), Confidence.HIGH, 9, Duration.ofMinutes(60)))
     }
 
     @Test

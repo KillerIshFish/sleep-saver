@@ -167,10 +167,17 @@ enum class Confidence { LOW, MEDIUM, HIGH }
 
 data class SleepNeedEstimate(
     val need: Duration,
+    /** Nights woken at least [freeNightWakeDelay] after [typicalWeekdayWake] (less any first recovery night). */
     val freeNightsUsed: Int,
     val interquartileRange: Duration,
     val confidence: Confidence,
     val typicalWeekdayWake: LocalTime,
+    /**
+     * How much later than [typicalWeekdayWake] a wake had to be for its night to count as free
+     * (`SleepConfig.freeNightWakeDelay`), so copy can say what "free" meant: "you woke at least 45 min later than on a
+     * usual weekday". Nothing here knows whether an alarm rang.
+     */
+    val freeNightWakeDelay: Duration = SleepConfig.DEFAULT.freeNightWakeDelay,
 )
 
 sealed interface SleepNeedEstimateResult {

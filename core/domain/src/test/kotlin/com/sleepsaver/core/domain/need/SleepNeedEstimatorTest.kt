@@ -1,6 +1,7 @@
 package com.sleepsaver.core.domain.need
 
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.model.Confidence
 import com.sleepsaver.core.domain.model.Night
 import com.sleepsaver.core.domain.model.SleepNeedEstimate
@@ -178,6 +179,15 @@ class SleepNeedEstimatorTest {
             assertThat(estimate.typicalWeekdayWake).isEqualTo(LocalTime.of(6, 30))
             assertThat(estimate.freeNightsUsed).isEqualTo(4)
             assertThat(estimate.need).isEqualTo(h(9))
+        }
+
+        @Test
+        fun `the estimate carries the wake delay that made a night free`() {
+            val nights = typicalWeeks(35)
+            val stricter = SleepNeedEstimator(SleepConfig(freeNightWakeDelay = m(60)))
+
+            assertThat(estimator.estimate(nights, need, nights.today()).available().freeNightWakeDelay).isEqualTo(m(45))
+            assertThat(stricter.estimate(nights, need, nights.today()).available().freeNightWakeDelay).isEqualTo(m(60))
         }
 
         @Test

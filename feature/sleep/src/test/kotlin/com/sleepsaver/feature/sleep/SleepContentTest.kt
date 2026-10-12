@@ -125,6 +125,10 @@ class SleepContentTest {
         show(ready(insights), SleepActions(onUseSuggestedNeed = { calls += "use" }, onDismissNeedSuggestion = { calls += "dismiss" }))
 
         compose.onNodeWithText("Your free nights suggest you need about 8h\u00A035m").assertExists()
+        // What "free" means, in the same words as onboarding: the data can't tell whether an alarm rang.
+        compose.onNodeWithText("Based on 9 nights you woke at least 45 min later than on a usual weekday.", substring = true)
+            .assertExists()
+        compose.onNodeWithText("without an alarm", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Use 8h\u00A035m").performScrollTo().performClick()
         compose.onNodeWithText("Not now").performScrollTo().performClick()
 

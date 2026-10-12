@@ -133,9 +133,12 @@ internal data class AlarmsStatus(
     val testRingBlocker: AlarmBlocker? = null,
 )
 
-/** The engine's sleep-need estimate, offered when it differs from the current setting. */
+/**
+ * The engine's sleep-need estimate, offered when it differs from the current setting: [nightsUsed] nights woken at
+ * least [wakeDelay] later than on a usual weekday.
+ */
 @Immutable
-data class NeedSuggestion(val need: Duration, val confidence: Confidence, val nightsUsed: Int)
+data class NeedSuggestion(val need: Duration, val confidence: Confidence, val nightsUsed: Int, val wakeDelay: Duration)
 
 enum class SourceKind { GARMIN, ALL, APP }
 

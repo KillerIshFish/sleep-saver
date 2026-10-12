@@ -80,6 +80,17 @@ object ProgressFixtures {
         return assemble((base + extra).sortedBy { it.start }, listOf(edit))
     }
 
+    /**
+     * SampleData's nights with an afternoon nap on almost every day of the current window (k = wake date k days
+     * back), in lengths from "20m" to "2h 5m": neighbouring nap pills on the Sleep times chart.
+     */
+    fun nappyNights(): List<Night> {
+        val naps = mapOf(1 to 33, 2 to 39, 3 to 79, 4 to 45, 6 to 125, 7 to 20, 9 to 36, 10 to 52, 11 to 33, 12 to 61, 13 to 27)
+        val base = SampleData.sessions().filterNot { it.id.endsWith(":nap") }
+        val extra = naps.map { (k, minutes) -> session("nap:$k", at(day(k), 14, 10), at(day(k), 14, 10).plusMinutes(minutes.toLong())) }
+        return assemble((base + extra).sortedBy { it.start })
+    }
+
     /** Three weeks of 4-hour nights ending today: debt climbs far past the chart's usual 12 hours. */
     fun shortNights(): List<Night> = assemble(
         (0 until 21).map { k ->
@@ -96,6 +107,7 @@ object ProgressFixtures {
         keel: KeelResult? = null,
         socialJetlag: SocialJetlag? = null,
         markEffects: List<MarkEffect> = emptyList(),
+        today: LocalDate = this.today,
     ): ProgressUiState.Ready {
         val window = ProgressWindow.of(today, windowsBack, oldestNight = null)
         return ProgressStateBuilder.build(

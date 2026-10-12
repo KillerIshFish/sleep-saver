@@ -15,6 +15,10 @@ import java.time.ZoneOffset
 /**
  * A 14-day window of wake dates ending on [to]. Window 0 ends today; each step back moves 14 days.
  * [canGoBack] is false once the window already holds the oldest night; [canGoForward] is false on window 0.
+ *
+ * The Sleep debt tab charts the days themselves ([from]..[to]). The night tabs (Sleep times, Sleep quality) label
+ * each night by the evening it began, like "Saturday night" everywhere else, so they span [firstNight]..[lastNight]:
+ * the window ending on Sun Oct 11 is the days Sep 28 – Oct 11 and the nights of Sep 27 – Oct 10.
  */
 data class ProgressWindow(
     val from: LocalDate,
@@ -24,6 +28,12 @@ data class ProgressWindow(
 ) {
     /** Oldest first. */
     val dates: List<LocalDate> get() = (0 until LENGTH_DAYS).map { from.plusDays(it.toLong()) }
+
+    /** The evening the window's first night began (the night that ended on the morning of [from]). */
+    val firstNight: LocalDate get() = from.minusDays(1)
+
+    /** The evening the window's last night began (the night that ended on the morning of [to]). */
+    val lastNight: LocalDate get() = to.minusDays(1)
 
     companion object {
         const val LENGTH_DAYS = 14

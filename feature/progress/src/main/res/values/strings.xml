@@ -2,6 +2,9 @@
 <resources>
     <!-- Header -->
     <string name="progress_title">Progress</string>
+    <!-- Under the title on the night tabs, whose columns are labelled by the evening each night began:
+         "Nights of Sep 27 – Oct 10". The Sleep debt tab shows the days alone: "Sep 28 – Oct 11". -->
+    <string name="progress_window_nights">Nights of %1$s</string>
     <string name="progress_previous_window">Previous two weeks</string>
     <string name="progress_next_window">Next two weeks</string>
     <string name="progress_settings">Settings</string>
@@ -40,9 +43,12 @@
     <string name="progress_legend_nap">Nap</string>
     <string name="progress_legend_edited">Edited</string>
     <string name="progress_legend_missing">Add missing</string>
+    <!-- Screen readers name every chart column's night by the evening it began: "Saturday night, Oct 3" (the year is
+         added when it isn't this year: "Wednesday night, Dec 31, 2025"). -->
+    <string name="progress_column_night">%1$s night, %2$s</string>
     <!-- Screen readers: "Saturday night, Oct 3, 8h 30m asleep" -->
-    <string name="progress_night_description">%1$s, %2$s, %3$s asleep</string>
-    <!-- Screen readers: "Saturday night, no data" -->
+    <string name="progress_night_description">%1$s, %2$s asleep</string>
+    <!-- Screen readers: "Saturday night, Oct 3, no data" -->
     <string name="progress_missing_night_description">%1$s, no data</string>
     <string name="progress_open_night">Open night</string>
     <string name="progress_add_this_night">Add this night</string>

@@ -54,9 +54,12 @@
     <!-- Sleep need suggestion -->
     <string name="sleep_need_overline">Sleep need</string>
     <string name="sleep_need_title">Your free nights suggest you need about %1$s</string>
+    <!-- What made a night "free" (SleepNeedEstimator): the wake came at least %2$d minutes (45) after the usual weekday
+         wake. Sleep data can't tell whether an alarm rang, so never say "without an alarm". Same words as onboarding's
+         onboarding_need_suggestion_nights. Quantity: the nights (%1$d). -->
     <plurals name="sleep_need_basis">
-        <item quantity="one">Based on %1$d night you woke without an alarm.</item>
-        <item quantity="other">Based on %1$d nights you woke without an alarm.</item>
+        <item quantity="one">Based on %1$d night you woke at least %2$d&#160;min later than on a usual weekday.</item>
+        <item quantity="other">Based on %1$d nights you woke at least %2$d&#160;min later than on a usual weekday.</item>
     </plurals>
     <string name="sleep_need_confidence_high">They line up closely, so this is a solid estimate.</string>
     <string name="sleep_need_confidence_medium">A fair estimate that firms up with more free nights.</string>

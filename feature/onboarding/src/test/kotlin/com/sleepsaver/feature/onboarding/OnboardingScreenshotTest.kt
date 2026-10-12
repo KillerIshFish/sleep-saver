@@ -111,7 +111,7 @@ class OnboardingScreenshotTest : ScreenshotTest() {
                 OnboardingUiState(
                     step = OnboardingStep.SLEEP_NEED,
                     sleepNeed = Previews.sleepNeed.copy(
-                        suggestion = NeedSuggestion(515, Confidence.MEDIUM, 6),
+                        suggestion = NeedSuggestion(515, Confidence.MEDIUM, 6, 45),
                         wake = LocalTime.of(6, 50),
                         wakeFromNights = true,
                     ),
@@ -123,7 +123,7 @@ class OnboardingScreenshotTest : ScreenshotTest() {
 
     @Test fun sleepNeedSuggestionInUse() = captureScreen("onboarding_sleep_need_suggestion_in_use") {
         SleepNeedStep(
-            state = Previews.sleepNeed.copy(needMinutes = 515, suggestion = NeedSuggestion(515, Confidence.HIGH, 9)),
+            state = Previews.sleepNeed.copy(needMinutes = 515, suggestion = NeedSuggestion(515, Confidence.HIGH, 9, 45)),
             onNeedChange = {},
             onUseSuggestion = {},
             onWakeChange = {},
