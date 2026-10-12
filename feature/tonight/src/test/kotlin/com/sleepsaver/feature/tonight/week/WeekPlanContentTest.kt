@@ -65,7 +65,7 @@ class WeekPlanContentTest {
     fun `rows read as morning and evening`() {
         show(s.weekPlanState())
 
-        compose.onNodeWithText("Next: Wed 6:45\u00A0AM · window 30 min").assertExists()
+        compose.onNodeWithText("Next: Wed 6:45\u00A0AM · window\u00A030\u00A0min").assertExists()
         compose.onNodeWithText("Tue · 6:45\u00A0AM · Surfacing 30 min").assertExists()
         compose.onNodeWithText("Sat · usual 8:10\u00A0AM · no alarm").assertExists()
         compose.onAllNodesWithText("Evening · Night steps from 9:30\u00A0PM · 3 steps").assertCountEquals(7)
@@ -86,13 +86,31 @@ class WeekPlanContentTest {
         val tuesdays = s.allOff.withAlarm(DayOfWeek.TUESDAY) { it.copy(mode = AlarmMode.SURFACING) }
         show(s.weekPlanState(week = tuesdays))
 
-        compose.onNodeWithText("Next: Tue, Oct\u00A013, 6:45\u00A0AM · window 30 min").assertExists()
+        compose.onNodeWithText("Next: Tue, Oct\u00A013, 6:45\u00A0AM · window\u00A030\u00A0min").assertExists()
+    }
+
+    @Test
+    fun `a widened window keeps the day's setting and says why it is wider`() {
+        // The day's row says Surfacing 30 min; tonight's planned window is 40 (debt-aware).
+        val next = PlanSamples.plannedAlarm(date = s.today.plusDays(1), debtAware = true)
+        show(s.weekPlanState(next = next))
+
+        compose.onNodeWithText("Next: Wed 6:45\u00A0AM · window\u00A030\u00A0min (40 while you're short on sleep)").assertExists()
+        compose.onNodeWithText("Wed · 6:45\u00A0AM · Surfacing 30 min").assertExists()
+    }
+
+    @Test
+    fun `at night a widened window reads the same, without Next`() {
+        val next = PlanSamples.plannedAlarm(date = s.today.plusDays(1), debtAware = true)
+        show(s.weekPlanState(night = true, next = next))
+
+        compose.onNodeWithText("Wed 6:45\u00A0AM · window\u00A030\u00A0min (40 while you're short on sleep)").assertExists()
     }
 
     @Test
     fun `at night the subtitle drops Next`() {
         show(s.weekPlanState(night = true))
-        compose.onNodeWithText("Wed 6:45\u00A0AM · window 30 min").assertExists()
+        compose.onNodeWithText("Wed 6:45\u00A0AM · window\u00A030\u00A0min").assertExists()
     }
 
     @Test

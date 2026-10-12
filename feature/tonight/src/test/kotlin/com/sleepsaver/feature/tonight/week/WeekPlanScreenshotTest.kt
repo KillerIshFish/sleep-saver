@@ -58,6 +58,15 @@ class WeekPlanScreenshotTest : ScreenshotTest() {
     @Test
     fun clock24() = captureScreen("week_plan_24h") { Clock24 { WeekPlan(s.weekPlanState(oneOffs = oneOffs)) } }
 
+    /** Tonight's window widened on a short night: the header keeps the row's 30 min and says why it is 40. */
+    private val widened get() = s.weekPlanState(next = PlanSamples.plannedAlarm(date = s.today.plusDays(1), debtAware = true))
+
+    @Test
+    fun debtAware() = captureScreen("week_plan_debt_aware") { WeekPlan(widened) }
+
+    @Test
+    fun debtAwareLargeFont() = captureScreen("week_plan_debt_aware_large_font") { LargeFont { WeekPlan(widened) } }
+
     @Test
     fun oneOffSheet() = captureScreen("oneoff_sheet") {
         SheetOver(screen = { WeekPlan(s.weekPlanState()) }) {

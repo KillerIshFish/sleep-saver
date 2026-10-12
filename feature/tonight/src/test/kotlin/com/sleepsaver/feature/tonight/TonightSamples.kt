@@ -155,10 +155,11 @@ internal object TonightSamples {
         planCheck: PlanCheck? = PlanSamples.planCheck(warn = false),
         keel: KeelResult? = PlanSamples.keelReady(),
         night: Boolean = false,
+        next: PlannedAlarm? = alarms(now, week, oneOffs).firstOrNull(),
     ): WeekPlanUiState.Ready = WeekPlanUiState.Ready(
         today = now.atZone(zone).toLocalDate(),
         zone = zone,
-        next = alarms(now, week, oneOffs).firstOrNull(),
+        next = next,
         night = night,
         oneOffs = oneOffs,
         rows = weekRows(week, oneOffs, usualWake, PlanSamples.activities(), debtInputs(week), now.atZone(zone).toLocalDate(), config),

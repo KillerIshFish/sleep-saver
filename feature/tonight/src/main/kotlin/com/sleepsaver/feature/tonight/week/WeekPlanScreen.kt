@@ -296,17 +296,24 @@ private fun ReadyWeekPlan(
     }
 }
 
-/** "Next: Thu 6:40 AM · window 30 min" (fixed: no window); at night without "Next". */
+/**
+ * "Next: Thu 6:40 AM · window 30 min" (fixed: no window); at night without "Next". The window is the day's setting,
+ * as its row says; when the planned alarm widens it (a debt-aware night) the wider one follows: "window 30 min (40
+ * while you're short on sleep)".
+ */
 @Composable
 private fun subtitle(state: WeekPlanUiState.Ready): String {
     val next = state.next ?: return stringResource(R.string.tonight_week_no_alarms)
     val occurrence = next.occurrence
     val alarm = dayAndTime(occurrence.date, occurrence.localTime, state.today)
-    val window = next.window.length.toMinutes().toInt()
+    val window = occurrence.window.toMinutes().toInt()
+    val armed = next.window.length.toMinutes().toInt()
     val surfacing = occurrence.settings.mode == AlarmMode.SURFACING
     return when {
+        state.night && surfacing && armed > window -> stringResource(R.string.tonight_week_alarm_window_wider, alarm, window, armed)
         state.night && surfacing -> stringResource(R.string.tonight_week_alarm_window, alarm, window)
         state.night -> alarm
+        surfacing && armed > window -> stringResource(R.string.tonight_week_next_window_wider, alarm, window, armed)
         surfacing -> stringResource(R.string.tonight_week_next_window, alarm, window)
         else -> stringResource(R.string.tonight_week_next, alarm)
     }.keepTimesTogether()

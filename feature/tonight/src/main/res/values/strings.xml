@@ -168,11 +168,17 @@
     <string name="tonight_week_plan_title">Week plan</string>
     <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM" ("Mon, Oct 19, 6:50 AM" when 6 or more days away);
          %2$d: its window in minutes. -->
-    <string name="tonight_week_next_window">Next: %1$s · window %2$d min</string>
+    <string name="tonight_week_next_window">Next: %1$s · window\u00A0%2$d\u00A0min</string>
     <!-- %1$s: the next alarm's day and time, e.g. "Thu 6:40 AM" ("Mon, Oct 19, 6:50 AM" when 6 or more days away). -->
     <string name="tonight_week_next">Next: %1$s</string>
+    <!-- The next alarm's window is widened because the night is short or the debt is high (debt-aware), so the header
+         says both: the setting, as the day's row shows it, and what will ring. %1$s: day and time; %2$d: the window
+         setting in minutes (30); %3$d: the widened window in minutes (40). -->
+    <string name="tonight_week_next_window_wider">Next: %1$s · window\u00A0%2$d\u00A0min (%3$d while you\'re short on sleep)</string>
     <!-- At night, without "Next". %1$s: day and time; %2$d: window in minutes. -->
-    <string name="tonight_week_alarm_window">%1$s · window %2$d min</string>
+    <string name="tonight_week_alarm_window">%1$s · window\u00A0%2$d\u00A0min</string>
+    <!-- At night, without "Next"; widened as in tonight_week_next_window_wider. -->
+    <string name="tonight_week_alarm_window_wider">%1$s · window\u00A0%2$d\u00A0min (%3$d while you\'re short on sleep)</string>
     <string name="tonight_week_no_alarms">No alarms set</string>
     <!-- %1$s: the last paused day, e.g. "Sun" ("Sun, Oct 25" when 6 or more days away). -->
     <string name="tonight_week_paused">Alarms paused until %1$s</string>
