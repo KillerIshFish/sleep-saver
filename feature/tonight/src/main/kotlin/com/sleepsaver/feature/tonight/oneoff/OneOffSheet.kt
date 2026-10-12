@@ -36,7 +36,9 @@ import com.sleepsaver.core.ui.components.PrimaryButton
 import com.sleepsaver.core.ui.components.SecondaryButton
 import com.sleepsaver.core.ui.components.SelectableChip
 import com.sleepsaver.core.ui.components.title
+import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatShortDate
+import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
@@ -52,9 +54,10 @@ import java.time.LocalTime
 /**
  * The one-off sheet as drawn. [date] is the day being changed; [dates] the days it can switch to (from the week plan,
  * [oneOffDates]; empty when opened from the alarm card, which is about one date). [alarmOn] = that date has an alarm, so "Day off"
- * is offered. [time] and [mode] are "Just this once"'s choice; [pauseUntil] the last paused day of [pauseDates].
- * [armBlocker] is why Just this once didn't apply (notifications or the alarm channel), [pauseBlocker] why a shorter
- * pause didn't.
+ * is offered. [time] and [mode] are "Just this once"'s choice; [onceEnded] = with an alarm, that choice would be the
+ * alarm that already ended at that time that morning, which never rings again, so it can't be set. [pauseUntil] is the
+ * last paused day of [pauseDates]. [armBlocker] is why Just this once didn't apply (notifications or the alarm
+ * channel), [pauseBlocker] why a shorter pause didn't.
  */
 @Immutable
 internal data class OneOffSheetState(
@@ -64,6 +67,7 @@ internal data class OneOffSheetState(
     val alarmOn: Boolean,
     val time: LocalTime,
     val mode: AlarmMode,
+    val onceEnded: Boolean = false,
     val pauseDates: List<LocalDate>,
     val pauseUntil: LocalDate,
     val armBlocker: AlarmBlocker? = null,
@@ -113,6 +117,8 @@ internal fun OneOffSheet(
     var mode by rememberSaveable(day) { mutableStateOf(context.startMode(day, config)) }
     val pauseDates = (1L..config.week.pauseMaxDays).map { context.today.plusDays(it) }
     var pauseUntil by rememberSaveable { mutableStateOf((context.oneOffs.pause?.until ?: pauseDates.first()).toString()) }
+    // Monday's 6:50 already rang (the clock went back): Monday at 6:50 is that alarm and can't ring again.
+    val onceEnded = mode != AlarmMode.OFF && context.alreadyEnded(day, LocalTime.parse(time))
 
     fun close(then: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -134,6 +140,7 @@ internal fun OneOffSheet(
                 alarmOn = context.resolve(day).alarmOn,
                 time = LocalTime.parse(time),
                 mode = mode,
+                onceEnded = onceEnded,
                 pauseDates = pauseDates,
                 pauseUntil = LocalDate.parse(pauseUntil),
                 armBlocker = gate.blocker(ArmSource.ONE_OFF),
@@ -147,7 +154,9 @@ internal fun OneOffSheet(
                 onJustOnce = {
                     val chosenTime = LocalTime.parse(time)
                     val chosenMode = mode
-                    gate.armIf(chosenMode != AlarmMode.OFF, ArmSource.ONE_OFF) { close { onJustOnce(day, chosenTime, chosenMode) } }
+                    if (!onceEnded) {
+                        gate.armIf(chosenMode != AlarmMode.OFF, ArmSource.ONE_OFF) { close { onJustOnce(day, chosenTime, chosenMode) } }
+                    }
                 },
                 onPauseUntil = { pauseUntil = it.toString() },
                 onPause = {
@@ -215,6 +224,10 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
                 SelectableChip(label, selected = state.mode == mode, onClick = { actions.onMode(mode) })
             }
         }
+        if (state.onceEnded) {
+            Spacer(Modifier.height(Spacing.s))
+            Body(stringResource(R.string.tonight_oneoff_once_ended, clockTime(state.time), dayName).keepTimesTogether())
+        }
         state.armBlocker?.let { blocker ->
             Spacer(Modifier.height(Spacing.m))
             ArmBlockerNotice(blocker, actions.onFixBlocker)
@@ -224,6 +237,7 @@ internal fun OneOffSheetContent(state: OneOffSheetState, actions: OneOffSheetAct
             stringResource(R.string.tonight_oneoff_once_apply, dayName),
             onClick = actions.onJustOnce,
             modifier = Modifier.fillMaxWidth(),
+            enabled = !state.onceEnded,
         )
         Divider()
 

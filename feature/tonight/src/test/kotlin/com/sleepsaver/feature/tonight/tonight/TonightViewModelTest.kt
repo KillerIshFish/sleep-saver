@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
@@ -80,18 +81,24 @@ class TonightViewModelTest {
     }
 
     @Test
-    fun `tomorrow's alarm that already rang reads as done once its event is in`() = runTest {
+    fun `tomorrow's alarm that already rang reads as done once the plan says it ended`() = runTest {
         // Wednesday's 6:45 rang, then the clock went back to Tuesday evening: the planner moved on to Thursday.
         val now = at(20, 55)
         val fakes = TonightFakes(now = now)
         val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
-        fakes.schedule.upcomingState.value = TonightSamples.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
+        val ended = EndedAlarms(ids = setOf(checkNotNull(rang.occurrenceId)), dates = setOf(wednesday))
+        fakes.schedule.upcomingState.value = TonightSamples.alarms(now, ended = ended)
         val viewModel = viewModel(fakes)
 
         fakes.nightLog.recordAlarmEvent(rang)
+        fakes.schedule.endedState.value = ended
 
         val next = NextAlarm(wednesday.plusDays(1), LocalTime.of(6, 45))
         assertThat(viewModel.ready().alarmCard).isEqualTo(AlarmCardModel.Done(wednesday, rang = true, next = next))
+        // The one-off sheet knows Wednesday at 6:45 is that alarm, so it won't set it again; 6:50 is a new one.
+        val context = viewModel.oneOffContext.first { it?.ended == ended }!!
+        assertThat(context.alreadyEnded(wednesday, LocalTime.of(6, 45))).isTrue()
+        assertThat(context.alreadyEnded(wednesday, LocalTime.of(6, 50))).isFalse()
     }
 
     @Test

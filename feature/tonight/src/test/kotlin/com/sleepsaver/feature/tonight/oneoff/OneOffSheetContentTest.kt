@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.tonight.oneoff
 
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -79,6 +80,18 @@ class OneOffSheetContentTest {
         compose.onNodeWithText("Open settings").performScrollTo().performClick()
 
         assertThat(calls).containsExactly("fix:${AlarmBlocker.RING_CHANNEL_OFF}")
+    }
+
+    @Test
+    fun `just this once at the time whose alarm already ended there says so and can't be set`() {
+        show(state().copy(onceEnded = true))
+
+        compose.onNodeWithText("The 6:45 AM alarm on Wed already ended. Pick another time.").performScrollTo().assertExists()
+        compose.onNodeWithText("Set for Wed").performScrollTo().assertIsNotEnabled().performClick()
+        // Day off and the pause still work.
+        compose.onNodeWithText("Take Wed off").performClick()
+
+        assertThat(calls).containsExactly("dayOff")
     }
 
     @Test

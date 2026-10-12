@@ -6,6 +6,8 @@ import com.sleepsaver.core.data.hooks.SensingMode
 import com.sleepsaver.core.data.hooks.SensingState
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.AlarmSource
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
@@ -129,11 +131,12 @@ class TonightUiStateTest {
         val wednesdays = s.allOff.withAlarm(DayOfWeek.WEDNESDAY) { it.copy(mode = AlarmMode.SURFACING) }
         val now = at(20, 55)
         val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val ended = EndedAlarms(ids = setOf(rang.occurrenceId!!), dates = setOf(wednesday))
         // The planner skips the ended Wednesday and plans the one after (today + 8).
-        val alarms = s.alarms(now, wednesdays, exclude = setOf(rang.occurrenceId!!), endedDates = setOf(wednesday))
+        val alarms = s.alarms(now, wednesdays, ended = ended)
         assertThat(alarms.map { it.occurrence.date }).containsExactly(wednesday.plusDays(7))
 
-        val state = s.ready(s.inputs(now, week = wednesdays, alarms = alarms, tomorrowEvent = rang))
+        val state = s.ready(s.inputs(now, week = wednesdays, ended = ended, tomorrowEvent = rang))
 
         val card = state.alarmCard as AlarmCardModel.Done
         assertThat(card.wakeDate).isEqualTo(wednesday)
@@ -143,31 +146,67 @@ class TonightUiStateTest {
         assertThat(state.week.first()).isEqualTo(WeekStripDay(wednesday, LocalTime.of(6, 45), AlarmMode.OFF, alarmOn = false))
         assertThat(state.hush.untilWindowAvailable).isFalse()
         assertThat(state.armed).isTrue()
-        assertThat(s.ready(s.inputs(at(23, 30), week = wednesdays, alarms = alarms, tomorrowEvent = rang)).night?.alarm)
+        assertThat(s.ready(s.inputs(at(23, 30), week = wednesdays, ended = ended, tomorrowEvent = rang)).night?.alarm)
             .isEqualTo(NightAlarm.None)
     }
 
     @Test
     fun `an alarm that ended without ringing reads as ended`() {
         val missed = PlanSamples.alarmEvent(RingReason.NEVER_RANG, wakeDate = wednesday)
-        val now = at(20, 55)
+        val ended = EndedAlarms(ids = setOf(missed.occurrenceId!!), dates = setOf(wednesday))
 
-        val card = s.ready(s.inputs(now, alarms = s.alarms(now, endedDates = setOf(wednesday)), tomorrowEvent = missed)).alarmCard
+        val card = s.ready(s.inputs(at(20, 55), ended = ended, tomorrowEvent = missed)).alarmCard
 
         assertThat(card).isEqualTo(AlarmCardModel.Done(wednesday, rang = false, next = NextAlarm(thursday, LocalTime.of(6, 45))))
     }
 
     @Test
-    fun `the card shows the alarm as planned, not as the plan reads before the planned alarms catch up`() {
+    fun `on a morning whose alarm already rang, just this once at another time rings and at that time doesn't`() {
+        val now = at(20, 55)
+        val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
+        val ended = EndedAlarms(ids = setOf(rang.occurrenceId!!), dates = setOf(wednesday))
+        fun card(time: LocalTime, planned: Boolean): AlarmCardModel {
+            val oneOffs = PlanSamples.oneOffs(justOnce = DateOverride(wednesday, OverrideKind.JUST_ONCE, time, AlarmMode.FIXED))
+            // planned = false: right after the write, before the planned alarms are recomputed.
+            val alarms = s.alarms(now, oneOffs = if (planned) oneOffs else PlanSamples.oneOffs(), ended = ended)
+            return s.ready(s.inputs(now, oneOffs = oneOffs, ended = ended, alarms = alarms, tomorrowEvent = rang)).alarmCard
+        }
+
+        // 6:55 is a new alarm: On at once, before it is planned too, never "already rang" in between.
+        for (planned in listOf(false, true)) {
+            val on = card(LocalTime.of(6, 55), planned) as AlarmCardModel.On
+            assertThat(on.time).isEqualTo(LocalTime.of(6, 55))
+            assertThat(on.justOnce).isTrue()
+        }
+        // 6:45 is the alarm that already rang, which the planner leaves out (the one-off sheet doesn't set it).
+        assertThat(card(LocalTime.of(6, 45), planned = true)).isInstanceOf(AlarmCardModel.Done::class.java)
+    }
+
+    @Test
+    fun `until the planned alarms catch up with a change, the card reads the plan, not the old time`() {
         val now = at(14, 0)
-        // Wednesday just moved to 7:00; the planned alarms (what is armed) still say 6:45 for a moment.
+        val stale = s.alarms(now)
+        // Wednesday just moved to 7:00; the planned alarms still say 6:45 for a moment.
         val plan = s.week.day(DayOfWeek.WEDNESDAY)
         val moved = s.week.with(plan.copy(morning = plan.morning.copy(wakeTime = LocalTime.of(7, 0))))
 
-        val card = s.ready(s.inputs(now, week = moved, alarms = s.alarms(now))).alarmCard as AlarmCardModel.On
+        val card = s.ready(s.inputs(now, week = moved, alarms = stale)).alarmCard as AlarmCardModel.On
 
-        assertThat(card.time).isEqualTo(LocalTime.of(6, 45))
-        assertThat(card.windowStart).isEqualTo(LocalTime.of(6, 15))
+        assertThat(card.time).isEqualTo(LocalTime.of(7, 0))
+        assertThat(card.windowStart).isEqualTo(LocalTime.of(6, 30))
+
+        // "Just this once" at 7:15 from the card: the time and its label at once, then the planned alarm's window.
+        val once = PlanSamples.oneOffs(justOnce = DateOverride(wednesday, OverrideKind.JUST_ONCE, LocalTime.of(7, 15), AlarmMode.SURFACING))
+        val gap = s.ready(s.inputs(now, oneOffs = once, alarms = stale)).alarmCard as AlarmCardModel.On
+        assertThat(gap.time).isEqualTo(LocalTime.of(7, 15))
+        assertThat(gap.justOnce).isTrue()
+        val planned = listOf(PlanSamples.plannedAlarm(date = wednesday, time = LocalTime.of(7, 15), debtAware = true)).map {
+            it.copy(occurrence = it.occurrence.copy(source = AlarmSource.JUST_ONCE))
+        }
+        val caughtUp = s.ready(s.inputs(now, oneOffs = once, alarms = planned)).alarmCard as AlarmCardModel.On
+        assertThat(caughtUp.time).isEqualTo(LocalTime.of(7, 15))
+        assertThat(caughtUp.debtAware).isTrue()
+        assertThat(caughtUp.justOnce).isTrue()
     }
 
     @Test

@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.InsightsState
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.RingReason
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.schedule.AlarmMode
@@ -190,8 +191,8 @@ class TonightContentTest {
         // Wednesday's 6:45 rang; the clock then went back to Tuesday evening.
         val now = at(20, 55)
         val rang = PlanSamples.alarmEvent(RingReason.DEADLINE, wakeDate = wednesday)
-        val alarms = s.alarms(now, exclude = setOf(checkNotNull(rang.occurrenceId)), endedDates = setOf(wednesday))
-        show(s.ready(s.inputs(now, alarms = alarms, tomorrowEvent = rang)))
+        val ended = EndedAlarms(ids = setOf(checkNotNull(rang.occurrenceId)), dates = setOf(wednesday))
+        show(s.ready(s.inputs(now, ended = ended, tomorrowEvent = rang)))
 
         compose.onNodeWithText("No alarm Wed").assertExists()
         compose.onNodeWithText("Wed's alarm already rang.").assertExists()

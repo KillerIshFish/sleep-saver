@@ -13,9 +13,11 @@ import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.NightLogRepository
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PatternsRepository
+import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.data.repository.SettingsRepository
 import com.sleepsaver.core.domain.alarm.AlarmEvent
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.AnchorSource
@@ -25,6 +27,8 @@ import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.nightsteps.StepAdherence
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.NightRules
+import com.sleepsaver.core.domain.schedule.OneOffs
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.feature.tonight.TonightWriter
 import com.sleepsaver.feature.tonight.oneoff.OneOffContext
 import com.sleepsaver.feature.tonight.oneoff.OneOffWrites
@@ -107,14 +111,14 @@ internal class TonightViewModel @Inject constructor(
             combine(nightLog.alarmEvent(date), nightLog.alarmEvent(date.plusDays(1)), ::Pair)
         }
         val lastNightList = today.flatMapLatest { journal.tomorrowList(it.minusDays(1)) }
-        val plan = combine(schedule.weekPlan, schedule.oneOffs, schedule.upcomingAlarms, ::Triple)
+        val plan = combine(schedule.weekPlan, schedule.oneOffs, schedule.upcomingAlarms, schedule.endedAlarms, ::PlanPart)
         val journalPart = combine(nightSteps.tonight, nightSteps.adherence, journal.marksByDate, lastNightList, events) {
                 session, adherence, marks, list, (todayEvent, tomorrowEvent) ->
             JournalPart(session, adherence, marks, list, todayEvent, tomorrowEvent)
         }
         val base = combine(insights.state, patterns.debtPreviewInputs, settings.settings, nightController.state, ticks, ::BasePart)
         val screen = combine(local, nightController.state.map { it.endedAt }.distinctUntilChanged()) { l, endedAt -> l.copy(endedAt = endedAt) }
-        combine(base, plan, journalPart, screen) { b, (week, oneOffs, alarms), j, l ->
+        combine(base, plan, journalPart, screen) { b, (week, oneOffs, alarms, ended), j, l ->
             tonightUiState(
                 TonightInputs(
                     insights = b.insights,
@@ -132,6 +136,7 @@ internal class TonightViewModel @Inject constructor(
                     lastNightList = j.lastNightList,
                     todayEvent = j.todayEvent,
                     tomorrowEvent = j.tomorrowEvent,
+                    ended = ended,
                     local = l,
                 ),
                 config,
@@ -236,6 +241,13 @@ internal class TonightViewModel @Inject constructor(
         val settings: AppSettings,
         val night: NightState,
         val now: Instant,
+    )
+
+    private data class PlanPart(
+        val week: WeekPlan,
+        val oneOffs: OneOffs,
+        val alarms: List<PlannedAlarm>,
+        val ended: EndedAlarms,
     )
 
     private data class JournalPart(

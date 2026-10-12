@@ -8,6 +8,7 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.alarm.AlarmEvent
 import com.sleepsaver.core.domain.alarm.AlarmPlanner
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
@@ -69,18 +70,14 @@ internal object TonightSamples {
     fun debtInputs(week: WeekPlan = this.week, nights: List<Night> = this.nights): DebtPreviewInputs =
         DebtPreviewInputs(nights, sleepSettings.copy(week = week), zone)
 
-    /**
-     * The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them; [exclude] and [endedDates]
-     * as the handled events make them.
-     */
+    /** The planned alarms after [now], as ScheduleRepository.upcomingAlarms would list them, leaving out the [ended] ones. */
     fun alarms(
         now: Instant,
         week: WeekPlan = this.week,
         oneOffs: OneOffs = OneOffs(),
-        exclude: Set<String> = emptySet(),
-        endedDates: Set<LocalDate> = emptySet(),
+        ended: EndedAlarms = EndedAlarms(),
     ): List<PlannedAlarm> =
-        AlarmPlanner(config).upcoming(week, oneOffs, now, zone, exclude, endedDates).map { occurrence ->
+        AlarmPlanner(config).upcoming(week, oneOffs, now, zone, ended.ids, ended.dates).map { occurrence ->
             val planned = PlanSamples.plannedAlarm(
                 date = occurrence.date,
                 time = occurrence.localTime,
@@ -112,7 +109,8 @@ internal object TonightSamples {
         marks: Map<LocalDate, Set<Mark>> = emptyMap(),
         lastNightList: TomorrowList? = null,
         local: TonightLocal = local(),
-        alarms: List<PlannedAlarm> = alarms(now, week, oneOffs),
+        ended: EndedAlarms = EndedAlarms(),
+        alarms: List<PlannedAlarm> = alarms(now, week, oneOffs, ended),
         todayEvent: AlarmEvent? = null,
         tomorrowEvent: AlarmEvent? = null,
     ): TonightInputs {
@@ -134,6 +132,7 @@ internal object TonightSamples {
             lastNightList = lastNightList,
             todayEvent = todayEvent,
             tomorrowEvent = tomorrowEvent,
+            ended = ended,
             local = local,
         )
     }

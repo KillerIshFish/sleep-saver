@@ -257,7 +257,11 @@ target = `ZonedDateTime.of(date, time, zone)` (DST gap → forward, overlap → 
 occurrences already handled (stopped, timed out, missed, in progress) are excluded so a stopped early ring never rings
 again at the wake time, and a week-plan morning whose alarm ended gets no second plan alarm (only a Just this once).
 The two-week horizon keeps a skipped morning from hiding its weekday's next one: a Monday-only alarm that already rang,
-with the clock set back to Sunday evening, arms the Monday after (today + 8).
+with the clock set back to Sunday evening, arms the Monday after (today + 8). Since an occurrence is its date and time,
+a Just this once at the very time that already ended that morning is that same alarm and never rings either (the mirror
+and the ring service ignore a handled id too), so the one-off sheet greys out "Set for Mon" at that time and says
+"The 6:50 AM alarm on Mon already ended. Pick another time."; any other time rings. The Tonight card reads the same
+`ScheduleRepository.endedAlarms` the plan leaves out: "No alarm Mon · Mon's alarm already rang".
 
 **Window.** SURFACING: base window 10–45 min (default 30). A *debt-aware* night (planned sleep opportunity from the
 anchor or planned bedtime + latency to the wake time < 6.5 h, or debt status MODERATE/HIGH) widens it by 10 min (cap

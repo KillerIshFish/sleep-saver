@@ -2,6 +2,7 @@ package com.sleepsaver.feature.tonight.oneoff
 
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.ScheduleRepository
+import com.sleepsaver.core.domain.alarm.EndedAlarms
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.DateOverride
@@ -24,17 +25,25 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * What the one-off sheet pre-fills from: the week plan, its one-offs, the usual wake time of each weekday and today.
- * Example: Tuesday has a 6:45 alarm, so "Just this once" starts at 6:45 Surfacing; Saturday has none, so it starts
- * at Saturday's usual 8:10 with the default mode.
+ * What the one-off sheet pre-fills from: the week plan, its one-offs, the usual wake time of each weekday and today,
+ * and the alarms that already [ended]. Example: Tuesday has a 6:45 alarm, so "Just this once" starts at 6:45
+ * Surfacing; Saturday has none, so it starts at Saturday's usual 8:10 with the default mode.
  */
 internal data class OneOffContext(
     val week: WeekPlan,
     val oneOffs: OneOffs,
     val usualWake: Map<DayOfWeek, LocalTime>,
     val today: LocalDate,
+    val ended: EndedAlarms = EndedAlarms(),
 ) {
     fun resolve(date: LocalDate): ResolvedDay = week.resolve(date, oneOffs)
+
+    /**
+     * Whether an alarm "Just this once" at [time] on [date] would be the alarm that already ended there (it rang, timed
+     * out or was missed): the same date and time are the same alarm, which never rings again, so the sheet doesn't set
+     * it. Example: Monday's 6:50 rang and the clock went back to Sunday: Monday at 6:50 is that alarm, 6:55 a new one.
+     */
+    fun alreadyEnded(date: LocalDate, time: LocalTime): Boolean = ended.leavesOut(date, time, justOnce = true)
 
     /** The date's own wake time, else its weekday's usual wake rounded to `week.timeRounding`. */
     fun startTime(date: LocalDate, config: SleepConfig = SleepConfig.DEFAULT): LocalTime =
@@ -79,7 +88,8 @@ internal data class OneOffContext(
             schedule.oneOffs,
             schedule.usualWake,
             time.minuteTicks.map { it.atZone(time.zone()).toLocalDate() }.distinctUntilChanged(),
-        ) { week, oneOffs, usualWake, today -> OneOffContext(week, oneOffs, usualWake, today) as OneOffContext? }
+            schedule.endedAlarms,
+        ) { week, oneOffs, usualWake, today, ended -> OneOffContext(week, oneOffs, usualWake, today, ended) as OneOffContext? }
             .catch { emit(null) }
     }
 }

@@ -300,6 +300,10 @@
     <string name="tonight_oneoff_mode_none">No alarm, just the time</string>
     <!-- %1$s: the short day name, or the date as in tonight_oneoff_day_off_body. -->
     <string name="tonight_oneoff_once_apply">Set for %1$s</string>
+    <!-- Just this once at the time whose alarm already ended that morning (the clock or the time zone went back a
+         day): the same date and time are that alarm, which never rings twice. %1$s: the time, e.g. "6:50 AM";
+         %2$s: the day as in tonight_oneoff_once_apply. -->
+    <string name="tonight_oneoff_once_ended">The %1$s alarm on %2$s already ended. Pick another time.</string>
     <string name="tonight_oneoff_pause_title">Pause alarms until…</string>
     <!-- %1$s: the last paused day, e.g. "Sun, Oct 12". -->
     <string name="tonight_oneoff_pause_apply">Pause until %1$s</string>

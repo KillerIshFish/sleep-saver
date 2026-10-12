@@ -113,6 +113,26 @@ class AlarmPlannerTest {
     }
 
     @Test
+    fun `a just-once alarm at the time that already ended there is that occurrence, so only another time rings`() {
+        // Monday's 06:50 rang and was stopped; the clock went back to Sunday 20:55.
+        val mondays = Fx.weekPlan(MONDAY to LocalTime.of(6, 50))
+        val monday = LocalDate.of(2026, 10, 12)
+        val now = at(monday.minusDays(1), "20:55")
+        val ended = EndedAlarms(ids = setOf("2026-10-12T06:50"), dates = setOf(monday))
+        fun once(time: LocalTime) = OneOffs(overrides = listOf(DateOverride(monday, OverrideKind.JUST_ONCE, time, AlarmMode.FIXED)))
+
+        val sameTime = planner.next(mondays, once(LocalTime.of(6, 50)), now, Fx.UTC, ended.ids, ended.dates)
+        val later = planner.next(mondays, once(LocalTime.of(6, 55)), now, Fx.UTC, ended.ids, ended.dates)
+
+        assertThat(sameTime?.id).isEqualTo("2026-10-19T06:50")
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 50), justOnce = true)).isTrue()
+        assertThat(later?.id).isEqualTo("2026-10-12T06:55")
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 55), justOnce = true)).isFalse()
+        // The week plan's own time on that morning stays out at any time.
+        assertThat(ended.leavesOut(monday, LocalTime.of(6, 55), justOnce = false)).isTrue()
+    }
+
+    @Test
     fun `the limit caps the list`() {
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 2)).hasSize(2)
         assertThat(planner.upcoming(workWeek, OneOffs(), at(wednesday, "07:00"), Fx.UTC, limit = 0)).isEmpty()
