@@ -62,6 +62,15 @@ class ProgressScreenshotTest : ScreenshotTest() {
         CompositionLocalProvider(LocalUse24HourClock provides true) { Progress(eventful) }
     }
 
+    /** Naps on nearly every day: neighbouring nap pills stagger into two lanes instead of touching. */
+    @Test
+    fun sleepTimesDenseNaps() = captureScreen("progress_sleep_times_dense_naps") { Progress(ProgressFixtures.ready(ProgressFixtures.nappyNights())) }
+
+    @Test
+    fun sleepTimesDenseNapsLargeFont() = captureScreen("progress_sleep_times_dense_naps_large_font") {
+        LargeFont { Progress(ProgressFixtures.ready(ProgressFixtures.nappyNights())) }
+    }
+
     @Test
     fun sleepDebt() = captureScreen("progress_sleep_debt") { Progress(sample, ProgressTab.SLEEP_DEBT) }
 
