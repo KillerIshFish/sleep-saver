@@ -270,7 +270,11 @@ private fun ReadyWeekPlan(
                     title = stringResource(R.string.tonight_plan_notice_title),
                     body = when {
                         check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatDuration(shift))
-                        jetlag != null -> stringResource(R.string.tonight_plan_jetlag, formatDuration(jetlag.abs()))
+                        // Signed like Progress's: free days can sleep earlier than alarm days too.
+                        jetlag != null -> stringResource(
+                            if (jetlag.isNegative) R.string.tonight_plan_jetlag_earlier else R.string.tonight_plan_jetlag,
+                            formatDuration(jetlag.abs()),
+                        )
                         else -> ""
                     },
                     actionLabel = stringResource(R.string.tonight_plan_got_it),

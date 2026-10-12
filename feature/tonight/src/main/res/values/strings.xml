@@ -215,6 +215,8 @@
     <string name="tonight_plan_free_shift">In this plan, free days wake %1$s later than alarm days. Keeping it within an hour steadies your Keel; a short early-afternoon catnap is one alternative.</string>
     <!-- %1$s: e.g. "1h 10m" (formatDuration). -->
     <string name="tonight_plan_jetlag">Your planned sleep on free days sits %1$s later than on alarm days.</string>
+    <!-- The same when free days sleep earlier (a negative planned social jetlag). %1$s: e.g. "2h" (formatDuration). -->
+    <string name="tonight_plan_jetlag_earlier">Your planned sleep on free days sits %1$s earlier than on alarm days.</string>
     <string name="tonight_plan_got_it">Got it</string>
     <string name="tonight_quick_title">Quick setup</string>
     <string name="tonight_preset_work">Work week + free weekend</string>

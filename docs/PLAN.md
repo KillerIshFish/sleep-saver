@@ -347,7 +347,8 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
   only (a one-off never makes 13 free days). Notice (dismissible, never blocking) when free days wake > 60 min later
   than alarm days or |planned social jetlag| ≥ 60 min. The notice is titled "Planned social jetlag" ("In this plan,
   free days wake 1h 40m later …"): it measures the next 14 planned nights, and the free-day shift compares wake times,
-  so it can differ from Progress's social jetlag, which is mid-sleep on the recorded nights.
+  so it can differ from Progress's social jetlag, which is mid-sleep on the recorded nights. The jetlag line is signed
+  like Progress's: free days sit "1h 10m later" or, when they sleep earlier than alarm days, "earlier".
 
 ### 3.16 Drop anchor, debt preview, Hush, night rules (v2)
 - **Drop anchor** records an instant + offset and starts the night state: no current time or countdown anywhere in the

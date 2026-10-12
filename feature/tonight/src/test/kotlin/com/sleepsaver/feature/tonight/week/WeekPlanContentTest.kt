@@ -25,6 +25,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalTime
 
 /** Taps on the week plan's content and the lines it shows. */
@@ -160,6 +161,21 @@ class WeekPlanContentTest {
         compose.onNodeWithText("Planned keel 66 · Choppy").assertExists()
         compose.onNodeWithText("Planned social jetlag").assertExists()
         compose.onNodeWithText("Your planned sleep on free days sits 1h 35m later than on alarm days.").assertExists()
+    }
+
+    @Test
+    fun `free days that sleep earlier say earlier`() {
+        // Alarm days 9:00, free days 7:00: the planned social jetlag is negative and still warns (|-2h| >= 1h).
+        val check = PlanSamples.planCheck(warn = true).copy(
+            freeDayWakeShift = Duration.ofHours(-2),
+            plannedSocialJetlag = Duration.ofHours(-2),
+            warnFreeDayShift = false,
+        )
+        show(s.weekPlanState(planCheck = check, keel = PlanSamples.keelCalibrating()))
+
+        compose.onNodeWithText("Planned social jetlag").assertExists()
+        compose.onNodeWithText("Your planned sleep on free days sits 2h earlier than on alarm days.").assertExists()
+        compose.onNodeWithText("Your planned sleep on free days sits 2h later than on alarm days.").assertDoesNotExist()
     }
 
     @Test
