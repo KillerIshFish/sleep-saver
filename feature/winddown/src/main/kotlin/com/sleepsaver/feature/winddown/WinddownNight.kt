@@ -42,7 +42,9 @@ import javax.inject.Inject
  * Each night's bounds come from the energy [schedule] and that morning's planned alarm ([NightRules.boundsFrom]).
  * Without a schedule (no nights yet) the bedtime comes from tonight's Night steps [session] (timed from the plan or
  * Settings), that morning's alarm or [ScheduleTimes] over [inputs], and the wake zone from [ScheduleTimes], as on
- * Tonight. [anchoredAt] (`NightController.state.night?.anchoredAt`) counts only for the night of its own wake date.
+ * Tonight. [anchoredAt] (`NightController.state.night?.anchoredAt`) counts only for the night of its own wake date;
+ * [endedAt] (`NightController.state.endedAt`, the last "I'm up") ends that night's no-clock time at once, even between
+ * minute ticks ([NightRules.clockNow]), until the next anchor, as on Tonight, Sleep home and Energy.
  */
 internal fun winddownFocus(
     now: Instant,
@@ -53,9 +55,11 @@ internal fun winddownFocus(
     alarms: List<PlannedAlarm>,
     morningStop: Instant?,
     anchoredAt: Instant?,
+    endedAt: Instant? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): FocusNight {
-    val today = now.atZone(zone).toLocalDate()
+    val at = NightRules.clockNow(now, endedAt)
+    val today = at.atZone(zone).toLocalDate()
     val times = ScheduleTimes(config)
 
     fun bounds(evening: LocalDate): NightBounds {
@@ -74,12 +78,13 @@ internal fun winddownFocus(
     // Night owls: the schedule (or, without nights, the Night steps evening) hasn't rolled over to today yet.
     val evening = schedule?.date ?: session?.nightOf
     return NightRules.focus(
-        now = now,
+        now = at,
         zone = zone,
         lastNight = bounds(today.minusDays(1)),
         tonight = bounds(today),
         morningStop = morningStop,
         anchoredAt = anchoredAt,
+        endedAt = endedAt,
         eveningStillYesterday = evening != null && evening < today,
         config = config,
     )
@@ -123,10 +128,11 @@ internal class WinddownNightSource @Inject constructor(
         val energySchedule = insights.state
             .filter { it !is InsightsState.Loading }
             .map { (it as? InsightsState.Ready)?.insights?.schedule }
-        val anchoredAt = nightController.state.map { it.night?.anchoredAt }.distinctUntilChanged()
+        // The anchor and the last "I'm up", as Tonight, Sleep home and Energy read them.
+        val anchorAndEnd = nightController.state.map { it.night?.anchoredAt to it.endedAt }.distinctUntilChanged()
         val tonight = nightSteps.tonight.orNone(null, "Tonight's steps")
-        combine(energySchedule, tonight, plan, anchoredAt, ticks) { schedule, session, (alarms, inputs, stop), anchored, now ->
-            winddownFocus(now, time.zone(), schedule, session, inputs, alarms, stop, anchored) to session
+        combine(energySchedule, tonight, plan, anchorAndEnd, ticks) { schedule, session, (alarms, inputs, stop), (anchored, ended), now ->
+            winddownFocus(now, time.zone(), schedule, session, inputs, alarms, stop, anchored, ended) to session
         }
             .distinctUntilChanged()
             .flatMapLatest { (focus, tonight) ->

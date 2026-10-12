@@ -74,8 +74,8 @@ data class NightState(
     val testPendingAt: Instant? = null,
     /**
      * When "I'm up" ([NightController.endNight]) was last tapped in this process: NightRules.focus's `endedAt`, so it
-     * ends night mode on Tonight, Sleep home and Energy at once. Kept in memory only: after a restart the bedtime rule
-     * applies again.
+     * ends night mode on Tonight, Sleep home, Energy and Night steps at once (NightRules.clockNow). Kept in memory only:
+     * after a restart the bedtime rule applies again.
      */
     val endedAt: Instant? = null,
 )

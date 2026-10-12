@@ -162,13 +162,6 @@ internal fun nightClock(
 }
 
 /**
- * The moment a night-mode screen is built for: the last minute [tick], or the "I'm up" tap ([endedAt]) when it came
- * after it. Ticks arrive just after each minute boundary, so a night ended at 02:13:45 would otherwise still be
- * judged at 02:13:00 (before the tap, so not ended) and stay night until the 02:14 tick.
- */
-internal fun clockNow(tick: Instant, endedAt: Instant?): Instant = if (endedAt != null && endedAt > tick) endedAt else tick
-
-/**
  * The [NightClock] for screens that only need night mode (the Week plan subtitle, the test-ring message), from the
  * same sources the Tonight tab uses.
  */
@@ -193,7 +186,7 @@ internal class NightClockSource @Inject constructor(
             ClockInputs(state, alarms, session, inputs, event, anchored, ended)
         }.combine(ticks) { inputs, tick ->
             nightClock(
-                now = clockNow(tick, inputs.endedAt),
+                now = NightRules.clockNow(tick, inputs.endedAt),
                 zone = time.zone(),
                 schedule = (inputs.insights as? InsightsState.Ready)?.insights?.schedule,
                 session = inputs.session,

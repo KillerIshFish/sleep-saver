@@ -227,6 +227,19 @@ class NightRulesTest {
         }
 
         @Test
+        fun `I'm up between two minute ticks is judged at the tap, not at the tick before it`() {
+            val tick = at(tuesday, "23:30")
+            val tap = tick.plusSeconds(45)
+
+            assertThat(NightRules.clockNow(tick, endedAt = tap)).isEqualTo(tap)
+            assertThat(NightRules.clockNow(tick, endedAt = null)).isEqualTo(tick)
+            assertThat(NightRules.clockNow(tick, endedAt = at(tuesday, "23:10"))).isEqualTo(tick) // an older tap
+            // At the stale tick the tap hasn't happened yet; at clockNow it has.
+            assertThat(focus(tick, endedAt = tap).isNight).isTrue()
+            assertThat(focus(NightRules.clockNow(tick, tap), endedAt = tap).isNight).isFalse()
+        }
+
+        @Test
         fun `the morning stop is the planned alarm's stop, or its first ring when nobody stopped it`() {
             val stopped = Fx.alarmEvent(wednesday, "06:45", firstRingAt = "06:20", RingReason.RESTLESS, stoppedAt = "06:22")
             val timedOut = Fx.alarmEvent(wednesday, "06:45", firstRingAt = "06:45", RingReason.DEADLINE, outcome = RingOutcome.TIMED_OUT)

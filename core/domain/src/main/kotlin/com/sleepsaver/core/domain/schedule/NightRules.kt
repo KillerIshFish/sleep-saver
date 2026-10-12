@@ -76,6 +76,14 @@ object NightRules {
     }
 
     /**
+     * The moment a screen judges [focus] at: the last minute [tick], or the "I'm up" tap ([endedAt]) when it came after
+     * it. Ticks arrive just after each minute boundary, so a night ended at 02:13:45 would otherwise still be judged at
+     * 02:13:00 (before the tap, so not ended) and stay night until the 02:14 tick. Tonight, Sleep home, Energy and
+     * Night steps all use it, so "I'm up" ends night mode on every tab at once.
+     */
+    fun clockNow(tick: Instant, endedAt: Instant?): Instant = if (endedAt != null && endedAt > tick) endedAt else tick
+
+    /**
      * When [event], the planned alarm of [wakeDate], ended that night: its stop, or its first ring when it timed out or
      * was missed. Null while it hasn't ended (or for a catnap, a test ring, another morning).
      */

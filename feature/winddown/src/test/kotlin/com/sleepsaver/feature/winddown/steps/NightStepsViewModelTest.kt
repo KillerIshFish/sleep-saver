@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PatternsRepository
+import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.nightsteps.StepAdherence
 import com.sleepsaver.core.domain.nightsteps.StepSuggestion
@@ -156,6 +157,24 @@ class NightStepsViewModelTest {
 
         nightController.endNight()
         assertThat(viewModel.ready().night).isFalse()
+    }
+
+    @Test
+    fun `I'm up past bedtime ends night mode at once, even between ticks, until the next anchor, as on Tonight`() = runTest {
+        moveTo(today, LocalTime.of(23, 30))
+        val viewModel = viewModel()
+        assertThat(viewModel.ready().night).isTrue() // past bedtime, no anchor
+
+        // "I'm up" on Tonight, 45 s after the last tick.
+        nightController.clock = { PlanSamples.at(today, LocalTime.of(23, 30, 45)) }
+        nightController.endNight()
+        assertThat(viewModel.ready().night).isFalse()
+
+        moveTo(today, LocalTime.of(23, 50))
+        assertThat(viewModel.ready().night).isFalse()
+        nightController.clock = { time.now }
+        nightController.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
+        assertThat(viewModel.ready().night).isTrue()
     }
 
     @Test

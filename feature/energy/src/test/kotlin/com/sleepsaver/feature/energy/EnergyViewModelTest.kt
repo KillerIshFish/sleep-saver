@@ -203,6 +203,23 @@ class EnergyViewModelTest {
     }
 
     @Test
+    fun `I'm up between two minute ticks ends night mode at once, not at the next tick`() = runTest {
+        val late = SampleData.insights().schedule.targetBedtime + Duration.ofMinutes(20)
+        time.ticks.value = late
+        insights.mutableState.value = SampleData.readyState(now = late)
+        val viewModel = viewModel()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+        fun nightMode() = (viewModel.uiState.value as EnergyUiState.Ready).nightMode
+        assertThat(nightMode()).isTrue()
+
+        // The last tick came at `late`; the tap is 45 s later, before the next one.
+        night.clock = { late.plusSeconds(45) }
+        night.endNight()
+
+        assertThat(nightMode()).isFalse()
+    }
+
+    @Test
     fun `a stopped morning alarm ends night mode before the window or wake zone`() = runTest {
         // Wednesday, a few minutes before the wake zone: the early ring was stopped and its alarm left the list.
         val wednesday = SampleData.today.plusDays(1)

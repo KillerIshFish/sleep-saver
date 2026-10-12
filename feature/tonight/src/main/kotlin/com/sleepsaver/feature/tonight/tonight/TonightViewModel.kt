@@ -24,8 +24,8 @@ import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.nightsteps.StepAdherence
 import com.sleepsaver.core.domain.schedule.AlarmMode
+import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.feature.tonight.TonightWriter
-import com.sleepsaver.feature.tonight.clockNow
 import com.sleepsaver.feature.tonight.oneoff.OneOffContext
 import com.sleepsaver.feature.tonight.oneoff.OneOffWrites
 import com.sleepsaver.feature.tonight.safely
@@ -115,7 +115,7 @@ internal class TonightViewModel @Inject constructor(
                     debtInputs = b.debtInputs,
                     settings = b.settings,
                     night = b.night,
-                    now = clockNow(b.now, l.endedAt),
+                    now = NightRules.clockNow(b.now, l.endedAt),
                     zone = time.zone(),
                     week = week,
                     oneOffs = oneOffs,

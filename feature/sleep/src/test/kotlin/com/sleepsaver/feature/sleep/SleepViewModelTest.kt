@@ -456,6 +456,20 @@ class SleepViewModelTest {
     }
 
     @Test
+    fun `I'm up between two minute ticks ends night mode at once, not at the next tick`() = runTest {
+        val late = SampleData.insights().schedule.targetBedtime + Duration.ofMinutes(20)
+        insights.mutableState.value = ready(SampleData.insights(now = late))
+        val vm = started()
+        assertThat(vm.ready().nightMode).isTrue()
+
+        // The insights were built at the last tick; the tap comes 45 s later, before the next one.
+        night.clock = { late.plusSeconds(45) }
+        night.endNight()
+
+        assertThat(vm.ready().nightMode).isFalse()
+    }
+
+    @Test
     fun `a stopped morning alarm ends night mode at once, before the wake zone`() = runTest {
         // An early ring a few minutes before Wednesday's wake zone opens was stopped: the alarm left the upcoming list,
         // so only the wake zone would have ended the night.

@@ -65,4 +65,24 @@ class WinddownNightTest {
         assertThat(focus.nightOf).isEqualTo(wednesday)
         assertThat(focus.isNight).isFalse()
     }
+
+    @Test
+    fun `I'm up ends the night in focus at the tap, even before the next minute tick`() {
+        val tick = PlanSamples.at(tuesday, LocalTime.of(23, 30))
+        fun at(endedAt: Instant?) = winddownFocus(
+            now = tick,
+            zone = PlanSamples.zone,
+            schedule = SampleData.schedule(date = tuesday),
+            session = null,
+            inputs = null,
+            alarms = listOf(PlanSamples.plannedAlarm(date = wednesday)),
+            morningStop = null,
+            anchoredAt = null,
+            endedAt = endedAt,
+        )
+
+        assertThat(at(endedAt = null).isNight).isTrue() // past bedtime
+        assertThat(at(endedAt = tick.plusSeconds(45)).isNight).isFalse()
+        assertThat(at(endedAt = tick.plusSeconds(45)).nightOf).isEqualTo(tuesday)
+    }
 }
