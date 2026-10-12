@@ -1,10 +1,12 @@
 # Sleep Saver
 
-An Android app that turns the sleep your Garmin watch records into two things you can act on:
+An Android app that turns the sleep your Garmin watch records into things you can act on:
 
 - **Sleep debt**: how far behind your body's sleep need you are over the last 14 nights, as one number.
 - **Today's energy schedule**: when you're likely to feel sharp, when the afternoon dip lands, and when to wind down,
   worked out from your sleep and your body clock.
+- **Tonight**: an alarm that rings at a restless moment shortly before your wake time, an evening routine of Night
+  steps, and a week plan with its own wake time, alarm and routine for each day.
 
 Sleep data comes from Health Connect. Everything is calculated on the phone: there's no account, no network access
 and no analytics.
@@ -38,7 +40,35 @@ and no analytics.
 - **Home-screen widget** showing your sleep debt and the current energy phase.
 - **Learn** articles that explain the ideas behind each number.
 - **Demo mode** with made-up nights, so you can explore the app without a watch.
-- **CSV export** of your nights, and a full reset that clears everything.
+- **CSV export** of your nights, a full **JSON export** of everything, and a full reset that clears everything.
+
+New in v2 (the Tonight tab and the evening):
+
+- **Surfacing alarm**: pick a window of 10 to 45 minutes before your wake time. Around the alarm the phone's motion
+  sensor watches for a restless moment, the kind that tends to come with lighter sleep, and rings then. If none comes,
+  it rings at the wake time, which always rings. It can also be a plain alarm at a fixed time.
+- **Wake-up styles**: Calm, Standard, Firm or Quiet bed (vibration first, then sound), each with a sound that swells
+  in, and a snooze that gets shorter each time and never runs much past your wake time.
+- **Week plan**: a wake time, alarm, wake-up style and evening routine for each day of the week, plus Day off, Just
+  this once and Pause. Copy a day to others or start from a preset. It shows what the week does to your sleep debt
+  and how even your rhythm will be.
+- **Night steps**: an evening routine of evidence-graded steps (screens down, a warm shower, a cool dark room, reading on
+  paper...) timed back from your bedtime, with suggestions from your own nights and guided tools: Slow tide breathing,
+  Body scan, Muscle release and Tomorrow list. **Night reset** helps when you're awake in the night.
+- **Drop anchor**: tell the app you're settling in. It stays quiet with no clock on screen and learns how long you
+  usually take to fall asleep.
+- **Hush**: white, pink or brown noise, made on the phone, on a timer that fades it to silence.
+- **Catnap**: a short nap timer that says whether now is a good time for a nap.
+- **Alarm check** with a **Test ring**: shows anything the phone is blocking (notifications, exact alarms, full-screen
+  alarms, battery limits, alarm volume) and lets you hear the alarm in a minute.
+- **Morning feel and marks**: rate how you woke up (Foggy to Bright) and tag nights (late caffeine, alcohol, a late
+  workout, stress...). After enough nights, **What went with your nights** shows which marks go with better or worse sleep.
+- **Keel**: a 0 to 100 score for how regular your sleep times are, with your weekday-to-weekend shift.
+- **Wake landing**: after each alarm, what your watch recorded around the ring. Over time the alarm adjusts its own
+  sensitivity a little.
+
+How the features were chosen, and which ones were left out, is in
+[`docs/COMPETITIVE_ANALYSIS.md`](docs/COMPETITIVE_ANALYSIS.md).
 
 ## Install
 
@@ -54,6 +84,8 @@ Requirements:
   Google Play.
 - The Garmin Connect app with Health Connect sharing turned on for sleep. Sleep Saver only reads data; it never
   writes to Health Connect.
+- For the alarm: allow notifications, and on Android 12 and newer, alarms and reminders. Open **Alarm check** on the
+  Tonight tab to see whether anything is still blocking it.
 
 The release APK is signed with a debug key for sideloading. It isn't on Google Play, and updating from an APK signed
 with a different key requires uninstalling first, which clears the app's data.
@@ -94,13 +126,15 @@ Screenshot tests use Roborazzi on Robolectric. Every unit-test run records the i
 | `core:domain` | Pure Kotlin. Every formula: nights, sleep need, debt, streaks, wake time and bedtime, energy schedule, habits. All tunable numbers live in `SleepConfig` |
 | `core:data` | Room, DataStore, Health Connect reading and sync, repositories, CSV export |
 | `core:ui` | Theme, shared components and time formatting |
+| `core:alarm` | Exact alarms, the ringing and night foreground services, tone and noise synthesis, movement sensing, and the small file that lets alarms ring before the first unlock |
 | `core:notifications` | Reminder scheduling and the morning-review notification |
 | `core:testing` | Fakes and sample data shared by tests |
-| `feature:*` | `sleep`, `energy`, `progress`, `review`, `habits`, `onboarding`, `settings`, `learn`, `widget` |
+| `feature:*` | `sleep`, `energy`, `tonight`, `winddown`, `progress`, `review`, `habits`, `onboarding`, `settings`, `learn`, `widget` |
 | `build-logic` | Gradle convention plugins shared by all modules |
 | `tools/hcseeder` | Debug tool that seeds Health Connect; not part of the app |
 
-The formulas and constants are written up in [`docs/PLAN.md`](docs/PLAN.md).
+The formulas and constants are written up in [`docs/PLAN.md`](docs/PLAN.md), including the alarm's movement rules
+and how it stays reliable through restarts.
 
 ## Privacy
 
@@ -114,5 +148,6 @@ The formulas and constants are written up in [`docs/PLAN.md`](docs/PLAN.md).
   alarms and any snooze or catnap, tonight's anchor and Hush settings, a summary of when your watch usually records
   deep sleep, and, until they move into the database, the alarm rings, movement result and Morning feel from before you
   unlock. All of it stays on the phone.
-- It has no internet permission, so nothing leaves the device unless you export a CSV and share it yourself.
+- It has no internet permission, so nothing leaves the device unless you export a CSV or JSON file and share it
+  yourself.
 - Uninstalling the app, or **Reset all data** in Settings, removes all of its data.
