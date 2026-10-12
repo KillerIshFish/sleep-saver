@@ -360,7 +360,10 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
   Free days = days without an alarm in the week plan; before any alarm is set, Saturday and Sunday.
 - **Planned keel** = Keel of 14 synthetic nights [B + latency, W] from the plan. Alarm days come from the weekly plan
   only (a one-off never makes 13 free days). Notice (dismissible, never blocking) when free days wake > 60 min later
-  than alarm days or |planned social jetlag| ≥ 60 min.
+  than alarm days or |planned social jetlag| ≥ 60 min. The notice is titled "Planned social jetlag" ("In this plan,
+  free days wake 1h 40m later …"): it measures the next 14 planned nights, and the free-day shift compares wake times,
+  so it can differ from Progress's social jetlag, which is mid-sleep on the recorded nights. The jetlag line is signed
+  like Progress's: free days sit "1h 10m later" or, when they sleep earlier than alarm days, "earlier".
 
 ### 3.16 Drop anchor, debt preview, Hush, night rules (v2)
 - **Drop anchor** records an instant + offset and starts the night state: no current time or countdown anywhere in the
@@ -375,7 +378,9 @@ volume. **Blocked ring UI** (no Stop button): a ring stops 2 min after its speak
 - **Hush**: white (Gaussian), pink (Paul Kellet) or brown (leaky integrator + DC block) noise, a pre-rendered 20-s loop
   with a crossfaded seam and a slow ±1.5 dB drift, `USAGE_MEDIA`, default volume 25 %, timer 15/30/45/60/90 (default 45)
   or "until my window", 10-s fade-in, 5-min fade-out; stops before any ring; never starts from boot. Copy: masks
-  background noise; earplugs suit sudden noise better.
+  background noise; earplugs suit sudden noise better. One pick (colour, timer, volume; default pink, 45 min, 25 %) is
+  shared by every screen with Hush (Tonight, the Night screen, Night steps, Night reset) and kept in the settings store
+  across launches; "until my window" shows as the default timer on a night without an alarm.
 
 ## 4. Things in the spec I think are wrong or unclear (and what I did)
 

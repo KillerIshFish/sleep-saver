@@ -74,7 +74,7 @@ class MorningReviewContentTest {
     fun `an unanswered morning asks how you feel, one tap answers`() {
         show(MorningReviewUiState(today, today, summary()))
 
-        compose.onNodeWithText("How do you feel this morning?").assertIsDisplayed()
+        compose.onNodeWithText("How did you feel when you woke up?").assertIsDisplayed()
         compose.onNodeWithText("Clear").performClick()
 
         assertThat(feels).containsExactly(MorningFeel.CLEAR)
@@ -84,9 +84,9 @@ class MorningReviewContentTest {
     fun `a feel from the ringing screen is a chip that opens the scale`() {
         show(MorningReviewUiState(today, today, summary(), feel = ringFeel(MorningFeel.SLOW)))
 
-        compose.onNodeWithText("How do you feel this morning?").assertDoesNotExist()
+        compose.onNodeWithText("How did you feel when you woke up?").assertDoesNotExist()
         compose.onNodeWithText("Morning feel: Slow · Change").performClick()
-        compose.onNodeWithText("How do you feel this morning?").assertIsDisplayed()
+        compose.onNodeWithText("How did you feel when you woke up?").assertIsDisplayed()
         compose.onNodeWithText("Bright").performClick()
 
         assertThat(feels).containsExactly(MorningFeel.BRIGHT)
@@ -99,7 +99,7 @@ class MorningReviewContentTest {
         compose.onNodeWithText("Morning feel: Slow").performClick()
 
         compose.onNodeWithText("Morning feel: Slow · Change").assertDoesNotExist()
-        compose.onNodeWithText("How do you feel this morning?").assertDoesNotExist()
+        compose.onNodeWithText("How did you feel when you woke up?").assertDoesNotExist()
         assertThat(feels).isEmpty()
     }
 
@@ -107,7 +107,7 @@ class MorningReviewContentTest {
     fun `an unanswered morning past its wake time shows no feel card`() {
         show(MorningReviewUiState(today, today, summary(), feelEditable = false))
 
-        compose.onNodeWithText("How do you feel this morning?").assertDoesNotExist()
+        compose.onNodeWithText("How did you feel when you woke up?").assertDoesNotExist()
     }
 
     // ---------------------------------------------------------------- Odd night and Tomorrow list

@@ -10,13 +10,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -69,6 +67,7 @@ import com.sleepsaver.core.ui.components.title
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDayLong
 import com.sleepsaver.core.ui.format.formatDayShort
+import com.sleepsaver.core.ui.format.formatDuration
 import com.sleepsaver.core.ui.format.formatShortDate
 import com.sleepsaver.core.ui.format.keepTimesTogether
 import com.sleepsaver.core.ui.platform.AlarmBlocker
@@ -81,7 +80,6 @@ import com.sleepsaver.feature.tonight.R
 import com.sleepsaver.feature.tonight.TestRingMessages
 import com.sleepsaver.feature.tonight.TonightSnackbarHost
 import com.sleepsaver.feature.tonight.dayAndTime
-import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.WeekPlanNavigation
 import com.sleepsaver.feature.tonight.nearDay
 import com.sleepsaver.feature.tonight.oneoff.OneOffSheet
@@ -176,7 +174,8 @@ internal fun WeekPlanContent(
     Box(
         modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+            // Clear of the status bar and the navigation bar, also while scrolling (the background runs edge to edge).
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         when (state) {
             WeekPlanUiState.Loading -> Column(Modifier.fillMaxSize()) {
@@ -272,8 +271,12 @@ private fun ReadyWeekPlan(
                 NoticeCard(
                     title = stringResource(R.string.tonight_plan_notice_title),
                     body = when {
-                        check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatHoursSpaced(shift))
-                        jetlag != null -> stringResource(R.string.tonight_plan_jetlag, formatHoursSpaced(jetlag.abs()))
+                        check.warnFreeDayShift && shift != null -> stringResource(R.string.tonight_plan_free_shift, formatDuration(shift))
+                        // Signed like Progress's: free days can sleep earlier than alarm days too.
+                        jetlag != null -> stringResource(
+                            if (jetlag.isNegative) R.string.tonight_plan_jetlag_earlier else R.string.tonight_plan_jetlag,
+                            formatDuration(jetlag.abs()),
+                        )
                         else -> ""
                     },
                     actionLabel = stringResource(R.string.tonight_plan_got_it),

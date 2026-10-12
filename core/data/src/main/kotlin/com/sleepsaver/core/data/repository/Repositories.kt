@@ -9,6 +9,7 @@ import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.alarm.MovementEpoch
 import com.sleepsaver.core.domain.alarm.SurfacingWindow
 import com.sleepsaver.core.domain.alarm.WakeLanding
+import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Anchor
 import com.sleepsaver.core.domain.journal.AnchorSource
 import com.sleepsaver.core.domain.journal.FeelSource
@@ -458,6 +459,30 @@ interface NightLogRepository {
     suspend fun resetTuning()
     suspend fun startHushPlay(start: Instant, offset: ZoneOffset, color: HushColor): Long
     suspend fun endHushPlay(id: Long, end: Instant)
+}
+
+// ---------------------------------------------------------------- Hush settings
+
+/**
+ * What Hush plays next: colour, timer (null = "Until my window") and volume, picked before Play. One set for the whole
+ * app, so Tonight, the Night screen, Night steps and Night reset always show the same pick. Defaults: `hush.defaultColor`
+ * (pink), `hush.defaultTimer` (45 min) and `hush.defaultVolume` (25 %).
+ */
+data class HushSettings(
+    val color: HushColor = SleepConfig.DEFAULT.hush.defaultColor,
+    val timer: Duration? = SleepConfig.DEFAULT.hush.defaultTimer,
+    val volume: Float = SleepConfig.DEFAULT.hush.defaultVolume,
+)
+
+interface HushSettingsRepository {
+    /** The last pick on any screen (the [HushSettings] defaults before the first); a change shows at once. */
+    val settings: Flow<HushSettings>
+
+    /**
+     * Changes the pick for every screen: [transform] gets the latest one, including a change not saved yet, so quick
+     * changes in a row (a dragged volume slider) never undo each other. Returns at once; the save runs in the app scope.
+     */
+    fun update(transform: (HushSettings) -> HushSettings)
 }
 
 // ---------------------------------------------------------------- Patterns

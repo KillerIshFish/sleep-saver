@@ -75,4 +75,18 @@ class RingingScreenshotTest : ScreenshotTest() {
     fun afterStopLargeFont() = captureScreen("after_stop_large_font") {
         LargeFont { RingingContent(RingingUiState.AfterStop(RingKind.PLANNED, wakeDate, MorningFeel.OKAY, unlocked = true), actions) }
     }
+
+    // The status bar and a three-button navigation bar (grey bands): nothing readable or tappable under them.
+
+    @Test
+    fun systemBars() = captureClearOfSystemBars("bars_ringing") { RingingContent(wakeTime, actions) }
+
+    /** Morning feel, after Stop. */
+    @Test
+    fun systemBarsAfterStop() = captureClearOfSystemBars("bars_after_stop_feel") {
+        RingingContent(RingingUiState.AfterStop(RingKind.PLANNED, wakeDate, MorningFeel.CLEAR, unlocked = true), actions)
+    }
+
+    @Test
+    fun systemBarsLargeFont() = captureClearOfSystemBars("bars_ringing_large_font") { LargeFont { RingingContent(restless, actions) } }
 }

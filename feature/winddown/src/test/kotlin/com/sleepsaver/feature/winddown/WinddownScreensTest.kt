@@ -22,6 +22,7 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.sleepsaver.core.data.hooks.NightState
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.nightsteps.GuidedTool
@@ -390,7 +391,7 @@ class WinddownScreensTest {
         )
         compose.setContent {
             SleepSaverTheme {
-                NightResetContent(state = nightResetUiState(stage, eyesClosed = true, breath = null, NightState(), null, HushChoice(), PlanSamples.today), actions = actions)
+                NightResetContent(state = nightResetUiState(stage, eyesClosed = true, breath = null, NightState(), null, HushSettings(), PlanSamples.today), actions = actions)
             }
         }
 

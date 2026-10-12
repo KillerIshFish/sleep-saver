@@ -4,13 +4,10 @@ import android.util.Log
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,6 +32,8 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.config.SleepConfig
@@ -51,7 +50,6 @@ import com.sleepsaver.core.ui.platform.DimScreen
 import com.sleepsaver.core.ui.platform.rememberMediaVolumeHigh
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
-import com.sleepsaver.feature.winddown.HushChoice
 import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
 import com.sleepsaver.feature.winddown.R
@@ -103,7 +101,7 @@ internal fun nightResetUiState(
     breath: RunPosition<BreathPhase>?,
     nightState: NightState,
     nextAlarm: PlannedAlarm?,
-    hush: HushChoice,
+    hush: HushSettings,
     wakeDate: LocalDate,
     config: SleepConfig = SleepConfig.DEFAULT,
 ) = NightResetUiState(
@@ -124,6 +122,7 @@ private fun wakeDateAt(now: Instant, zone: ZoneId): LocalDate = NightRules.wakeD
 internal class NightResetViewModel @Inject constructor(
     nightController: NightController,
     schedule: ScheduleRepository,
+    hushSettings: HushSettingsRepository,
     time: TimeProvider,
     haptics: Haptics,
     clock: GuidedClock,
@@ -153,7 +152,8 @@ internal class NightResetViewModel @Inject constructor(
 
     private val hushPicker = HushPicker(
         nightController = nightController,
-        untilWindowAvailable = { uiState.value.hush.untilWindowAvailable },
+        hushSettings = hushSettings,
+        shown = { uiState.value.hush },
         config = config,
     )
 
@@ -181,7 +181,7 @@ internal class NightResetViewModel @Inject constructor(
             null,
             nightController.state.value,
             null,
-            hushPicker.choice.value,
+            HushSettings(),
             wakeDateAt(time.now(), time.zone()),
             config,
         ),
@@ -294,7 +294,6 @@ private fun BreathingPart(state: NightResetUiState, actions: NightResetActions, 
         Spacer(Modifier.weight(1f))
         TextLinkButton(stringResource(R.string.winddown_reset_skip), onClick = actions.onSkip, color = SleepSaverTheme.colors.textSecondary)
         WellnessDisclaimer(Modifier.padding(top = Spacing.s, bottom = Spacing.l))
-        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }
 }
 
@@ -345,7 +344,6 @@ private fun AdvicePart(hush: HushControlsState, actions: NightResetActions, scro
         )
         WellnessDisclaimer(Modifier.padding(top = Spacing.l))
         Spacer(Modifier.height(Spacing.xl))
-        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }
 }
 

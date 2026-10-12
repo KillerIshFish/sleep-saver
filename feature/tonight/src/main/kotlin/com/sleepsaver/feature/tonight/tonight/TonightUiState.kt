@@ -6,6 +6,7 @@ import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.SensingMode
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.PlannedAlarm
 import com.sleepsaver.core.domain.alarm.AlarmEvent
@@ -13,7 +14,6 @@ import com.sleepsaver.core.domain.alarm.AlarmSource
 import com.sleepsaver.core.domain.alarm.CatnapPlan
 import com.sleepsaver.core.domain.alarm.CatnapPlanner
 import com.sleepsaver.core.domain.alarm.EndedAlarms
-import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
@@ -129,11 +129,12 @@ internal data class CatnapModel(
 @Immutable
 internal data class WeekStripDay(val date: LocalDate, val time: LocalTime?, val mode: AlarmMode, val alarmOn: Boolean)
 
-/** Screen choices kept by the ViewModel: Hush before it plays, the catnap length, and when "I'm up" was tapped. */
+/**
+ * Screen choices: the Hush pick before it plays (shared with every screen that has Hush), the catnap length, and when
+ * "I'm up" was tapped.
+ */
 internal data class TonightLocal(
-    val hushColor: HushColor,
-    val hushTimer: Duration?,
-    val hushVolume: Float,
+    val hush: HushSettings,
     val catnapLength: Duration,
     val endedAt: Instant?,
 )
@@ -200,13 +201,17 @@ internal fun tonightUiState(i: TonightInputs, config: SleepConfig = SleepConfig.
         null
     }
 
+    // Hush's own settings while it plays, else the shared pick; "Until my window" (a pick from a night with an alarm)
+    // falls back to the default timer on a night without one, as Night steps and Night reset show it.
     val playing = i.night.hush
+    val untilWindow = card is AlarmCardModel.On
+    val hushTimer = if (playing != null) playing.timer else i.local.hush.timer
     val hush = HushControlsState(
-        color = playing?.color ?: i.local.hushColor,
-        timer = if (playing != null) playing.timer else i.local.hushTimer,
-        volume = playing?.volume ?: i.local.hushVolume,
+        color = playing?.color ?: i.local.hush.color,
+        timer = if (hushTimer == null && !untilWindow) config.hush.defaultTimer else hushTimer,
+        volume = playing?.volume ?: i.local.hush.volume,
         playing = playing != null,
-        untilWindowAvailable = card is AlarmCardModel.On,
+        untilWindowAvailable = untilWindow,
         mediaVolumeHigh = false,
     )
 

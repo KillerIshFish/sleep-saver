@@ -66,7 +66,7 @@
     </plurals>
 
     <!-- Morning review: Morning feel, the odd-night prompt, the Tomorrow list and marks -->
-    <string name="review_feel_question">How do you feel this morning?</string>
+    <string name="review_feel_question">How did you feel when you woke up?</string>
     <!-- Answered on the ringing screen; tapping it opens the scale: "Morning feel: Clear · Change" -->
     <string name="review_feel_chip_change">Morning feel: %1$s · Change</string>
     <!-- Read-only once the next wake time has passed: "Morning feel: Clear" -->

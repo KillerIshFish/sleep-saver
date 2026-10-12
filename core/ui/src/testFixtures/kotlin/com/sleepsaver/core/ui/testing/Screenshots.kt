@@ -1,15 +1,18 @@
 package com.sleepsaver.core.ui.testing
 
+import android.view.View
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -56,20 +59,49 @@ abstract class ScreenshotTest {
 
     private var hosted by mutableStateOf<(@Composable () -> Unit)?>(null)
 
+    /** The view hosting the content ([LocalView]), which takes the simulated system bars. */
+    private var hostView: View? = null
+
     /**
      * Renders [content] full screen (411 × 914 dp) inside [SleepSaverTheme] on a background `Surface` (so plain
      * `Text` gets the theme's content colour, as under the app's Scaffold) and writes
      * `build/outputs/roborazzi/<name>.png` in the calling module. Dialogs and sheets are included.
      */
+    fun captureScreen(name: String, content: @Composable () -> Unit) = captureScreen(name, systemBars = false, content = content)
+
+    /**
+     * [captureScreen], and with [systemBars] the phone's status bar and three-button navigation bar ([SystemBars]) as
+     * insets, as the edge-to-edge app gets them, with translucent bands drawn where they are. Follow it with
+     * [assertClearOfSystemBars] (or use [captureClearOfSystemBars]). The bars stay for the rest of the test.
+     *
+     * A separate overload rather than a default argument, so `captureScreen(name, content)` keeps resolving to this
+     * class and never to the standalone [com.sleepsaver.core.ui.testing.captureScreen] a test file may also import.
+     */
     @OptIn(ExperimentalRoborazziApi::class)
-    fun captureScreen(name: String, content: @Composable () -> Unit) {
+    fun captureScreen(name: String, systemBars: Boolean, content: @Composable () -> Unit) {
         host {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 // A Box, so content that doesn't fill the screen keeps its own size.
-                Box(Modifier.fillMaxSize()) { content() }
+                Box(Modifier.fillMaxSize()) {
+                    content()
+                    if (systemBars) SystemBarBands()
+                }
             }
         }
+        if (systemBars) {
+            composeRule.runOnUiThread { checkNotNull(hostView).simulateSystemBars() }
+            composeRule.waitForIdle()
+        }
         captureScreenRoboImage(outputPath(name))
+    }
+
+    /**
+     * [captureScreen] with the system bars, then [assertClearOfSystemBars]: the screenshot shows the bars as grey
+     * bands, and the test fails if anything that shows text or takes a tap sits under one.
+     */
+    fun captureClearOfSystemBars(name: String, content: @Composable () -> Unit) {
+        captureScreen(name, systemBars = true, content = content)
+        composeRule.assertClearOfSystemBars()
     }
 
     /**
@@ -88,7 +120,11 @@ abstract class ScreenshotTest {
     private fun host(content: @Composable () -> Unit) {
         if (hosted == null) {
             hosted = content
-            composeRule.setContent { SleepSaverTheme { hosted?.invoke() } }
+            composeRule.setContent {
+                val view = LocalView.current
+                SideEffect { hostView = view }
+                SleepSaverTheme { hosted?.invoke() }
+            }
         } else {
             hosted = content
         }

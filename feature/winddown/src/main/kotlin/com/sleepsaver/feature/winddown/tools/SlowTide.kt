@@ -8,13 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -250,7 +247,6 @@ private fun BreathingBody(pattern: BreathPattern, position: RunPosition<BreathPh
         Spacer(Modifier.weight(1f))
         TextLinkButton(stringResource(R.string.winddown_tool_end), onClick = onEnd, color = SleepSaverTheme.colors.textSecondary)
         WellnessDisclaimer(Modifier.padding(top = Spacing.s, bottom = Spacing.l))
-        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }
 }
 
@@ -273,7 +269,6 @@ internal fun EyesClosedBody(onEnd: () -> Unit, modifier: Modifier = Modifier, te
         Spacer(Modifier.weight(1f))
         TextLinkButton(stringResource(R.string.winddown_tool_end), onClick = onEnd, color = SleepSaverTheme.colors.textSecondary)
         WellnessDisclaimer(Modifier.padding(top = Spacing.s, bottom = Spacing.l))
-        Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.safeDrawing))
     }
 }
 

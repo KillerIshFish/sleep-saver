@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.tonight.night
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -149,7 +150,7 @@ internal fun NightContent(
         AlertDialog(
             onDismissRequest = { confirmEnd = false },
             title = { Text(stringResource(R.string.tonight_night_end_title)) },
-            text = { Text(stringResource(R.string.tonight_night_end_body)) },
+            text = { Text(stringResource(night.alarm.endBody())) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmEnd = false
@@ -188,6 +189,14 @@ private fun LogStatus(log: MovementLog, onResume: () -> Unit) {
         }
     }
 }
+
+/**
+ * The "End the night?" body, agreeing with the alarm [line]: "Your alarm stays set." when the morning has an alarm,
+ * "There's no alarm set for the morning." when it has none.
+ */
+@StringRes
+internal fun NightAlarm.endBody(): Int =
+    if (this == NightAlarm.None) R.string.tonight_night_end_body_no_alarm else R.string.tonight_night_end_body
 
 /** "Alarm set · never later than 6:30 AM", "Alarm set · 6:30 AM" or "No alarm in the morning". */
 @Composable

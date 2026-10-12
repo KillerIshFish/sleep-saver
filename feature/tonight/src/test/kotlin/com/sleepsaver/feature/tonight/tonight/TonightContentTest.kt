@@ -35,10 +35,12 @@ import com.sleepsaver.feature.tonight.TonightSamples
 import com.sleepsaver.feature.tonight.TonightSamples.at
 import com.sleepsaver.feature.tonight.TonightSamples.withAlarm
 import com.sleepsaver.feature.tonight.night.NightActions
+import com.sleepsaver.feature.tonight.night.NightAlarm
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.DayOfWeek
+import java.time.LocalTime
 
 /** Taps on the Tonight tab's content: which callback fires with what. Plus: the night never shows the time. */
 @RunWith(AndroidJUnit4::class)
@@ -134,7 +136,9 @@ class TonightContentTest {
         val drops = mutableListOf<Boolean>()
         var open by mutableStateOf(true)
         compose.setContent {
-            SleepSaverTheme { if (open) AnchorSheet(onDrop = { drops += it }, onDismiss = { open = false }) }
+            SleepSaverTheme {
+                if (open) AnchorSheet(alarm = NightAlarm.At(LocalTime.of(6, 45)), onDrop = { drops += it }, onDismiss = { open = false })
+            }
         }
         compose.waitForIdle()
 
@@ -147,6 +151,29 @@ class TonightContentTest {
 
         assertThat(drops).containsExactly(false)
         assertThat(open).isFalse()
+    }
+
+    @Test
+    fun `the anchor sheet promises the alarm only when the morning has one`() {
+        val off = WeekPlan(s.week.days.map { it.copy(morning = it.morning.copy(alarm = it.morning.alarm.copy(mode = AlarmMode.OFF))) })
+        var state: TonightUiState by mutableStateOf(s.ready(s.inputs(at(21, 45), week = off)))
+        compose.setContent {
+            SleepSaverTheme { AnchorSheet(alarm = (state as TonightUiState.Ready).alarmCard.nightAlarm(), onDrop = {}, onDismiss = {}) }
+        }
+
+        // No alarm in the morning: the sheet says so, like the Night screen's "No alarm in the morning".
+        compose.onNodeWithText("There's no alarm set for the morning. Reminders stop for the night.").assertExists()
+        compose.onNodeWithText("Your alarm stays as it is. Reminders stop for the night.").assertDoesNotExist()
+
+        // Paused alarms ring no more than switched-off ones.
+        state = s.ready(s.inputs(at(21, 45), oneOffs = PlanSamples.oneOffs(pause = PlanPause(s.today, wednesday.plusDays(2)))))
+        assertThat((state as TonightUiState.Ready).alarmCard).isInstanceOf(AlarmCardModel.Paused::class.java)
+        compose.onNodeWithText("There's no alarm set for the morning. Reminders stop for the night.").assertExists()
+
+        // With the usual alarm it stays as it is.
+        state = s.ready(s.inputs(at(21, 45)))
+        compose.onNodeWithText("Your alarm stays as it is. Reminders stop for the night.").assertExists()
+        compose.onNodeWithText("There's no alarm set for the morning. Reminders stop for the night.").assertDoesNotExist()
     }
 
     @Test
@@ -365,6 +392,11 @@ class TonightContentTest {
 
         compose.onNodeWithText("No alarm in the morning").assertExists()
         assertNoClock(null)
+
+        // "I'm up" doesn't promise an alarm the morning doesn't have.
+        tap("I'm up")
+        compose.onNodeWithText("There's no alarm set for the morning.").assertExists()
+        compose.onNodeWithText("Your alarm stays set.").assertDoesNotExist()
     }
 
     @Test

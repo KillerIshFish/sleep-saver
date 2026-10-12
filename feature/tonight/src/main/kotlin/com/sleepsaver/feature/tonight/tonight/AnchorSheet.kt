@@ -1,5 +1,6 @@
 package com.sleepsaver.feature.tonight.tonight
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,16 +29,18 @@ import com.sleepsaver.core.ui.components.ToggleRow
 import com.sleepsaver.core.ui.theme.SleepSaverTheme
 import com.sleepsaver.core.ui.theme.Spacing
 import com.sleepsaver.feature.tonight.R
+import com.sleepsaver.feature.tonight.night.NightAlarm
 import kotlinx.coroutines.launch
 import com.sleepsaver.core.ui.R as UiR
 
 /**
- * "Settling in": the sheet behind Drop anchor. The whole-night movement log is opt-in (off by default) and says
- * where the phone goes and that it uses more battery; then Drop anchor ([onDrop] gets the log choice), once: a second
- * tap while the sheet hides is ignored, since each drop saves an anchor.
+ * "Settling in": the sheet behind Drop anchor. Its first line follows the morning's [alarm] (the Night screen's alarm
+ * line), so it never promises an alarm the morning doesn't have. The whole-night movement log is opt-in (off by
+ * default) and says where the phone goes and that it uses more battery; then Drop anchor ([onDrop] gets the log
+ * choice), once: a second tap while the sheet hides is ignored, since each drop saves an anchor.
  */
 @Composable
-internal fun AnchorSheet(onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: () -> Unit) {
+internal fun AnchorSheet(alarm: NightAlarm, onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     var wholeNightLog by rememberSaveable { mutableStateOf(false) }
@@ -48,6 +51,7 @@ internal fun AnchorSheet(onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: ()
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         AnchorSheetContent(
+            alarm = alarm,
             wholeNightLog = wholeNightLog,
             onWholeNightLog = { wholeNightLog = it },
             onDrop = {
@@ -68,6 +72,7 @@ internal fun AnchorSheet(onDrop: (wholeNightLog: Boolean) -> Unit, onDismiss: ()
 /** The sheet's body, separate so it can be screenshot-tested. */
 @Composable
 internal fun AnchorSheetContent(
+    alarm: NightAlarm,
     wholeNightLog: Boolean,
     onWholeNightLog: (Boolean) -> Unit,
     onDrop: () -> Unit,
@@ -85,7 +90,7 @@ internal fun AnchorSheetContent(
             modifier = Modifier.semantics { heading() },
         )
         Text(
-            stringResource(R.string.tonight_anchor_sheet_body),
+            stringResource(alarm.anchorBody()),
             style = MaterialTheme.typography.bodyMedium,
             color = SleepSaverTheme.colors.textSecondary,
             modifier = Modifier.padding(top = Spacing.xs),
@@ -107,3 +112,11 @@ internal fun AnchorSheetContent(
         )
     }
 }
+
+/**
+ * The sheet's first line: "Your alarm stays as it is." when the morning has an alarm, "There's no alarm set for the
+ * morning." when it has none (none set, a day off or paused), each followed by "Reminders stop for the night."
+ */
+@StringRes
+internal fun NightAlarm.anchorBody(): Int =
+    if (this == NightAlarm.None) R.string.tonight_anchor_sheet_body_no_alarm else R.string.tonight_anchor_sheet_body

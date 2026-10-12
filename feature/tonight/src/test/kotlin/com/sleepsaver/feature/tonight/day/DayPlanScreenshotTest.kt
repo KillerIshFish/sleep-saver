@@ -8,6 +8,7 @@ import com.sleepsaver.core.domain.schedule.DayPart
 import com.sleepsaver.core.domain.schedule.SnoozeStyle
 import com.sleepsaver.core.ui.platform.AlarmBlocker
 import com.sleepsaver.core.ui.testing.ScreenshotTest
+import com.sleepsaver.core.ui.testing.rememberScrolledToEnd
 import com.sleepsaver.feature.tonight.Clock24
 import com.sleepsaver.feature.tonight.LargeFont
 import com.sleepsaver.feature.tonight.TonightSamples
@@ -26,11 +27,12 @@ class DayPlanScreenshotTest : ScreenshotTest() {
         scrollTo: Int = 0,
         armBlocker: AlarmBlocker? = null,
         copyOpen: Boolean = false,
+        scrollState: ScrollState = remember { ScrollState(scrollTo) },
     ) {
         DayPlanContent(
             state,
             DayPlanActions(),
-            scrollState = remember { ScrollState(scrollTo) },
+            scrollState = scrollState,
             armBlocker = armBlocker,
             initialCopyOpen = copyOpen,
         )
@@ -73,4 +75,13 @@ class DayPlanScreenshotTest : ScreenshotTest() {
 
     @Test
     fun clock24() = captureScreen("day_plan_24h") { Clock24 { DayPlan(s.dayPlan()) } }
+
+    // The status bar and a three-button navigation bar (grey bands): nothing readable or tappable under them.
+
+    @Test
+    fun systemBars() = captureClearOfSystemBars("bars_day_plan") { DayPlan(s.dayPlan()) }
+
+    /** The end of the evening: "Copy to…" stays above the navigation bar. */
+    @Test
+    fun systemBarsEnd() = captureClearOfSystemBars("bars_day_plan_end") { DayPlan(s.dayPlan(), scrollState = rememberScrolledToEnd()) }
 }

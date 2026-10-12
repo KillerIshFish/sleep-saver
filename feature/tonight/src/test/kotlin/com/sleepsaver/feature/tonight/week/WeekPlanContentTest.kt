@@ -26,6 +26,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.LocalTime
 
 /** Taps on the week plan's content and the lines it shows. */
@@ -170,9 +171,11 @@ class WeekPlanContentTest {
         show(s.weekPlanState(planCheck = PlanSamples.planCheck(warn = true)))
 
         compose.onNodeWithText("Planned keel 66 · Choppy · last\u00A014\u00A0days:\u00A084").assertExists()
+        // Labelled as the plan's, so it never reads like Progress's social jetlag from the recorded nights.
+        compose.onNodeWithText("Planned social jetlag").assertExists()
         compose.onNodeWithText(
-            "Free days wake 1 h 45 m later than alarm days. Keeping it within an hour steadies your Keel; " +
-                "a short early-afternoon catnap is one alternative.",
+            "In this plan, free days wake 1h 45m later than alarm days. Keeping it within an hour steadies your " +
+                "Keel; a short early-afternoon catnap is one alternative.",
         ).assertExists()
         tap("Got it")
 
@@ -185,7 +188,23 @@ class WeekPlanContentTest {
         show(s.weekPlanState(planCheck = check, keel = PlanSamples.keelCalibrating()))
 
         compose.onNodeWithText("Planned keel 66 · Choppy").assertExists()
-        compose.onNodeWithText("Your planned sleep on free days sits 1 h 35 m later than on alarm days.").assertExists()
+        compose.onNodeWithText("Planned social jetlag").assertExists()
+        compose.onNodeWithText("Your planned sleep on free days sits 1h 35m later than on alarm days.").assertExists()
+    }
+
+    @Test
+    fun `free days that sleep earlier say earlier`() {
+        // Alarm days 9:00, free days 7:00: the planned social jetlag is negative and still warns (|-2h| >= 1h).
+        val check = PlanSamples.planCheck(warn = true).copy(
+            freeDayWakeShift = Duration.ofHours(-2),
+            plannedSocialJetlag = Duration.ofHours(-2),
+            warnFreeDayShift = false,
+        )
+        show(s.weekPlanState(planCheck = check, keel = PlanSamples.keelCalibrating()))
+
+        compose.onNodeWithText("Planned social jetlag").assertExists()
+        compose.onNodeWithText("Your planned sleep on free days sits 2h earlier than on alarm days.").assertExists()
+        compose.onNodeWithText("Your planned sleep on free days sits 2h later than on alarm days.").assertDoesNotExist()
     }
 
     @Test

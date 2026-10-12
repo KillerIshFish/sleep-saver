@@ -7,6 +7,8 @@ import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.TimeProvider
 import com.sleepsaver.core.data.repository.AppSettings
 import com.sleepsaver.core.data.repository.DebtPreviewInputs
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.InsightsRepository
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.JournalRepository
@@ -70,7 +72,8 @@ internal sealed interface TonightEvent {
  * The Tonight tab (and the Night screen, which shows its night part): insights, the week plan and planned alarms,
  * tonight's Night steps, marks and lists, the night state and the clock rolled into one [TonightUiState] by
  * [tonightUiState]. Plan and journal writes go through [TonightWriter]; the alarm machinery through
- * [NightController], whose calls return at once.
+ * [NightController], whose calls return at once. The Hush pick is the one every screen shares
+ * ([HushSettingsRepository]).
  */
 @HiltViewModel
 internal class TonightViewModel @Inject constructor(
@@ -81,6 +84,7 @@ internal class TonightViewModel @Inject constructor(
     nightLog: NightLogRepository,
     patterns: PatternsRepository,
     private val nightController: NightController,
+    private val hushSettings: HushSettingsRepository,
     settings: SettingsRepository,
     private val time: TimeProvider,
     private val writer: TonightWriter,
@@ -90,9 +94,8 @@ internal class TonightViewModel @Inject constructor(
 
     private val local = MutableStateFlow(
         TonightLocal(
-            hushColor = DEFAULT_HUSH_COLOR,
-            hushTimer = config.hush.defaultTimer,
-            hushVolume = config.hush.defaultVolume,
+            // Replaced by the shared pick in uiState.
+            hush = HushSettings(),
             catnapLength = config.napIdealLength.takeIf { it in config.catnap.lengths } ?: config.catnap.lengths.first(),
             endedAt = null,
         ),
@@ -117,7 +120,8 @@ internal class TonightViewModel @Inject constructor(
             JournalPart(session, adherence, marks, list, todayEvent, tomorrowEvent)
         }
         val base = combine(insights.state, patterns.debtPreviewInputs, settings.settings, nightController.state, ticks, ::BasePart)
-        val screen = combine(local, nightController.state.map { it.endedAt }.distinctUntilChanged()) { l, endedAt -> l.copy(endedAt = endedAt) }
+        val endedAt = nightController.state.map { it.endedAt }.distinctUntilChanged()
+        val screen = combine(local, endedAt, hushSettings.settings) { l, endedAt, hush -> l.copy(hush = hush, endedAt = endedAt) }
         combine(base, plan, journalPart, screen) { b, (week, oneOffs, alarms, ended), j, l ->
             tonightUiState(
                 TonightInputs(
@@ -193,34 +197,38 @@ internal class TonightViewModel @Inject constructor(
 
     // ---------------------------------------------------------------- Hush
 
-    fun onHushColor(color: HushColor) = changeHush { it.copy(hushColor = color) }
+    fun onHushColor(color: HushColor) = changeHush { it.copy(color = color) }
 
-    fun onHushTimer(timer: Duration?) = changeHush { it.copy(hushTimer = timer) }
+    fun onHushTimer(timer: Duration?) = changeHush { it.copy(timer = timer) }
 
     fun onHushVolume(volume: Float) {
-        local.update { it.copy(hushVolume = volume) }
-        if (nightController.state.value.hush != null) nightController.setHushVolume(volume)
+        val playing = nightController.state.value.hush
+        if (playing == null) {
+            hushSettings.update { it.copy(volume = volume) }
+        } else {
+            hushSettings.update { HushSettings(playing.color, playing.timer, volume) }
+            nightController.setHushVolume(volume)
+        }
     }
 
+    /** Plays what the controls show: the pick, "Until my window" already back to the default timer without an alarm. */
     fun onHushPlay() {
-        val choice = local.value
-        val untilWindow = (uiState.value as? TonightUiState.Ready)?.hush?.untilWindowAvailable == true
-        // "Until my window" with no alarm to wait for falls back to the default timer.
-        val timer = choice.hushTimer ?: if (untilWindow) null else config.hush.defaultTimer
-        nightController.startHush(choice.hushColor, timer, choice.hushVolume)
+        val hush = (uiState.value as? TonightUiState.Ready)?.hush ?: return
+        nightController.startHush(hush.color, hush.timer, hush.volume)
     }
 
     fun onHushStop() = nightController.stopHush()
 
-    /** Changes a Hush choice; while Hush plays, starts it again with the change (from what is playing). */
-    private fun changeHush(change: (TonightLocal) -> TonightLocal) {
+    /** Saves a Hush change for every screen; while Hush plays, starts it again with the change (from what is playing). */
+    private fun changeHush(change: (HushSettings) -> HushSettings) {
         val playing = nightController.state.value.hush
-        val base = local.value.let { current ->
-            if (playing == null) current else current.copy(hushColor = playing.color, hushTimer = playing.timer, hushVolume = playing.volume)
+        if (playing == null) {
+            hushSettings.update(change)
+        } else {
+            val next = change(HushSettings(playing.color, playing.timer, playing.volume))
+            hushSettings.update { next }
+            nightController.startHush(next.color, next.timer, next.volume)
         }
-        val next = change(base)
-        local.value = next
-        if (playing != null) nightController.startHush(next.hushColor, next.hushTimer, next.hushVolume)
     }
 
     // ---------------------------------------------------------------- Catnap
@@ -258,9 +266,4 @@ internal class TonightViewModel @Inject constructor(
         val todayEvent: AlarmEvent?,
         val tomorrowEvent: AlarmEvent?,
     )
-
-    private companion object {
-        /** Hush starts on pink ("Softer, like steady rain") until the user picks another colour. */
-        val DEFAULT_HUSH_COLOR = HushColor.PINK
-    }
 }

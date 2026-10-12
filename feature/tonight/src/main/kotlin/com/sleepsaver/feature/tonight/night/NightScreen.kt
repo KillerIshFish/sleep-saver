@@ -2,6 +2,7 @@ package com.sleepsaver.feature.tonight.night
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
@@ -56,10 +57,19 @@ internal fun NightScreen(
             onEndNight = viewModel::onEndNight,
         )
     }
-    Box(modifier.fillMaxSize().safeDrawingPadding()) {
+    NightScreenFrame(modifier) {
         val night = ready?.night
         if (ready != null && night != null) {
             NightContent(night = night, hush = ready.hush.copy(mediaVolumeHigh = mediaVolumeHigh), actions = actions)
         }
     }
+}
+
+/**
+ * The Night screen's frame: full screen, with its content (the scrolling night, "I'm up") inside the safe area so
+ * none of it sits under the status bar or the navigation bar. On the Tonight tab the app's bottom bar does that job.
+ */
+@Composable
+internal fun NightScreenFrame(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    Box(modifier.fillMaxSize().safeDrawingPadding(), content = content)
 }

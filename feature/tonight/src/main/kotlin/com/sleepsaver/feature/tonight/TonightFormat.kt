@@ -55,18 +55,6 @@ private val MONTH_DAY_SPACE = Regex("([A-Za-z]{3}) (\\d)")
 internal fun formatMonthDay(date: LocalDate): String =
     "${date.month.getDisplayName(TextStyle.SHORT, English)}\u00A0${date.dayOfMonth}"
 
-/** "1 h 40 m", "2 h", "45 m": the spaced form the plan notices use ("Free days wake 1 h 40 m later …"). */
-internal fun formatHoursSpaced(duration: Duration): String {
-    val minutes = Math.abs((duration.toMillis() + if (duration.isNegative) -30_000 else 30_000) / 60_000)
-    val h = minutes / 60
-    val m = minutes % 60
-    return when {
-        h == 0L -> "$m m"
-        m == 0L -> "$h h"
-        else -> "$h h $m m"
-    }
-}
-
 /** This time rounded to the nearest [step] (half up), wrapping past midnight: 7:03 → 7:05 for 5-minute steps. */
 internal fun LocalTime.roundTo(step: Duration): LocalTime {
     val stepMinutes = step.toMinutes().coerceAtLeast(1)

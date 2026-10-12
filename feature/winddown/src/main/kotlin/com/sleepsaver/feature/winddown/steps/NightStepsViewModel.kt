@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.sleepsaver.core.data.hooks.NightController
 import com.sleepsaver.core.data.hooks.NightState
 import com.sleepsaver.core.data.hooks.TimeProvider
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.JournalRepository
 import com.sleepsaver.core.data.repository.NightStepsRepository
 import com.sleepsaver.core.data.repository.PatternsRepository
@@ -25,7 +27,6 @@ import com.sleepsaver.core.domain.schedule.NightRules
 import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.ui.components.HushControlsActions
 import com.sleepsaver.core.ui.components.HushControlsState
-import com.sleepsaver.feature.winddown.HushChoice
 import com.sleepsaver.feature.winddown.HushPicker
 import com.sleepsaver.feature.winddown.LOG_TAG
 import com.sleepsaver.feature.winddown.WinddownNight
@@ -115,7 +116,7 @@ internal fun nightStepsUiState(
     week: WeekPlan,
     nextAlarm: PlannedAlarm?,
     nightState: NightState,
-    hush: HushChoice,
+    hush: HushSettings,
     zone: ZoneId,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): NightStepsUiState {
@@ -160,6 +161,7 @@ internal class NightStepsViewModel @Inject constructor(
     private val schedule: ScheduleRepository,
     nightSource: WinddownNightSource,
     private val nightController: NightController,
+    hushSettings: HushSettingsRepository,
     private val time: TimeProvider,
     private val writer: WinddownWriter,
 ) : ViewModel() {
@@ -168,7 +170,8 @@ internal class NightStepsViewModel @Inject constructor(
 
     private val hushPicker = HushPicker(
         nightController = nightController,
-        untilWindowAvailable = { (uiState.value as? NightStepsUiState.Ready)?.hush?.untilWindowAvailable == true },
+        hushSettings = hushSettings,
+        shown = { (uiState.value as? NightStepsUiState.Ready)?.hush },
         config = config,
         onPlay = { checkOff(Technique.HUSH) },
     )
@@ -286,7 +289,7 @@ internal class NightStepsViewModel @Inject constructor(
 
     private data class Plan(val week: WeekPlan, val nextAlarm: PlannedAlarm?)
 
-    private data class Moment(val night: NightState, val hush: HushChoice)
+    private data class Moment(val night: NightState, val hush: HushSettings)
 
     private companion object {
         /** Tracking that couldn't be read: no evenings, so the tracking card stays hidden. */

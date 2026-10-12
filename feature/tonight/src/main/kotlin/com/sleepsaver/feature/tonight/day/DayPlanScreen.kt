@@ -9,13 +9,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -91,7 +89,6 @@ import com.sleepsaver.feature.tonight.BackTopBar
 import com.sleepsaver.feature.tonight.DebtPreviewChip
 import com.sleepsaver.feature.tonight.GroupLabel
 import com.sleepsaver.feature.tonight.R
-import com.sleepsaver.feature.tonight.formatHoursSpaced
 import com.sleepsaver.feature.tonight.navigation.DayPlanNavigation
 import com.sleepsaver.feature.tonight.rememberAlarmGate
 import java.time.DayOfWeek
@@ -194,7 +191,8 @@ internal fun DayPlanContent(
     Column(
         modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+            // Clear of the status bar and the navigation bar, also while scrolling (the background runs edge to edge).
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         BackTopBar(stringResource(R.string.tonight_day_plan_title), actions.onBack)
         when (state) {
@@ -536,7 +534,6 @@ private fun NightStepsCard(state: DayPlanUiState.Ready, actions: DayPlanActions,
             step = config.week.windDownStep.toMinutes().toInt(),
             min = (config.week.windDownMinLength + config.melatoninHalfWidth).toMinutes().toInt(),
             max = (config.week.windDownMaxLength + config.melatoninHalfWidth).toMinutes().toInt(),
-            format = { formatHoursSpaced(Duration.ofMinutes(it.toLong())) },
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
         val from = state.shownBedtime?.minusMinutes(before.toLong())

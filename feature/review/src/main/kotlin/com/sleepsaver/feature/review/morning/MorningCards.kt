@@ -55,10 +55,11 @@ import java.time.temporal.ChronoUnit
 private const val NAMED_NIGHTS = 6L
 
 /**
- * Morning feel at the top of the summary. Unanswered (or answered here before): "How do you feel this morning?" with
- * the five words. Answered on the ringing screen: a small chip "Morning feel: Clear · Change" that opens the scale,
- * and a new pick is saved over the old one. Once [editable] ends the chip is read-only, and an unanswered morning
- * shows nothing.
+ * Morning feel at the top of the summary. Unanswered (or answered here before): "How did you feel when you woke up?"
+ * with the five words; it asks about the wake-up because the review can open at any time of day (an evening first
+ * launch, a past night). Answered on the ringing screen: a small chip "Morning feel: Clear · Change" that opens the
+ * scale, and a new pick is saved over the old one. Once [editable] ends the chip is read-only, and an unanswered
+ * morning shows nothing.
  */
 @Composable
 internal fun MorningFeelCard(

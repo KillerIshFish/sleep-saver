@@ -5,6 +5,7 @@ import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.domain.nightsteps.NightStepsSession
 import com.sleepsaver.core.domain.schedule.OneOffs
 import com.sleepsaver.core.domain.schedule.WeekPlan
+import com.sleepsaver.core.testing.FakeHushSettingsRepository
 import com.sleepsaver.core.testing.FakeInsightsRepository
 import com.sleepsaver.core.testing.FakeJournalRepository
 import com.sleepsaver.core.testing.FakeNightController
@@ -53,6 +54,7 @@ internal class TonightFakes(
         debtPreviewInputs = TonightSamples.debtInputs(week),
     )
     val nightController = FakeNightController(clock = { time.now() }, zone = TonightSamples.zone)
+    val hushSettings = FakeHushSettingsRepository()
     val settings = FakeSettingsRepository(AppSettings(sleep = TonightSamples.sleepSettings.copy(week = week, oneOffs = oneOffs)))
 
     /** The night clock the Week plan and Alarm check read, from these fakes. */

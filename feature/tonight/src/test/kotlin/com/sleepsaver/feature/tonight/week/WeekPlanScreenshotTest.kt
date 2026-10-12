@@ -9,6 +9,7 @@ import com.sleepsaver.core.domain.schedule.OverrideKind
 import com.sleepsaver.core.domain.schedule.PlanPause
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.ui.testing.ScreenshotTest
+import com.sleepsaver.core.ui.testing.rememberScrolledToEnd
 import com.sleepsaver.feature.tonight.Clock24
 import com.sleepsaver.feature.tonight.LargeFont
 import com.sleepsaver.feature.tonight.SheetOver
@@ -26,8 +27,8 @@ class WeekPlanScreenshotTest : ScreenshotTest() {
     private val s = TonightSamples
 
     @Composable
-    private fun WeekPlan(state: WeekPlanUiState, scrollTo: Int = 0) {
-        WeekPlanContent(state, WeekPlanActions(), scrollState = remember { ScrollState(scrollTo) })
+    private fun WeekPlan(state: WeekPlanUiState, scrollTo: Int = 0, scrollState: ScrollState = remember { ScrollState(scrollTo) }) {
+        WeekPlanContent(state, WeekPlanActions(), scrollState = scrollState)
     }
 
     private val oneOffs = PlanSamples.oneOffs(
@@ -87,4 +88,12 @@ class WeekPlanScreenshotTest : ScreenshotTest() {
             )
         }
     }
+
+    // The status bar and a three-button navigation bar (grey bands): nothing readable or tappable under them.
+
+    @Test
+    fun systemBars() = captureClearOfSystemBars("bars_week_plan") { WeekPlan(s.weekPlanState()) }
+
+    @Test
+    fun systemBarsEnd() = captureClearOfSystemBars("bars_week_plan_end") { WeekPlan(s.weekPlanState(), scrollState = rememberScrolledToEnd()) }
 }

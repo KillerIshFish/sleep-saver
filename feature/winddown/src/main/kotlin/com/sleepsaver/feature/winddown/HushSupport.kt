@@ -2,28 +2,14 @@ package com.sleepsaver.feature.winddown
 
 import com.sleepsaver.core.data.hooks.HushState
 import com.sleepsaver.core.data.hooks.NightController
+import com.sleepsaver.core.data.repository.HushSettings
+import com.sleepsaver.core.data.repository.HushSettingsRepository
 import com.sleepsaver.core.data.repository.PlannedAlarm
-import com.sleepsaver.core.domain.alarm.HushColor
 import com.sleepsaver.core.domain.config.SleepConfig
 import com.sleepsaver.core.ui.components.HushControlsActions
 import com.sleepsaver.core.ui.components.HushControlsState
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import java.time.Duration
+import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
-
-/**
- * The Hush settings picked on a screen before Play. While Hush plays, its own state ([HushState]) is shown instead.
- * Defaults: the first colour (White), `hush.defaultTimer` (45 min) and `hush.defaultVolume` (25 %).
- */
-internal data class HushChoice(
-    val color: HushColor = HushColor.entries.first(),
-    /** null = "Until my window". */
-    val timer: Duration? = SleepConfig.DEFAULT.hush.defaultTimer,
-    val volume: Float = SleepConfig.DEFAULT.hush.defaultVolume,
-)
 
 /**
  * Whether "Until my window" can be offered for the night that ends on [wakeDate]: Hush's timer then waits for the
@@ -33,12 +19,12 @@ internal data class HushChoice(
 internal fun untilWindowAvailable(nextAlarm: PlannedAlarm?, wakeDate: LocalDate): Boolean = nextAlarm?.occurrence?.date == wakeDate
 
 /**
- * What [com.sleepsaver.core.ui.components.HushControls] shows: Hush's own settings while it [playing], else the
- * screen's [choice]. "Until my window" falls back to the default timer when this night has no
+ * What [com.sleepsaver.core.ui.components.HushControls] shows: Hush's own settings while it [playing], else the shared
+ * [choice] (the last pick on any screen). "Until my window" falls back to the default timer when this night has no
  * alarm ([untilWindowAvailable] false). The media-volume line is filled in by the screen (it reads the phone's volume).
  */
 internal fun hushControlsState(
-    choice: HushChoice,
+    choice: HushSettings,
     playing: HushState?,
     untilWindowAvailable: Boolean,
     night: Boolean,
@@ -57,42 +43,60 @@ internal fun hushControlsState(
 }
 
 /**
- * Hush for one screen: keeps the [choice] made before Play and forwards changes to the [NightController] while Hush
- * plays (a new colour or timer restarts it with the new setting; the volume changes in place). [onPlay] runs after
- * Play, e.g. to check off a Hush step.
+ * Hush for one screen, on the pick every screen shares ([HushSettingsRepository]: Tonight, the Night screen, Night
+ * steps and Night reset all show the same one). A change is saved for all of them. While Hush plays, the pick becomes
+ * what plays plus the change and Hush follows it: a new colour or timer restarts it, the volume changes in place. Play
+ * starts what the controls show ([shown], the screen's [HushControlsState]); [onPlay] runs after it, e.g. to check off
+ * a Hush step.
  */
 internal class HushPicker(
     private val nightController: NightController,
-    private val untilWindowAvailable: () -> Boolean,
+    private val hushSettings: HushSettingsRepository,
+    private val shown: () -> HushControlsState?,
     private val config: SleepConfig = SleepConfig.DEFAULT,
     private val onPlay: () -> Unit = {},
 ) {
-    private val _choice = MutableStateFlow(HushChoice(timer = config.hush.defaultTimer, volume = config.hush.defaultVolume))
-    val choice: StateFlow<HushChoice> = _choice.asStateFlow()
+    /** The shared pick, for the screen's state ([hushControlsState]). */
+    val choice: Flow<HushSettings> get() = hushSettings.settings
 
     private val playing: HushState? get() = nightController.state.value.hush
 
     val actions = HushControlsActions(
-        onColor = { color ->
-            _choice.update { it.copy(color = color) }
-            playing?.let { nightController.startHush(color, it.timer, it.volume) }
-        },
+        onColor = { color -> change { it.copy(color = color) } },
         onTimer = onTimer@{ timer ->
-            if (timer == null && !untilWindowAvailable()) return@onTimer
-            _choice.update { it.copy(timer = timer) }
-            playing?.let { nightController.startHush(it.color, timer, it.volume) }
+            if (timer == null && shown()?.untilWindowAvailable != true) return@onTimer
+            change { it.copy(timer = timer) }
         },
         onVolume = { volume ->
             val clamped = volume.coerceIn(config.hush.minVolume, 1f)
-            _choice.update { it.copy(volume = clamped) }
-            if (playing != null) nightController.setHushVolume(clamped)
+            val playing = playing
+            if (playing == null) {
+                hushSettings.update { it.copy(volume = clamped) }
+            } else {
+                hushSettings.update { playing.asSettings().copy(volume = clamped) }
+                nightController.setHushVolume(clamped)
+            }
         },
-        onPlay = {
-            val choice = _choice.value
-            val timer = if (choice.timer == null && !untilWindowAvailable()) config.hush.defaultTimer else choice.timer
-            nightController.startHush(choice.color, timer, choice.volume)
+        onPlay = onPlay@{
+            val hush = shown() ?: return@onPlay
+            nightController.startHush(hush.color, hush.timer, hush.volume)
             onPlay()
         },
         onStop = { nightController.stopHush() },
     )
+
+    /** Saves a colour or timer change; while Hush plays, starts it again with the change (from what is playing). */
+    private fun change(edit: (HushSettings) -> HushSettings) {
+        val playing = playing
+        if (playing == null) {
+            hushSettings.update(edit)
+        } else {
+            val next = edit(playing.asSettings())
+            hushSettings.update { next }
+            nightController.startHush(next.color, next.timer, next.volume)
+        }
+    }
 }
+
+/** The settings Hush is playing with, as a pick. */
+internal fun HushState.asSettings(): HushSettings = HushSettings(color, timer, volume)

@@ -210,7 +210,11 @@ internal fun TonightScreen(
     )
 
     when (val open = sheet) {
-        TonightSheet.Anchor -> AnchorSheet(onDrop = viewModel::onDropAnchor, onDismiss = { sheet = null })
+        // Says the same about the morning's alarm as the Night screen will; shown once the plan is read, so it never
+        // guesses (a restored sheet waits for Ready).
+        TonightSheet.Anchor -> (state as? TonightUiState.Ready)?.let { ready ->
+            AnchorSheet(alarm = ready.alarmCard.nightAlarm(), onDrop = viewModel::onDropAnchor, onDismiss = { sheet = null })
+        }
         is TonightSheet.OneOff -> oneOffContext?.let { context ->
             OneOffSheet(
                 context = context,

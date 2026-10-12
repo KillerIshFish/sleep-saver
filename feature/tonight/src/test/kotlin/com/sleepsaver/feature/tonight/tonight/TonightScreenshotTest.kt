@@ -11,6 +11,7 @@ import com.sleepsaver.core.domain.journal.Mark
 import com.sleepsaver.core.domain.journal.TomorrowList
 import com.sleepsaver.core.domain.schedule.AlarmMode
 import com.sleepsaver.core.domain.schedule.PlanPause
+import com.sleepsaver.core.domain.schedule.WeekPlan
 import com.sleepsaver.core.testing.PlanSamples
 import com.sleepsaver.core.testing.PlanSamples.NightVariant
 import com.sleepsaver.core.ui.platform.AlarmBlocker
@@ -150,7 +151,18 @@ class TonightScreenshotTest : ScreenshotTest() {
     @Test
     fun anchorSheet() = captureScreen("tonight_anchor_sheet") {
         SheetOver(screen = { Tonight(evening) }) {
-            AnchorSheetContent(wholeNightLog = false, onWholeNightLog = {}, onDrop = {})
+            AnchorSheetContent(alarm = evening.alarmCard.nightAlarm(), wholeNightLog = false, onWholeNightLog = {}, onDrop = {})
+        }
+    }
+
+    @Test
+    fun anchorSheetNoAlarm() {
+        val off = WeekPlan(s.week.days.map { it.copy(morning = it.morning.copy(alarm = it.morning.alarm.copy(mode = AlarmMode.OFF))) })
+        val noAlarm = s.ready(s.inputs(at(21, 45), week = off))
+        captureScreen("tonight_anchor_sheet_no_alarm") {
+            SheetOver(screen = { Tonight(noAlarm) }) {
+                AnchorSheetContent(alarm = noAlarm.alarmCard.nightAlarm(), wholeNightLog = false, onWholeNightLog = {}, onDrop = {})
+            }
         }
     }
 

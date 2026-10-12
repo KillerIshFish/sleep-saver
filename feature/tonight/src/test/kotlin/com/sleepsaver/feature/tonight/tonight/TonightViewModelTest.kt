@@ -2,6 +2,7 @@ package com.sleepsaver.feature.tonight.tonight
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import com.sleepsaver.core.data.repository.HushSettings
 import com.sleepsaver.core.data.repository.InsightsState
 import com.sleepsaver.core.data.repository.ScheduleRepository
 import com.sleepsaver.core.domain.alarm.EndedAlarms
@@ -57,6 +58,7 @@ class TonightViewModelTest {
             nightLog = fakes.nightLog,
             patterns = fakes.patterns,
             nightController = fakes.nightController,
+            hushSettings = fakes.hushSettings,
             settings = fakes.settings,
             time = fakes.time,
             writer = writer(),
@@ -248,6 +250,22 @@ class TonightViewModelTest {
             onHushPlay()
         }
         assertThat(noAlarm.nightController.nightControllerCalls).containsExactly("startHush(PINK, PT45M, 0.25)")
+    }
+
+    @Test
+    fun `hush shows and saves the pick every screen shares`() = runTest {
+        val fakes = TonightFakes(now = at(22, 0))
+        // White for 30 min at 40 %, picked earlier on Night steps or Night reset.
+        fakes.hushSettings.state.value = HushSettings(HushColor.WHITE, Duration.ofMinutes(30), 0.4f)
+        val viewModel = viewModel(fakes)
+
+        val hush = viewModel.ready().hush
+        assertThat(listOf(hush.color, hush.timer, hush.volume)).containsExactly(HushColor.WHITE, Duration.ofMinutes(30), 0.4f).inOrder()
+
+        viewModel.onHushColor(HushColor.BROWN)
+
+        assertThat(fakes.hushSettings.state.value).isEqualTo(HushSettings(HushColor.BROWN, Duration.ofMinutes(30), 0.4f))
+        assertThat(viewModel.ready().hush.color).isEqualTo(HushColor.BROWN)
     }
 
     // ---------------------------------------------------------------- Catnap
