@@ -436,6 +436,26 @@ class SleepViewModelTest {
     }
 
     @Test
+    fun `I'm up past bedtime ends night mode at once, until the next anchor, as on Tonight`() = runTest {
+        val late = SampleData.insights().schedule.targetBedtime + Duration.ofMinutes(20)
+        insights.mutableState.value = ready(SampleData.insights(now = late))
+        val vm = started()
+        // Past bedtime with no anchor: night.
+        assertThat(vm.ready().nightMode).isTrue()
+
+        night.clock = { late }
+        night.endNight()
+        assertThat(vm.ready().nightMode).isFalse()
+
+        val later = late + Duration.ofMinutes(30)
+        insights.mutableState.value = ready(SampleData.insights(now = later))
+        assertThat(vm.ready().nightMode).isFalse()
+        night.clock = { later }
+        night.dropAnchor(AnchorSource.TONIGHT, wholeNightLog = false)
+        assertThat(vm.ready().nightMode).isTrue()
+    }
+
+    @Test
     fun `a stopped morning alarm ends night mode at once, before the wake zone`() = runTest {
         // An early ring a few minutes before Wednesday's wake zone opens was stopped: the alarm left the upcoming list,
         // so only the wake zone would have ended the night.

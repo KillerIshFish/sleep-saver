@@ -72,6 +72,12 @@ data class NightState(
     val ringing: Ringing? = null,
     val snoozedUntil: Instant? = null,
     val testPendingAt: Instant? = null,
+    /**
+     * When "I'm up" ([NightController.endNight]) was last tapped in this process: NightRules.focus's `endedAt`, so it
+     * ends night mode on Tonight, Sleep home and Energy at once. Kept in memory only: after a restart the bedtime rule
+     * applies again.
+     */
+    val endedAt: Instant? = null,
 )
 
 /** The night state after Drop anchor. */
@@ -127,7 +133,7 @@ interface NightController {
     /** Within AnchorConfig.undoWindow: deletes the anchor and leaves the night state. */
     suspend fun undoAnchor(anchorId: Long)
 
-    /** "I'm up": ends the night state and the movement log (the alarm stays armed). */
+    /** "I'm up": ends the night state and the movement log (the alarm stays armed), and sets [NightState.endedAt]. */
     fun endNight()
 
     /** After the movement log stopped unexpectedly (UI tap only). */

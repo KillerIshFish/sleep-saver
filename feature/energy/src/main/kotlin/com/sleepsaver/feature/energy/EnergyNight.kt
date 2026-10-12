@@ -12,7 +12,9 @@ import java.time.LocalDate
  * with each night's bounds from the energy [schedule] and that morning's alarm ([NightRules.boundsFrom]).
  *
  * [morningStop] (this morning's planned alarm stopped or timed out) ends last night at once. [anchoredAt] is
- * `NightController.state.night?.anchoredAt`; it counts only for the night of its own wake date.
+ * `NightController.state.night?.anchoredAt`; it counts only for the night of its own wake date. [endedAt] is
+ * `NightController.state.endedAt`, the last "I'm up": it ends that night's no-clock time until the next anchor, as on
+ * Tonight.
  * Example: bedtime 23:00 and tomorrow's 6:45 alarm with a 30-min window → night from 23:00 (or Drop anchor) to 6:15.
  */
 internal fun isEnergyNight(
@@ -21,6 +23,7 @@ internal fun isEnergyNight(
     alarms: List<PlannedAlarm>,
     anchoredAt: Instant?,
     morningStop: Instant? = null,
+    endedAt: Instant? = null,
     config: SleepConfig = SleepConfig.DEFAULT,
 ): Boolean {
     val today = now.atZone(schedule.zone).toLocalDate()
@@ -34,6 +37,7 @@ internal fun isEnergyNight(
         tonight = bounds(today),
         morningStop = morningStop,
         anchoredAt = anchoredAt,
+        endedAt = endedAt,
         eveningStillYesterday = schedule.date < today,
         config = config,
     ).isNight

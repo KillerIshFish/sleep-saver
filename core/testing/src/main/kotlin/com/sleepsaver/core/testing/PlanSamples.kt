@@ -304,8 +304,9 @@ object PlanSamples {
 
     /**
      * This morning's planned 06:45 alarm, stopped 2 min after it rang. RESTLESS rang at 06:27 (18 min early);
-     * FIXED_TIME is a FIXED alarm (zero window); every other reason rang at the wake time. TEST and CATNAP_END give
-     * a TEST / NAP event instead (no occurrence id, zero window), as `lastTestRing` and the history expect.
+     * FIXED_TIME is a FIXED alarm (zero window); NEVER_RANG never rang (MISSED at the wake time: the phone was off);
+     * every other reason rang at the wake time. TEST and CATNAP_END give a TEST / NAP event instead (no occurrence id,
+     * zero window), as `lastTestRing` and the history expect.
      */
     fun alarmEvent(reason: RingReason = RingReason.RESTLESS, wakeDate: LocalDate = today): AlarmEvent {
         val target = at(wakeDate, wakeTime)
@@ -328,8 +329,8 @@ object PlanSamples {
             firstRingAt = firstRing,
             reason = reason,
             maxZ = if (reason == RingReason.RESTLESS) 3.4 else if (fixed) null else 1.6,
-            stoppedAt = firstRing + Duration.ofMinutes(2),
-            outcome = RingOutcome.STOPPED,
+            stoppedAt = if (reason == RingReason.NEVER_RANG) null else firstRing + Duration.ofMinutes(2),
+            outcome = if (reason == RingReason.NEVER_RANG) RingOutcome.MISSED else RingOutcome.STOPPED,
             sensingStart = if (fixed) null else target - Duration.ofMinutes(45),
             offset = zone.rules.getOffset(target),
         )

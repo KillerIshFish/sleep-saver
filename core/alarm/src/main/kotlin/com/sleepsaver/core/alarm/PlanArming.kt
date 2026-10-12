@@ -72,7 +72,7 @@ internal class PlanArming(private val config: SleepConfig = SleepConfig.DEFAULT)
         val extra = state.extra
         if (extra != null && extra.isPlanned && extra.occurrenceId !in plan.plannedIds) {
             val history = extra.event ?: extra.alarm?.let {
-                MirroredEvent.firstRing(extra.kind, extra.occurrenceId, it, extra.at, extra.ringReason)
+                MirroredEvent.neverRang(extra.kind, extra.occurrenceId, it, extra.at)
             }
             state = state.copy(extra = null)
             if (history != null) state = state.queueEvent(history.ended(RingOutcome.CANCELLED))

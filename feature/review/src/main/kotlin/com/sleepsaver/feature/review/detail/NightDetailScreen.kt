@@ -352,12 +352,24 @@ private fun FeelCard(state: NightDetailUiState, onFeel: (MorningFeel) -> Unit) {
     }
 }
 
-/** "Anchor dropped 10:58 PM · fell asleep about 15 min later · 91% of the time after it asleep" (missing parts left out). */
+/**
+ * "Anchor dropped 10:58 PM · fell asleep about 15 min later · 91% of the time after it asleep" (missing parts left out).
+ * A latency that rounds to zero (the watch saw sleep start at, or up to 30 min before, the anchor) reads "fell asleep
+ * right away", never "about 5 min later".
+ */
 @Composable
 private fun AnchorCard(stats: AnchorNightStats) {
     val parts = buildList {
         add(stringResource(R.string.review_anchor_dropped, clockTime(stats.anchor.at, stats.anchor.offset)))
-        stats.latencyShown?.let { add(stringResource(R.string.review_anchor_latency, formatAboutMinutes(it))) }
+        stats.latencyShown?.let { latency ->
+            add(
+                if (latency.isZero || latency.isNegative) {
+                    stringResource(R.string.review_anchor_latency_none)
+                } else {
+                    stringResource(R.string.review_anchor_latency, formatAboutMinutes(latency))
+                },
+            )
+        }
         stats.efficiency?.let { add(stringResource(R.string.review_anchor_efficiency, (it * 100).roundToInt())) }
     }
     val line = parts.reduce { text, part -> stringResource(R.string.review_joined, text, part) }.keepTimesTogether()

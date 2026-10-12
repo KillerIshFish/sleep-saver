@@ -221,6 +221,8 @@
     <string name="review_anchor_dropped">Anchor dropped %1$s</string>
     <!-- "fell asleep about 15 min later" -->
     <string name="review_anchor_latency">fell asleep %1$s later</string>
+    <!-- The watch saw sleep start at the anchor, or shortly before it. -->
+    <string name="review_anchor_latency_none">fell asleep right away</string>
     <!-- "91% of the time after it asleep" -->
     <string name="review_anchor_efficiency">%1$d%% of the time after it asleep</string>
 

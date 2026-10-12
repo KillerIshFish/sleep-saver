@@ -81,8 +81,8 @@ val SyncState.isSyncing: Boolean get() = status != SyncStatus.Idle
  * Builds [EnergyUiState.Ready] from the day's insights, the freshest nights from the sleep repository and the
  * current minute. Last night (the one ending on the schedule's day) comes from [nights] when it's there (it may
  * have synced after the insights were computed), otherwise from the insights. [alarms] (the upcoming planned alarms),
- * [anchoredAt] (the night state's anchor) and [morningStop] (this morning's planned alarm stopped or timed out) decide
- * night mode.
+ * [anchoredAt] (the night state's anchor), [morningStop] (this morning's planned alarm stopped or timed out) and
+ * [endedAt] (the night state's last "I'm up") decide night mode.
  */
 fun energyReadyState(
     insights: DailyInsights,
@@ -93,6 +93,7 @@ fun energyReadyState(
     alarms: List<PlannedAlarm> = emptyList(),
     anchoredAt: Instant? = null,
     morningStop: Instant? = null,
+    endedAt: Instant? = null,
 ): EnergyUiState.Ready {
     val today = insights.today
     val day = insights.schedule.date
@@ -121,6 +122,6 @@ fun energyReadyState(
         habits = habits,
         nextHabit = habits.firstOrNull { it.enabled && (it.windowEnd ?: it.time).isAfter(now) },
         syncing = syncing,
-        nightMode = isEnergyNight(insights.schedule, now, alarms, anchoredAt, morningStop),
+        nightMode = isEnergyNight(insights.schedule, now, alarms, anchoredAt, morningStop, endedAt),
     )
 }

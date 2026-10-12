@@ -57,7 +57,6 @@ class TonightViewModelTest {
             settings = fakes.settings,
             time = fakes.time,
             writer = writer(),
-            endedNights = fakes.endedNights,
         )
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         return viewModel
@@ -146,7 +145,7 @@ class TonightViewModelTest {
 
         assertThat(fakes.nightController.nightControllerCalls).contains("endNight")
         assertThat(viewModel.ready().phase).isNotEqualTo(TonightPhase.NIGHT)
-        assertThat(fakes.endedNights.endedAt.value).isEqualTo(at(23, 30))
+        assertThat(fakes.nightController.state.value.endedAt).isEqualTo(at(23, 30))
 
         fakes.time.advance(Duration.ofMinutes(10))
         viewModel.onDropAnchor(wholeNightLog = false)
@@ -163,7 +162,7 @@ class TonightViewModelTest {
 
         viewModel.onEndNight()
 
-        assertThat(fakes.endedNights.endedAt.value).isEqualTo(tap)
+        assertThat(fakes.nightController.state.value.endedAt).isEqualTo(tap)
         assertThat(viewModel.ready().phase).isNotEqualTo(TonightPhase.NIGHT)
         assertThat(viewModel.ready().night).isNull()
     }

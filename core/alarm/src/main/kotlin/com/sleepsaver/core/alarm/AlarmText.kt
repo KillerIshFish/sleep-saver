@@ -48,7 +48,8 @@ internal object AlarmText {
             } else {
                 context.getString(R.string.alarm_ring_restless, minutes(context, minutesEarly(ringing.since, target)), clock(target, zone, use24h))
             }
-            RingReason.DEADLINE, RingReason.PLACEMENT_FALLBACK, RingReason.SENSING_UNAVAILABLE, RingReason.FIXED_TIME ->
+            // NEVER_RANG never sounds; read it as the wake time.
+            RingReason.DEADLINE, RingReason.PLACEMENT_FALLBACK, RingReason.SENSING_UNAVAILABLE, RingReason.FIXED_TIME, RingReason.NEVER_RANG ->
                 context.getString(R.string.alarm_ring_wake_time)
             RingReason.SNOOZE_END -> context.getString(R.string.alarm_ring_snooze_over)
             RingReason.CATNAP_END -> context.getString(R.string.alarm_ring_catnap)

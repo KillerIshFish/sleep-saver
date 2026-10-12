@@ -50,9 +50,11 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
      *     later it is TIMED_OUT (MISSED for the backup), handled, and a planned ring gets its one backup ring, unless
      *     that backup is already more than missedGrace overdue: then it is MISSED with no backup.
      *  3. `extra` / `catnap`: a future ring is re-asserted; one passed by at most missedGrace rings now (a planned one
-     *     later than extraMatchTolerance reads CATCH_UP); an older one is dropped, a planned one as MISSED + handled.
+     *     later than extraMatchTolerance reads CATCH_UP); an older one is dropped, a planned one as MISSED + handled
+     *     (reason NEVER_RANG when the occurrence had not rung yet).
      *  4. `armed` with a past target: when its id isn't excluded (handled, sounding, or a pending planned ring) it
-     *     catches up within missedGrace, else it is MISSED + handled. Then the next `upcoming` alarm is promoted.
+     *     catches up within missedGrace, else it is MISSED (reason NEVER_RANG) + handled. Then the next `upcoming`
+     *     alarm is promoted.
      *  5. `night` past its end is cleared (its movement log closes once unlocked, and a NightService still logging it
      *     stops); `hush` without a live NightService is cleared (Hush never restarts by itself).
      */
@@ -124,7 +126,7 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
                     actions += AlarmAction.Cancel(PendingAlarm.RING_EXTRA)
                     if (extra.isPlanned) {
                         val history = extra.event
-                            ?: extra.alarm?.let { MirroredEvent.firstRing(RingKind.PLANNED, extra.occurrenceId, it, extra.at, extra.ringReason) }
+                            ?: extra.alarm?.let { MirroredEvent.neverRang(RingKind.PLANNED, extra.occurrenceId, it, extra.at) }
                         if (history != null) m = m.queueEvent(history.ended(RingOutcome.MISSED))
                         m = m.handle(extra.occurrenceId, cfg.handledIdsKept)
                     }
@@ -165,7 +167,7 @@ internal class MirrorReconciler(private val config: SleepConfig = SleepConfig.DE
                     )
                     actions += AlarmAction.ArmExtra(at)
                 } else {
-                    val missed = MirroredEvent.firstRing(RingKind.PLANNED, armed.occurrenceId, armed, armed.target, transitions.plannedReason(armed))
+                    val missed = MirroredEvent.neverRang(RingKind.PLANNED, armed.occurrenceId, armed, armed.target)
                     m = m.queueEvent(missed.ended(RingOutcome.MISSED)).handle(armed.occurrenceId, cfg.handledIdsKept)
                 }
             }

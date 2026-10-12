@@ -91,7 +91,7 @@ class WeekPlanViewModelTest {
 
         // The last tick came at 23:30:00; the tap is 45 s later, before the 23:31 tick.
         fakes.time.now = at(23, 30).plusSeconds(45)
-        fakes.endedNights.endedNow(fakes.time.now())
+        fakes.nightController.endNight() // "I'm up" on Tonight: NightState.endedAt = the tap
 
         assertThat(viewModel.ready().night).isFalse()
     }

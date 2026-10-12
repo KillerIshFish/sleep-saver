@@ -10,7 +10,7 @@ import java.time.ZoneOffset
 /** What rang: a planned morning alarm, a Catnap, or "Test ring in 1 minute". */
 enum class RingKind { PLANNED, NAP, TEST }
 
-/** Why a ring started. */
+/** Why a ring started ([NEVER_RANG]: it never did). */
 enum class RingReason {
     /** Surfacing: a restless moment inside the window. */
     RESTLESS,
@@ -36,6 +36,12 @@ enum class RingReason {
 
     /** The one backup ring after an unanswered one. */
     BACKUP,
+
+    /**
+     * No ring at all: the occurrence was MISSED (the phone was off, or the app dead, past missedGrace) or CANCELLED
+     * (switched off) before its first ring. Its firstRingAt is when that ring was due.
+     */
+    NEVER_RANG,
 }
 
 /** How an occurrence ended: Stop, auto-silenced, never rang (MISSED), or switched off before it rang. */
@@ -78,4 +84,7 @@ data class AlarmEvent(
 ) {
     /** How long before the wake time it first rang (zero at or after it). */
     val earlyBy: Duration get() = maxOf(Duration.ZERO, Duration.between(firstRingAt, target))
+
+    /** False for an occurrence recorded without ever ringing ([RingReason.NEVER_RANG]). */
+    val rang: Boolean get() = reason != RingReason.NEVER_RANG
 }

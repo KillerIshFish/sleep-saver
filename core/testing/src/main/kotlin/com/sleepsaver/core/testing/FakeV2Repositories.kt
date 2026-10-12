@@ -551,7 +551,7 @@ class FakeNightController(
 
     override fun endNight() {
         nightControllerCalls += "endNight"
-        mutableState.update { it.copy(night = null, sensing = null) }
+        mutableState.update { it.copy(night = null, sensing = null, endedAt = clock()) }
     }
 
     override fun resumeMovementLog() {
