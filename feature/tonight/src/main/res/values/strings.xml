@@ -153,7 +153,9 @@
     <string name="tonight_night_cant_sleep">Can\'t sleep?</string>
     <string name="tonight_night_up">I\'m up</string>
     <string name="tonight_night_end_title">End the night?</string>
+    <!-- The "End the night?" body when the morning has an alarm; the _no_alarm one when it has none. -->
     <string name="tonight_night_end_body">Your alarm stays set.</string>
+    <string name="tonight_night_end_body_no_alarm">There\'s no alarm set for the morning.</string>
     <string name="tonight_night_end_confirm">End night</string>
     <string name="tonight_night_end_cancel">Not yet</string>
 

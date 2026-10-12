@@ -335,6 +335,11 @@ class TonightContentTest {
 
         compose.onNodeWithText("No alarm in the morning").assertExists()
         assertNoClock(null)
+
+        // "I'm up" doesn't promise an alarm the morning doesn't have.
+        tap("I'm up")
+        compose.onNodeWithText("There's no alarm set for the morning.").assertExists()
+        compose.onNodeWithText("Your alarm stays set.").assertDoesNotExist()
     }
 
     @Test
