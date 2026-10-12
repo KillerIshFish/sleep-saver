@@ -2,13 +2,10 @@ package com.sleepsaver.feature.tonight
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import com.sleepsaver.core.domain.config.SleepConfig
-import com.sleepsaver.core.domain.schedule.EveningPlan
 import com.sleepsaver.core.ui.format.clockTime
 import com.sleepsaver.core.ui.format.formatDayShort
 import com.sleepsaver.core.ui.format.keepTimesTogether
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.TextStyle
@@ -41,14 +38,6 @@ internal fun formatHoursSpaced(duration: Duration): String {
         else -> "$h h $m m"
     }
 }
-
-/**
- * Where an evening's Night steps start for [bedtime]: the wind-down phase start, `B − melatoninHalfWidth − length`
- * with the evening's length clamped to `week.windDownMinLength..windDownMaxLength` (as EnergyScheduleCalculator
- * places the phase). For rows that show an evening the schedule hasn't computed (the week plan, the day plan).
- */
-internal fun nightStepsFrom(bedtime: Instant, evening: EveningPlan, config: SleepConfig = SleepConfig.DEFAULT): Instant =
-    bedtime - config.melatoninHalfWidth - evening.windDownLength.coerceIn(config.week.windDownMinLength, config.week.windDownMaxLength)
 
 /** This time rounded to the nearest [step] (half up), wrapping past midnight: 7:03 → 7:05 for 5-minute steps. */
 internal fun LocalTime.roundTo(step: Duration): LocalTime {
